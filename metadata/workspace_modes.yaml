@@ -14,6 +14,7 @@
     "transient_native_b_to_resident_a_rns_output",
     "resident_rns_inputs_skinny_n1_output",
     "resident_rns_inputs_skinny_n_le8_output",
-    "residue_channel_width3_native_inputs_to_resident_rns_output"
+    "residue_channel_width3_native_inputs_to_resident_rns_output",
+    "cpu_amx_per_worker_tiles_cached_b_transactional_output"
   ]
 }

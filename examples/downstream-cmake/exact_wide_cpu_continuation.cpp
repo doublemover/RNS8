@@ -1,3 +1,6 @@
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+#include "host_runtime_witness.hpp"
+#endif
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -8,10 +11,11 @@
 #include "noninteractive_errors.hpp"
 
 namespace {
-using Limbs = std::array<uint64_t, 3>;  // Least-significant 64-bit limb first.
+using Limbs = std::array<uint64_t, 3>; // Least-significant 64-bit limb first.
 
 void require(bool condition, const char* message) {
-  if (!condition) throw std::runtime_error(message);
+  if (!condition)
+    throw std::runtime_error(message);
 }
 
 rns8_gemm_desc scalar_gemm(rns8_semantics semantics, uint32_t ceiling) {
@@ -41,8 +45,10 @@ rns8_matrix_desc scalar_matrix(rns8_semantics semantics, uint32_t ceiling) {
 rns8_status export_status(rns8::Context& ctx, const rns8::Plan& plan, const rns8::Matrix& matrix,
                           rns8_semantics semantics, Limbs& limbs) {
   return semantics == RNS8_EXACT_WIDE_SIGNED
-             ? rns8_export_exact_wide_signed_limbs(ctx.get(), plan.get(), matrix.get(), limbs.data(), 1, 3)
-             : rns8_export_exact_wide_unsigned_limbs(ctx.get(), plan.get(), matrix.get(), limbs.data(), 1, 3);
+             ? rns8_export_exact_wide_signed_limbs(ctx.get(), plan.get(), matrix.get(),
+                                                   limbs.data(), 1, 3)
+             : rns8_export_exact_wide_unsigned_limbs(ctx.get(), plan.get(), matrix.get(),
+                                                     limbs.data(), 1, 3);
 }
 
 Limbs export_limbs(rns8::Context& ctx, const rns8::Plan& plan, const rns8::Matrix& matrix,
@@ -55,7 +61,8 @@ Limbs export_limbs(rns8::Context& ctx, const rns8::Plan& plan, const rns8::Matri
 void check_storage(const rns8::Matrix& matrix, const rns8_matrix_storage_info& before) {
   const auto after = matrix.storage_info();
   require(after.matrix_instance_id == before.matrix_instance_id &&
-              after.source_version == before.source_version && after.max_prefix == before.max_prefix &&
+              after.source_version == before.source_version &&
+              after.max_prefix == before.max_prefix &&
               after.host_residue_bytes == before.host_residue_bytes &&
               after.host_native_bytes == before.host_native_bytes &&
               after.host_residues_current == before.host_residues_current &&
@@ -66,13 +73,14 @@ void check_storage(const rns8::Matrix& matrix, const rns8_matrix_storage_info& b
 void continuation(rns8_semantics semantics) {
   constexpr uint32_t ceiling = RNS8_MAX_SUPPORTED_PREFIX;
   const bool signed_values = semantics == RNS8_EXACT_WIDE_SIGNED;
-  const uint32_t expected_prefix = signed_values ? 19 : 20;  // Current default modulus ladder.
+  const uint32_t expected_prefix = signed_values ? 19 : 20; // Current default modulus ladder.
   rns8::Context ctx(-1, RNS8_BACKEND_CPU_REFERENCE);
   auto desc = scalar_gemm(semantics, ceiling);
   rns8::Plan plan(ctx, desc);
   rns8::Workspace workspace(ctx, plan);
   const uint32_t floor = plan.schedule_info().min_selected_prefix;
-  require(floor < expected_prefix && expected_prefix <= ceiling, "example needs room above the plan floor");
+  require(floor < expected_prefix && expected_prefix <= ceiling,
+          "example needs room above the plan floor");
 
   const auto matrix_desc = scalar_matrix(semantics, ceiling);
   rns8::Matrix native(ctx, matrix_desc), scale(ctx, matrix_desc);
@@ -89,22 +97,24 @@ void continuation(rns8_semantics semantics) {
     rns8::check(rns8_pack_u64(ctx.get(), c.get(), &sentinel, 1, 99));
   }
   // Public GEMM creates values wider than 64 bits, initialized at the plan floor.
-  rns8::check(rns8_gemm_rns(ctx.get(), plan.get(), native.get(), scale.get(), a.get(), workspace.get()));
-  rns8::check(rns8_gemm_rns(ctx.get(), plan.get(), native.get(), scale.get(), b.get(), workspace.get()));
+  rns8::check(
+      rns8_gemm_rns(ctx.get(), plan.get(), native.get(), scale.get(), a.get(), workspace.get()));
+  rns8::check(
+      rns8_gemm_rns(ctx.get(), plan.get(), native.get(), scale.get(), b.get(), workspace.get()));
   const Limbs wide_value = signed_values ? Limbs{0, UINT64_C(0xfffffffffffffe00), UINT64_MAX}
                                          : Limbs{UINT64_C(0xfffffffffffffc00), 1023, 0};
-  const Limbs expected_product = signed_values
-                                     ? Limbs{0, 0, UINT64_C(1) << 18}  // (-2^73)^2 = 2^146.
-                                     : Limbs{UINT64_C(1) << 20, UINT64_C(0xffffffffffe00000), 1048575};
+  const Limbs expected_product =
+      signed_values ? Limbs{0, 0, UINT64_C(1) << 18} // (-2^73)^2 = 2^146.
+                    : Limbs{UINT64_C(1) << 20, UINT64_C(0xffffffffffe00000), 1048575};
   require(export_limbs(ctx, plan, a, semantics) == wide_value &&
               export_limbs(ctx, plan, b, semantics) == wide_value,
           "native-to-wide input mismatch");
   const auto before_a = a.storage_info(), before_b = b.storage_info(), before_c = c.storage_info();
 
   // Ordinary GEMM preserves its original range contract; continuation is opt-in.
-  require(
-      rns8_gemm_rns(ctx.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get()) == RNS8_RANGE_ERROR,
-      "ordinary GEMM unexpectedly admitted the wider product");
+  require(rns8_gemm_rns(ctx.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get()) ==
+              RNS8_RANGE_ERROR,
+          "ordinary GEMM unexpectedly admitted the wider product");
 
   // Two distinct scalar input suffixes plus every selected output plane.
   // General payload: sum(input_cells * missing_planes) + output_cells * selected.
@@ -112,8 +122,8 @@ void continuation(rns8_semantics semantics) {
   const uint64_t budget = 2 * uint64_t(expected_prefix - floor) + expected_prefix;
   for (unsigned repeat = 0; repeat < 2; ++repeat) {
     uint32_t selected = 777;
-    const auto status = rns8_gemm_exact_wide_cpu_auto(ctx.get(), plan.get(), a.get(), b.get(), c.get(),
-                                                      workspace.get(), budget - 1, &selected);
+    const auto status = rns8_gemm_exact_wide_cpu_auto(
+        ctx.get(), plan.get(), a.get(), b.get(), c.get(), workspace.get(), budget - 1, &selected);
     require(status == RNS8_WORKSPACE_TOO_SMALL && selected == 777,
             "budget error or selected-prefix rollback");
     require(export_limbs(ctx, plan, a, semantics) == wide_value &&
@@ -141,7 +151,8 @@ void continuation(rns8_semantics semantics) {
   export_desc.max_prefix = selected;
   export_desc.flags = RNS8_PLAN_FORCE_FIXED_PREFIX;
   rns8::Plan exporter(ctx, export_desc);
-  require(export_limbs(ctx, exporter, c, semantics) == expected_product, "wide product limb mismatch");
+  require(export_limbs(ctx, exporter, c, semantics) == expected_product,
+          "wide product limb mismatch");
   require(export_limbs(ctx, exporter, a, semantics) == wide_value &&
               export_limbs(ctx, exporter, b, semantics) == wide_value,
           "lifting changed input integers");
@@ -152,15 +163,23 @@ void continuation(rns8_semantics semantics) {
               export_limbs(ctx, exporter, c, semantics) == expected_product &&
               plan.schedule_info().min_selected_prefix == floor,
           "resident reuse or original plan preservation failed");
-  std::cout << (signed_values ? "signed" : "unsigned") << ": floor=" << floor << " selected=" << selected
-            << " budget=" << budget << " rejected_budget=" << budget - 1 << " reuse_budget=" << reuse_budget
-            << " rollback=PASS original_export=RANGE_ERROR limbs_le64=0x" << std::hex << expected_product[0]
-            << ",0x" << expected_product[1] << ",0x" << expected_product[2] << std::dec << '\n';
+  std::cout << (signed_values ? "signed" : "unsigned") << ": floor=" << floor
+            << " selected=" << selected << " budget=" << budget << " rejected_budget=" << budget - 1
+            << " reuse_budget=" << reuse_budget
+            << " rollback=PASS original_export=RANGE_ERROR limbs_le64=0x" << std::hex
+            << expected_product[0] << ",0x" << expected_product[1] << ",0x" << expected_product[2]
+            << std::dec << '\n';
 }
-}  // namespace
+} // namespace
 
-int main() {
+int main(int argc, char** argv) {
   rns8_example::configure_noninteractive_errors();
+#if defined(RNS8_ENABLE_HOST_RUNTIME_WITNESS)
+  rns8::test::HostRuntimeWitness witness(argc, argv);
+#else
+  (void)argc;
+  (void)argv;
+#endif
   try {
     continuation(RNS8_EXACT_WIDE_SIGNED);
     continuation(RNS8_EXACT_WIDE_UNSIGNED);

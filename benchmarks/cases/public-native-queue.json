@@ -1,0 +1,2911 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "public-native-queue",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "mode", "input_policy", "encoded_b", "schedule", "chunk", "workers", "reuse", "warmups", "repeats", "seed", "padding", "tasks", "locality_order"],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "schedule": 0,
+        "chunk": 4,
+        "workers": 8,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [
+              ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+            ],
+            "defaults": {
+              "prefix": 3
+            },
+            "rows": [
+              [0, 16, 17, 257, 1, false, 0],
+              [0, 17, 17, 257, 4, false, 0],
+              [0, 2, 19, 17, 2, true, 1]
+            ]
+          }
+        }
+      },
+      "columns": ["mode", "input_policy", "encoded_b", "locality_order"],
+      "rows": [
+        ["locality-graph-encoded-mutated-b-modulus.json", "ef52630ee7bb7913baa802da5e707061550973578326a7227f96849d3a36bff2", "graph", "mutated-b", true, "modulus"],
+        ["locality-graph-encoded-mutated-b-ordinary.json", "e42cbf3e8358b79e7e354d5f8fddb1e6a850fb7abd55c13f49bbd3ddf91326f0", "graph", "mutated-b", true, "ordinary"],
+        ["locality-graph-encoded-mutated-b-output-neighbor.json", "6a7c473589c939166e24561d14c65a2b322f3748e999e02656cbe5bb782d8023", "graph", "mutated-b", true, "output-neighbor"],
+        ["locality-graph-encoded-mutated-b-same-output.json", "4ab184e9664a29e5c03aa47caeaaab451cb93d7cca1bb2553eac61f61155edd0", "graph", "mutated-b", true, "same-output"],
+        ["locality-graph-encoded-resident-modulus.json", "a6282a965aa2fcb014bec52f6153dc73f29427dad7758af4130987640ed1ffab", "graph", "resident", true, "modulus"],
+        ["locality-graph-encoded-resident-ordinary.json", "17535ab637dbf59611274ad3e80d03770e4593e4d35aabd6deb17967d233f1e5", "graph", "resident", true, "ordinary"],
+        ["locality-graph-encoded-resident-output-neighbor.json", "7926c106c975f2892234f92a9cacbd98e4a22d74af9884d585fe5b3d90f4866e", "graph", "resident", true, "output-neighbor"],
+        ["locality-graph-encoded-resident-same-output.json", "3d3d972c05ae5a74b2365b0ea487b4ab645f477ab762e8f6dad9813030f85c5e", "graph", "resident", true, "same-output"],
+        ["locality-graph-raw-mutated-b-modulus.json", "4121e5c3162541f7ac1472dddf75b1715eda99262050577eb65e194a4249af31", "graph", "mutated-b", false, "modulus"],
+        ["locality-graph-raw-mutated-b-ordinary.json", "0b9344ae63014b897d56a89657b2a261b9bb089c8294bcfba33ebbe39a50f12b", "graph", "mutated-b", false, "ordinary"],
+        ["locality-graph-raw-mutated-b-output-neighbor.json", "0a461be975985866ee3987eedc4d546a6c678814d68db01a865ae559ca36a212", "graph", "mutated-b", false, "output-neighbor"],
+        ["locality-graph-raw-mutated-b-same-output.json", "9c4c1aa16d5eb984619b3ed214a638cee41810161c24991b79ca5ef8cb57b4f8", "graph", "mutated-b", false, "same-output"],
+        ["locality-graph-raw-resident-modulus.json", "c29b41edd321bea1e254957268659c40b977563d7f925a6e2a632cb62bcf85c0", "graph", "resident", false, "modulus"],
+        ["locality-graph-raw-resident-ordinary.json", "c82f5d3910dc5eb331608f9fc50c61b786e7fa5d20c2c6e4648b194f8960fd30", "graph", "resident", false, "ordinary"],
+        ["locality-graph-raw-resident-output-neighbor.json", "e4dbd3a57edac2eb76f5e37519fad8949b900f7e9d074dc88b1989d68a9b4259", "graph", "resident", false, "output-neighbor"],
+        ["locality-graph-raw-resident-same-output.json", "f76a92e0014a9ac7dd4b2bdf5fab7697c8d5672b60270cdceae8829145a5936a", "graph", "resident", false, "same-output"],
+        ["locality-persistent-encoded-mutated-b-modulus.json", "a88e7024ae4782180d1725e1a7b562316ea15ef8896ae1537efe50f7f0cd86a1", "persistent", "mutated-b", true, "modulus"],
+        ["locality-persistent-encoded-mutated-b-ordinary.json", "6e44a96b0e0216db18e9c77b54b8bc9440303208a214b31fecc66f8a25052174", "persistent", "mutated-b", true, "ordinary"],
+        ["locality-persistent-encoded-mutated-b-output-neighbor.json", "ee894eeae8159984c8f4d2fbabe60a6089d6dab2c745e2488032b72d5c36cc5f", "persistent", "mutated-b", true, "output-neighbor"],
+        ["locality-persistent-encoded-mutated-b-same-output.json", "559979f0683eecd76af95d6b76521ea4f0a6d75db06231e774561b32c9228778", "persistent", "mutated-b", true, "same-output"],
+        ["locality-persistent-encoded-resident-modulus.json", "c3c55d27ca0382e0303b0b125df3adb0fb34683fd18174d8ba04dbdc4c1261cc", "persistent", "resident", true, "modulus"],
+        ["locality-persistent-encoded-resident-ordinary.json", "f008b289bdb94c81c35a7608d8edc3af6ceb03a72535e4dcfa4c57a79eb6b06b", "persistent", "resident", true, "ordinary"],
+        ["locality-persistent-encoded-resident-output-neighbor.json", "1ebe4ea8771a2e715bd90ff25e1b48a2f146d5457cfddc9ac934b905b809d81a", "persistent", "resident", true, "output-neighbor"],
+        ["locality-persistent-encoded-resident-same-output.json", "6108b8eb0f0af61828b272e97dc0b61767a854971f3f78210a3b88d0ad154bc7", "persistent", "resident", true, "same-output"],
+        ["locality-persistent-raw-mutated-b-modulus.json", "8b978e47f58cb4381e5033100647e896f4295c5ea5d2369ce5b703b769db36e6", "persistent", "mutated-b", false, "modulus"],
+        ["locality-persistent-raw-mutated-b-ordinary.json", "cec2dbda98e7a3b5a2a0e867a68db780ad4446997d62a541dd5934797e564373", "persistent", "mutated-b", false, "ordinary"],
+        ["locality-persistent-raw-mutated-b-output-neighbor.json", "32302ac0e6da0191108ecf70393937a483f1f5f53322451948b47816a037c870", "persistent", "mutated-b", false, "output-neighbor"],
+        ["locality-persistent-raw-mutated-b-same-output.json", "c5ef4c3449049b20c8be54af1e1dbb2dfe55793f3e2e987bb0e49a93cb437f1d", "persistent", "mutated-b", false, "same-output"],
+        ["locality-persistent-raw-resident-modulus.json", "b60b92739d49ab5fda4e65b921f37c29f1233055ff13852057fcbc65a9866234", "persistent", "resident", false, "modulus"],
+        ["locality-persistent-raw-resident-ordinary.json", "490bbc7bf39ab7d61b510befd78263d4896ad97b7607ba9e3749bbcb42af7743", "persistent", "resident", false, "ordinary"],
+        ["locality-persistent-raw-resident-output-neighbor.json", "ba25483c4c5225d545389e6a7eadab707a7b9a551bf548fe37763f58f7f9fd9f", "persistent", "resident", false, "output-neighbor"],
+        ["locality-persistent-raw-resident-same-output.json", "43a553139478a29ab5fb743fa8b42c0e4f05ea28b8ceaa17b42302e72426fccd", "persistent", "resident", false, "same-output"]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": ["schema", "mode", "input_policy", "encoded_b", "schedule", "chunk", "workers", "reuse", "warmups", "repeats", "seed", "padding", "tasks"],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "chunk": 4,
+        "workers": 8,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3
+      },
+      "columns": ["mode", "input_policy", "encoded_b", "schedule", "reuse", "tasks"],
+      "rows": [
+        [
+          "skewed-shared-graph-encoded-reuse1-mutated-b.json",
+          "78b156bcbc839dcddafefe29500f365185521afb9716c892c9031e3dacbc1987",
+          "graph",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-encoded-reuse1-resident.json",
+          "11c5a15df83b75a994d21625eaf96dd6ce4f009f254405562710c234e0102518",
+          "graph",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-encoded-reuse4-mutated-b.json",
+          "82f28b9033e274171fbc84c213f735762b0d6c3631745f6edb7d22a6e8b0ca72",
+          "graph",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-encoded-reuse4-resident.json",
+          "331534f1001e26d6ee59398ef266f6e6fd48650d575bac5b8bb6d3441c2d1a0a",
+          "graph",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-raw-reuse1-mutated-b.json",
+          "7d688a8df58e6fc2f31209104bfdb29eb48f854c2bb686cf1f382eec225ee4eb",
+          "graph",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-raw-reuse1-resident.json",
+          "8a73e995de485dce75faaaf3208f03b28544f21924d2e58222a2e3f633076962",
+          "graph",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-raw-reuse4-mutated-b.json",
+          "c9a5858af84e2b2d2346f5ce234632ef48bcc72422713d4897c0bd0c275d2d9d",
+          "graph",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-graph-raw-reuse4-resident.json",
+          "9af4b8fa7e22177582378955eaab45f51a88f335cb8853c7e3784a9f0246384d",
+          "graph",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-encoded-reuse1-mutated-b.json",
+          "4175473e532e7f10c4eaedd060957b4ffbdacc61ad9dc7a8ba6780df544a4f43",
+          "ordinary",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-encoded-reuse1-resident.json",
+          "ecb86fc9fd7769ab745d2076d108e0e0e58ab0446472024b5741459e08cbf9fa",
+          "ordinary",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-encoded-reuse4-mutated-b.json",
+          "51ccab15c2370ed49affe4ab373da4e5be01f23dcf2ed7ea817bf4b182922614",
+          "ordinary",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-encoded-reuse4-resident.json",
+          "9447bb03c5e60ff8c7a5fe09fb82958ed45d718e321eb09a69f553220f19df06",
+          "ordinary",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-raw-reuse1-mutated-b.json",
+          "39c6a799b5b6de2094e43da369c2ae6e2edd692f3d57e77f0c0b411dff8cdf51",
+          "ordinary",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-raw-reuse1-resident.json",
+          "d3a192baa65d1ba9556181ea3fc1cded1c3497454ea2d1e35c9cc132c20a2a8e",
+          "ordinary",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-raw-reuse4-mutated-b.json",
+          "2bc66354de8ae6c731a0d794188bfacba97213481ffcba8c573547866a8c3207",
+          "ordinary",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-ordinary-raw-reuse4-resident.json",
+          "e57948afea5106cc8cfe937a5e1f73144d13c3d1d079116a4d4e3bfa21ce7a9d",
+          "ordinary",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-encoded-reuse1-mutated-b.json",
+          "67bac183bca335e8143309d8c8801af00e75b858041eaddcbd4f31569dc3e20f",
+          "persistent",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-encoded-reuse1-resident.json",
+          "0f35898f05c345b8619f46072e80e07483493459741deac3e0788b26bbd48330",
+          "persistent",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-encoded-reuse4-mutated-b.json",
+          "c06fe6398ff5f47e92dd0cc82ad05f074709a567d8b1acd08fc9755bc05acf53",
+          "persistent",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-encoded-reuse4-resident.json",
+          "67795ba07ea3d76e598b306c7549aee17218b55046cdcc479232fd3e5688d541",
+          "persistent",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-raw-reuse1-mutated-b.json",
+          "a13ddfa5f2c681c8c67ca5d1b4eab3df51f33dcd6c0454c608920991447be255",
+          "persistent",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-raw-reuse1-resident.json",
+          "e1b09a2178ccda3922425ac2077d674bc8a843df2ce4a59901ba3e11cc34be33",
+          "persistent",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-raw-reuse4-mutated-b.json",
+          "7d8f4d3056c51fe7cc9ac6bf74a132ba52f8d9b2ea87d0e4874d84fa04459990",
+          "persistent",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-persistent-raw-reuse4-resident.json",
+          "2a5b7eb5f0c65e695ddc4aaa4e5633490d39595181a6ec401fd4772c535b9530",
+          "persistent",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-resident-raw-reuse1-mutated-b.json",
+          "f7a91ad8a648a0905a13eab4e9285d7a670b2bf7fe310b5b57674de0b69a3b10",
+          "resident",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-resident-raw-reuse1-resident.json",
+          "4a35024cd456fe6de0278d6d3d75f52839acf2b4616cc3e567d5e5eb1b1ea2df",
+          "resident",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-resident-raw-reuse4-mutated-b.json",
+          "020afdb0337e3e447c438307ef923f9ff0fc0fcc29c660aecff20ef2cc72ff4b",
+          "resident",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "skewed-shared-resident-raw-reuse4-resident.json",
+          "155969bcad93b244da6da0f9f016a73387e837e07d478ef7dd9a941a4657781c",
+          "resident",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 1, 19, 17, 1, false, 0],
+                [0, 129, 19, 17, 4, false, 0],
+                [0, 17, 7, 257, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-graph-encoded-reuse1-resident.json",
+          "1b0e81aa3ce2311ed472f5cd3cd0635c0a67c692e2f7f1f6d81d62c8d6a62156",
+          "graph",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-graph-raw-reuse1-resident.json",
+          "8e65dab91429b2f879c75d3d919aaf61a934bcc073ccd5aac632bb6f09f08018",
+          "graph",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-ordinary-encoded-reuse1-resident.json",
+          "b8a5f442c887d80b63564e1b7ffb3ca0528fe6decc565248786b7c8df22ee63c",
+          "ordinary",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-ordinary-raw-reuse1-resident.json",
+          "ed78d29cb4d72774cf12be40081c398e478037bcfc215b55a1c61d89c8e9840a",
+          "ordinary",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-persistent-encoded-reuse1-resident.json",
+          "dc33bbf2bc982220e6ad0bb356c76b3b3c379925c55234da0c31aebd11ac52ae",
+          "persistent",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-persistent-raw-reuse1-resident.json",
+          "325e27fbf84d503767602b8f76c9132b06e764fbf206728bf4be054cf355d228",
+          "persistent",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "slab-tail-resident-raw-reuse1-resident.json",
+          "241ea14bb50f2541dc2782de0818e9452c05db35a250ddf56338025ead9bf282",
+          "resident",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "n": 3,
+                "k": 65537,
+                "prefix": 9,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                [0, 1, 1],
+                [0, 2, 4]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-encoded-reuse1-mutated-b.json",
+          "31bb9fe1f960855f0a9a7fa502bd3b9d36a9aa7b12fac98229f681f656a430d3",
+          "graph",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-encoded-reuse1-resident.json",
+          "92ee21ec9c959d9a715fa79a8bc9837352bc15c01a66e8f59ce32abe82de60e0",
+          "graph",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-encoded-reuse4-mutated-b.json",
+          "78cbf0504515b3773cbc43226d6d2426e0b8fa8e63d5061844e18a72804934a7",
+          "graph",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-encoded-reuse4-resident.json",
+          "25f22745bfe63d8b0a87ed1a767e29defd72b77845a4337897f8ad75bd7dd97a",
+          "graph",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-raw-reuse1-mutated-b.json",
+          "07c39b307f738e2f3d96c0d53b1707c50814130fd191c8304d3b820501049113",
+          "graph",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-raw-reuse1-resident.json",
+          "aa3d6dd7de31b97f995738bd8adc17e4514e5e3b60204ba3a668fe18c92d77cc",
+          "graph",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-raw-reuse4-mutated-b.json",
+          "0ebbd2eea133fca866a6abda14ba608ecf2dbb8aa5ec84926f19b868586371da",
+          "graph",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-graph-raw-reuse4-resident.json",
+          "44b01e09fa95567025b88280547d7b799ae6e3798a1fdf5329b4e0d0c14a44de",
+          "graph",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-encoded-reuse1-mutated-b.json",
+          "6a5442dba22601b47f35ded3c7727541619871ebb6807b46e5bf50269eceff05",
+          "ordinary",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-encoded-reuse1-resident.json",
+          "7ee68969f1b8574b47daf50449fa0be1da2f1fc725d1bacb1c25e062de12ee19",
+          "ordinary",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-encoded-reuse4-mutated-b.json",
+          "d57fd6f9a29e84616402df0a7b48afbd801bd3fa3c844c8517196295e05316ad",
+          "ordinary",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-encoded-reuse4-resident.json",
+          "68c8d8dc1accc43641779ca2613c46011cf0c9f8cbe0895bd361d6558c049724",
+          "ordinary",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-raw-reuse1-mutated-b.json",
+          "346d320091f694bbd3bcacf27696bc3a2ba5264f914256976f32fc728978736d",
+          "ordinary",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-raw-reuse1-resident.json",
+          "b63ed6419cbb9b64f7213a77b5e67352d353520848d6c4d3be19ea32878a0c68",
+          "ordinary",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-raw-reuse4-mutated-b.json",
+          "cac3538df37bd46484eff46b8b1972ae24797df86976347b058ea477b9b78351",
+          "ordinary",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-ordinary-raw-reuse4-resident.json",
+          "042265ec3fcd6588df87514670b69cb20ddac02001480b21702f2911b0cea522",
+          "ordinary",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-encoded-reuse1-mutated-b.json",
+          "9500096b45c5e2d900549b38820c2720ac9e049f91cc043b83e7624c1ce17b23",
+          "persistent",
+          "mutated-b",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-encoded-reuse1-resident.json",
+          "d1a03c51db943965eccef9c7cbf99a8ae01d9a47e671d2ce0b6bf09c33645003",
+          "persistent",
+          "resident",
+          true,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-encoded-reuse4-mutated-b.json",
+          "080e2f459fbaaec3d0b046430cbeef29521ef1b775634085015e6eda9e97dce7",
+          "persistent",
+          "mutated-b",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-encoded-reuse4-resident.json",
+          "1167adc17be16106abeb476dbc7eba4c67410a5e95be49a5ec6ac50ebbf60942",
+          "persistent",
+          "resident",
+          true,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-raw-reuse1-mutated-b.json",
+          "69c9b0fd12628842edfc2fe776b9feeb9c2d24952514e3fec87c763257c31a37",
+          "persistent",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-raw-reuse1-resident.json",
+          "1c0620ebfe81cb32c19a2209322188e911c8ec794ba9fb006be9530eb7ec8463",
+          "persistent",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-raw-reuse4-mutated-b.json",
+          "77280b6ed07e8184ea1dda48e17873762c0979ae57b706d988285e5065ef4abd",
+          "persistent",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-persistent-raw-reuse4-resident.json",
+          "bfad7f9a854bb3eecb727caf9d0e8a576fc53d5d52bd882f20a25101010223bc",
+          "persistent",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-resident-raw-reuse1-mutated-b.json",
+          "ea676c4fb3e9b9b5887d47878d90a277604a7718aa028e724c20e6c56e5e752c",
+          "resident",
+          "mutated-b",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-resident-raw-reuse1-resident.json",
+          "e91edb90d8ed63f13b414d62ea323de654c895211aded8a3048f2f098219eab7",
+          "resident",
+          "resident",
+          false,
+          2,
+          1,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-resident-raw-reuse4-mutated-b.json",
+          "1f3686810ce2adb358b8925c8e875292e108eaaf23181559a90aba0a9a4aee93",
+          "resident",
+          "mutated-b",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-resident-raw-reuse4-resident.json",
+          "88d5aab6efa522c3ef46e5a0f47db5dbe76e13243dbf2849c352c07ef4838d12",
+          "resident",
+          "resident",
+          false,
+          2,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-schedule0.json",
+          "3683b6111eaae0e2c278eccc361cd5e74626d1bc7bdc146f300ce58133f17517",
+          "persistent",
+          "resident",
+          false,
+          0,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "small-shared-schedule1.json",
+          "94cca8b8d9158a3d6119d8f04f36c23a7ef01e7050dde1d0f234f38a4d5392fb",
+          "persistent",
+          "resident",
+          false,
+          1,
+          4,
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0, 16, 17, 257, 1, false, 0],
+                [0, 17, 17, 257, 4, false, 0],
+                [0, 2, 19, 17, 2, true, 1]
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "persistent",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 8,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3
+      },
+      "columns": [
+        "tasks"
+      ],
+      "rows": [
+        [
+          "rank-select-shared64.json",
+          "b55af152dd7268ba1cdb6252273f59dc6b3b404a666afafa8e2707742ae07644",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned_inputs",
+                  "b_slot"
+                ]
+              ],
+              "defaults": {
+                "n": 1,
+                "k": 17,
+                "prefix": 3,
+                "group": 1,
+                "unsigned_inputs": false,
+                "b_slot": 0
+              },
+              "rows": [
+                {
+                  "repeat": 63,
+                  "row": [
+                    0,
+                    1
+                  ]
+                },
+                [
+                  0,
+                  33
+                ]
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks",
+        "dispatch_policy"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "persistent",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "tasks": [
+          {
+            "m": 17,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 2,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 33,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 1,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          }
+        ]
+      },
+      "columns": [
+        "dispatch_policy"
+      ],
+      "rows": [
+        [
+          "encoded-uniform-persistent-dispatch0.json",
+          "7140d5fd91f5a60587dc3c6d211183468ab091282915e8a4c5840adf9d0c5e4f",
+          0
+        ],
+        [
+          "encoded-uniform-persistent-dispatch1.json",
+          "ca0b6c32bb7268e0f7d0bc35ce2f1ad55b3b5a038ca78793e9ae7b45c50a4559",
+          1
+        ],
+        [
+          "encoded-uniform-persistent-dispatch2.json",
+          "a1da6ab5b8b521d409380bf3a6dd70ccdf52131506569278e75f4d49e62040cd",
+          2
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "tasks",
+        "dispatch_policy"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "mode": "graph",
+        "input_policy": "resident",
+        "encoded_b": true,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "tasks": [
+          {
+            "m": 17,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 2,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 33,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          },
+          {
+            "m": 1,
+            "n": 19,
+            "k": 257,
+            "prefix": 3,
+            "group": 2,
+            "unsigned_inputs": true,
+            "b_slot": 0
+          }
+        ]
+      },
+      "columns": [
+        "dispatch_policy"
+      ],
+      "rows": [
+        [
+          "encoded-uniform-graph-dispatch0.json",
+          "f2fb8f8436789360444aed9875e5542cc4830b08053488a0ed62bfcce7d9c78b",
+          0
+        ],
+        [
+          "encoded-uniform-graph-dispatch1.json",
+          "0b3d271a4d283687dc6684b4f86dd75f1afcae78f241f73c4f5638afc4335fc2",
+          1
+        ],
+        [
+          "encoded-uniform-graph-dispatch2.json",
+          "0d76e87f6131ec62fbfe581ed614ef47ad61f65e6e4e1ca0db0488b4287ac442",
+          2
+        ]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              [
+                0,
+                0
+              ]
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-1-distinct-persistent-resident-integrity0.json", "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7", "persistent", "resident", false],
+        ["host-control-1-distinct-persistent-resident-integrity1.json", "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7", "persistent", "resident", true],
+        ["host-control-1-distinct-persistent-mutated-b-integrity0.json", "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada", "persistent", "mutated-b", false],
+        ["host-control-1-distinct-persistent-mutated-b-integrity1.json", "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38", "persistent", "mutated-b", true],
+        ["host-control-1-distinct-ordinary-resident-integrity0.json", "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1", "ordinary", "resident", false],
+        ["host-control-1-distinct-ordinary-resident-integrity1.json", "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15", "ordinary", "resident", true],
+        ["host-control-1-distinct-ordinary-mutated-b-integrity0.json", "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964", "ordinary", "mutated-b", false],
+        ["host-control-1-distinct-ordinary-mutated-b-integrity1.json", "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275", "ordinary", "mutated-b", true],
+        ["host-control-1-distinct-graph-resident-integrity0.json", "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a", "graph", "resident", false],
+        ["host-control-1-distinct-graph-resident-integrity1.json", "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc", "graph", "resident", true],
+        ["host-control-1-distinct-graph-mutated-b-integrity0.json", "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d", "graph", "mutated-b", false],
+        ["host-control-1-distinct-graph-mutated-b-integrity1.json", "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              {
+                "repeat": 1,
+                "row": [
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-1-shared-persistent-resident-integrity0.json", "fd995449866e0d1814ce1f4766faec1feea52ad107dcc5162b2d208c1f0e91d7", "persistent", "resident", false],
+        ["host-control-1-shared-persistent-resident-integrity1.json", "69e53ed7b81c40b93f2c0c32c7b33b2f7bec1b8b996039dd0ca281790eee2fc7", "persistent", "resident", true],
+        ["host-control-1-shared-persistent-mutated-b-integrity0.json", "705f9c7f3b1f76c89f78ddb35060d79975c5e2c0e67e1e1d40cd71698dc76ada", "persistent", "mutated-b", false],
+        ["host-control-1-shared-persistent-mutated-b-integrity1.json", "2e4ba3035af6552bc30ef262aa94ca4915a20d7c8f030cac10d4d49d92964d38", "persistent", "mutated-b", true],
+        ["host-control-1-shared-ordinary-resident-integrity0.json", "f3da269121ce6a79720ab9f656faf2c237e01f929f5215caf7f8f923a433aab1", "ordinary", "resident", false],
+        ["host-control-1-shared-ordinary-resident-integrity1.json", "8bbbd8079b12bf25e8cfa98154c366d8587716f86e133a159b4e3a0909289f15", "ordinary", "resident", true],
+        ["host-control-1-shared-ordinary-mutated-b-integrity0.json", "57527e9ba675f9c50418891e18c32cbf1a9c9b560a47da634b969d5af4b19964", "ordinary", "mutated-b", false],
+        ["host-control-1-shared-ordinary-mutated-b-integrity1.json", "d8f16f1ba5067a96dbb49c31f882e398788b2ff21d0d6573e15f67560836a275", "ordinary", "mutated-b", true],
+        ["host-control-1-shared-graph-resident-integrity0.json", "7cca8850d5d2848cf15032f1d667d6b5d9ac7418704532eaac376e5294f36c4a", "graph", "resident", false],
+        ["host-control-1-shared-graph-resident-integrity1.json", "293e8e5b6e1141e2a432f7dc7b97d8cdffd72eee7d22dae7527e394fe7c423fc", "graph", "resident", true],
+        ["host-control-1-shared-graph-mutated-b-integrity0.json", "5b43ade51415cd937b3e37fd5e03a396c7ce568337234fa5800a664b9d0c170d", "graph", "mutated-b", false],
+        ["host-control-1-shared-graph-mutated-b-integrity1.json", "c54d55d2296a0aa44f19938bca48ed941658f863f10a802ac200bc4ad973f632", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                2
+              ],
+              [
+                0,
+                3
+              ],
+              [
+                0,
+                4
+              ],
+              [
+                0,
+                5
+              ],
+              [
+                0,
+                6
+              ],
+              [
+                0,
+                7
+              ]
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-8-distinct-persistent-resident-integrity0.json", "8186e2f1ae18bd8626aadae0b920481dc8147204e194676140fc8eb8b1a12d60", "persistent", "resident", false],
+        ["host-control-8-distinct-persistent-resident-integrity1.json", "3b9d37b1f3ee7e5115d91ae7e9063d7581d62e3ef7cfa1672ff43510a2387c11", "persistent", "resident", true],
+        ["host-control-8-distinct-persistent-mutated-b-integrity0.json", "8bc7af66f724546226ff1415f5fb19d5d469da731bb1625ab3823466e7b449b8", "persistent", "mutated-b", false],
+        ["host-control-8-distinct-persistent-mutated-b-integrity1.json", "0d8e2f3f93b73c78c420099820de8f30a7df9596edc2ba86499ab3f143331258", "persistent", "mutated-b", true],
+        ["host-control-8-distinct-ordinary-resident-integrity0.json", "a685e3293ae189974e2f4595c99c461e52298c4197accdc844a181679e86ef87", "ordinary", "resident", false],
+        ["host-control-8-distinct-ordinary-resident-integrity1.json", "d0b4095a7175cd47af77cc0b20324c187ca2c60b3f382ec97ca56b8442341cf4", "ordinary", "resident", true],
+        ["host-control-8-distinct-ordinary-mutated-b-integrity0.json", "ac85c93b586a0dfdbb10436073c81b2f21a4778715adee301f92ed00354ff370", "ordinary", "mutated-b", false],
+        ["host-control-8-distinct-ordinary-mutated-b-integrity1.json", "4ceacb780ae4911ad62097bfeb76bb6557ed9a9158ae50122208c7d4f14e4912", "ordinary", "mutated-b", true],
+        ["host-control-8-distinct-graph-resident-integrity0.json", "de3a6934893c289c85fc4600ec2eff0ac3e81df569d8ccc4bc32e0932c03ef4d", "graph", "resident", false],
+        ["host-control-8-distinct-graph-resident-integrity1.json", "c99d40a902951c9b4534ef3cf22c2e9461363d646d8cc165ca9b0ba9efdd43f4", "graph", "resident", true],
+        ["host-control-8-distinct-graph-mutated-b-integrity0.json", "b3f2e2b9e5a76aad6bf869566497b9871bf220b5db82e3d1db05649ff3f7f410", "graph", "mutated-b", false],
+        ["host-control-8-distinct-graph-mutated-b-integrity1.json", "6a179918d4ee25de4c2ec5edb48161af5ee4b336ca0bf1dad87079bb1c73a433", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              {
+                "repeat": 8,
+                "row": [
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-8-shared-persistent-resident-integrity0.json", "75af5a0c8cdedbcabc99eed35aa0d3286839db5a0b4dc022edfd4c194a91ad32", "persistent", "resident", false],
+        ["host-control-8-shared-persistent-resident-integrity1.json", "4ff7c8b5d07108fc789b9a62e849cde188580209a923dc3ae7a32387331e57a4", "persistent", "resident", true],
+        ["host-control-8-shared-persistent-mutated-b-integrity0.json", "98811868bb26b79eb81357c5584bd2bf61aa478278d1f6b846420e48b2b42567", "persistent", "mutated-b", false],
+        ["host-control-8-shared-persistent-mutated-b-integrity1.json", "0f0a1aaa43fce2802f97b39edfba8a36aca170bd57f32e8c88851fe671b35c51", "persistent", "mutated-b", true],
+        ["host-control-8-shared-ordinary-resident-integrity0.json", "d8e12286ceb263d64fc475a4231a513e2b9822423d933fbc26174e5096bbb193", "ordinary", "resident", false],
+        ["host-control-8-shared-ordinary-resident-integrity1.json", "c8e18017c1dd66cbb0d2a8a9ffa350fb9fb4884bd5010c168fe169398dbc63a7", "ordinary", "resident", true],
+        ["host-control-8-shared-ordinary-mutated-b-integrity0.json", "337a87f3ed738211f50d36c5aed5bfa2c5288ca82a9a60946e916fa22f0df338", "ordinary", "mutated-b", false],
+        ["host-control-8-shared-ordinary-mutated-b-integrity1.json", "bd099d3bd81ca562a19d9ccc38490d60c61e7be377b56eea62aed0468aeacbd1", "ordinary", "mutated-b", true],
+        ["host-control-8-shared-graph-resident-integrity0.json", "2a12af48717d2eb0281857aad1cc3f8c823cd635d5b89850aee3eb1f62de7bfd", "graph", "resident", false],
+        ["host-control-8-shared-graph-resident-integrity1.json", "a4ff7d3283964b8663fe468a6884284be0da330d179c3479436a5d2251203d6f", "graph", "resident", true],
+        ["host-control-8-shared-graph-mutated-b-integrity0.json", "62fb4c3a58c654c6c5127705c62f1533c411d958b32bfcc25d9eb148689d6df3", "graph", "mutated-b", false],
+        ["host-control-8-shared-graph-mutated-b-integrity1.json", "10f358504f323e3bf1716c84c137ddc0a6d4cd3d7e7a6296a34e5de6ddd0bceb", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                2
+              ],
+              [
+                0,
+                3
+              ],
+              [
+                0,
+                4
+              ],
+              [
+                0,
+                5
+              ],
+              [
+                0,
+                6
+              ],
+              [
+                0,
+                7
+              ],
+              [
+                0,
+                8
+              ],
+              [
+                0,
+                9
+              ],
+              [
+                0,
+                10
+              ],
+              [
+                0,
+                11
+              ],
+              [
+                0,
+                12
+              ],
+              [
+                0,
+                13
+              ],
+              [
+                0,
+                14
+              ],
+              [
+                0,
+                15
+              ],
+              [
+                0,
+                16
+              ],
+              [
+                0,
+                17
+              ],
+              [
+                0,
+                18
+              ],
+              [
+                0,
+                19
+              ],
+              [
+                0,
+                20
+              ],
+              [
+                0,
+                21
+              ],
+              [
+                0,
+                22
+              ],
+              [
+                0,
+                23
+              ],
+              [
+                0,
+                24
+              ],
+              [
+                0,
+                25
+              ],
+              [
+                0,
+                26
+              ],
+              [
+                0,
+                27
+              ],
+              [
+                0,
+                28
+              ],
+              [
+                0,
+                29
+              ],
+              [
+                0,
+                30
+              ],
+              [
+                0,
+                31
+              ]
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-32-distinct-persistent-resident-integrity0.json", "8bfde656484c2e2d8664baf40ca7fe63f6826f8e48910d69a3c75901189d12e6", "persistent", "resident", false],
+        ["host-control-32-distinct-persistent-resident-integrity1.json", "f99a74db9dbabe17812aa83b5c3771e79fa0884cde3f2e38b1702bce43102af1", "persistent", "resident", true],
+        ["host-control-32-distinct-persistent-mutated-b-integrity0.json", "9ab80f26fe3532e4e31563835fc775fdfe7db5ba8262e0fc36ff60835a458ae8", "persistent", "mutated-b", false],
+        ["host-control-32-distinct-persistent-mutated-b-integrity1.json", "a501d802dcb2f3dddc1b86e02e775f4c28156a6e503c7f50c492633446b37026", "persistent", "mutated-b", true],
+        ["host-control-32-distinct-ordinary-resident-integrity0.json", "8dd2c691bbd72e11ab2d7f45ff5facb234f0213933422b5fb8640a4e2875ead8", "ordinary", "resident", false],
+        ["host-control-32-distinct-ordinary-resident-integrity1.json", "7534b2c0d93eb98f2888107de5e5a14cb8dbe5c9ca1ad3131e47140b77916123", "ordinary", "resident", true],
+        ["host-control-32-distinct-ordinary-mutated-b-integrity0.json", "3e1b00945e7e9919c0243f57f0651e52bf02056eb825e4c8bcf05c97c96c9436", "ordinary", "mutated-b", false],
+        ["host-control-32-distinct-ordinary-mutated-b-integrity1.json", "9d88cf8839a36819d8dc9ec9f998a5e7dca87d371827459fc102418acf71612d", "ordinary", "mutated-b", true],
+        ["host-control-32-distinct-graph-resident-integrity0.json", "d9af8d4b119bb3c60f64ba8e7cde4f4653306bb915ea7da5372291efe7372c4f", "graph", "resident", false],
+        ["host-control-32-distinct-graph-resident-integrity1.json", "7d280fd751bfc26c3f4bd02a3d18e28b83897af60e7df89802394a98a8632364", "graph", "resident", true],
+        ["host-control-32-distinct-graph-mutated-b-integrity0.json", "81a6f9c80ff299c6eae86ecc79e1fc6868a46229780a31794e868e2bb9e3d339", "graph", "mutated-b", false],
+        ["host-control-32-distinct-graph-mutated-b-integrity1.json", "837a0987d5a5cdbbd9d596d8f1b8bbc98aa519dcf8fa54baaeb71019db18ceb8", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              {
+                "repeat": 32,
+                "row": [
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-32-shared-persistent-resident-integrity0.json", "d4e1952e4c2f5751ee8aa9ccb0c4b83b1a8c834b44518518f6e054dc54c818d1", "persistent", "resident", false],
+        ["host-control-32-shared-persistent-resident-integrity1.json", "c7092fbb1eed5e58a0c74679475a7fd676739385e1e7682e841e3f2ecbd06e5c", "persistent", "resident", true],
+        ["host-control-32-shared-persistent-mutated-b-integrity0.json", "359ef1c77284f0c702fdeb5490267bfae873709cf03a4baf9a50faf54624c118", "persistent", "mutated-b", false],
+        ["host-control-32-shared-persistent-mutated-b-integrity1.json", "eac0d58c342dc832611cda41820d1921002969aa29fa097f0d73124affba2435", "persistent", "mutated-b", true],
+        ["host-control-32-shared-ordinary-resident-integrity0.json", "4d6e3faa9cf642684343fa58858ca11a648f291b08ad0b180a9f848d244365bc", "ordinary", "resident", false],
+        ["host-control-32-shared-ordinary-resident-integrity1.json", "634abbbd130d730f4d5a1f845bcad944853bcc25f4d9242b15391dda15a28312", "ordinary", "resident", true],
+        ["host-control-32-shared-ordinary-mutated-b-integrity0.json", "e039dd67a9ac76389397a9f295125d5e0dfad86c1caf37e10faa7cd73f3b27a7", "ordinary", "mutated-b", false],
+        ["host-control-32-shared-ordinary-mutated-b-integrity1.json", "c34a76fc44ebd71408555811b7ba6cba1a5e4b902802c88adad7faa000ffd7ab", "ordinary", "mutated-b", true],
+        ["host-control-32-shared-graph-resident-integrity0.json", "3fb56dce22412b0e806b7d7538d2d821bd34d10617bd600175fc2174fed0269a", "graph", "resident", false],
+        ["host-control-32-shared-graph-resident-integrity1.json", "f531b03f1ca0ec3294e8e77cc055e2b7f104e12ccd54bb87df7ab3a42e28533f", "graph", "resident", true],
+        ["host-control-32-shared-graph-mutated-b-integrity0.json", "2c9090bf007e4b69062c3675a02b7e2154cd501dad765abee76e3843e53dd546", "graph", "mutated-b", false],
+        ["host-control-32-shared-graph-mutated-b-integrity1.json", "25d4e4e30da5f2946ab8ef318fa163d0287828d1c947c827ea04b9a258ce3e0a", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                1
+              ],
+              [
+                0,
+                2
+              ],
+              [
+                0,
+                3
+              ],
+              [
+                0,
+                4
+              ],
+              [
+                0,
+                5
+              ],
+              [
+                0,
+                6
+              ],
+              [
+                0,
+                7
+              ],
+              [
+                0,
+                8
+              ],
+              [
+                0,
+                9
+              ],
+              [
+                0,
+                10
+              ],
+              [
+                0,
+                11
+              ],
+              [
+                0,
+                12
+              ],
+              [
+                0,
+                13
+              ],
+              [
+                0,
+                14
+              ],
+              [
+                0,
+                15
+              ],
+              [
+                0,
+                16
+              ],
+              [
+                0,
+                17
+              ],
+              [
+                0,
+                18
+              ],
+              [
+                0,
+                19
+              ],
+              [
+                0,
+                20
+              ],
+              [
+                0,
+                21
+              ],
+              [
+                0,
+                22
+              ],
+              [
+                0,
+                23
+              ],
+              [
+                0,
+                24
+              ],
+              [
+                0,
+                25
+              ],
+              [
+                0,
+                26
+              ],
+              [
+                0,
+                27
+              ],
+              [
+                0,
+                28
+              ],
+              [
+                0,
+                29
+              ],
+              [
+                0,
+                30
+              ],
+              [
+                0,
+                31
+              ],
+              [
+                0,
+                32
+              ],
+              [
+                0,
+                33
+              ],
+              [
+                0,
+                34
+              ],
+              [
+                0,
+                35
+              ],
+              [
+                0,
+                36
+              ],
+              [
+                0,
+                37
+              ],
+              [
+                0,
+                38
+              ],
+              [
+                0,
+                39
+              ],
+              [
+                0,
+                40
+              ],
+              [
+                0,
+                41
+              ],
+              [
+                0,
+                42
+              ],
+              [
+                0,
+                43
+              ],
+              [
+                0,
+                44
+              ],
+              [
+                0,
+                45
+              ],
+              [
+                0,
+                46
+              ],
+              [
+                0,
+                47
+              ],
+              [
+                0,
+                48
+              ],
+              [
+                0,
+                49
+              ],
+              [
+                0,
+                50
+              ],
+              [
+                0,
+                51
+              ],
+              [
+                0,
+                52
+              ],
+              [
+                0,
+                53
+              ],
+              [
+                0,
+                54
+              ],
+              [
+                0,
+                55
+              ],
+              [
+                0,
+                56
+              ],
+              [
+                0,
+                57
+              ],
+              [
+                0,
+                58
+              ],
+              [
+                0,
+                59
+              ],
+              [
+                0,
+                60
+              ],
+              [
+                0,
+                61
+              ],
+              [
+                0,
+                62
+              ],
+              [
+                0,
+                63
+              ]
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-64-distinct-persistent-resident-integrity0.json", "031f2b179f1a6830597747f9be635eab0d2dd8c941d264500fca28c797ad81e7", "persistent", "resident", false],
+        ["host-control-64-distinct-persistent-resident-integrity1.json", "327109935e5181f54dbc1dd535a391a7c1b1a410a848c5cc5e9b372a1b967200", "persistent", "resident", true],
+        ["host-control-64-distinct-persistent-mutated-b-integrity0.json", "9f96af9b521e51fd9747df67402431ecc93c89ff6d6654a86f1de31973628650", "persistent", "mutated-b", false],
+        ["host-control-64-distinct-persistent-mutated-b-integrity1.json", "f2f01d28974d46382c6b6258641ee19a00d934a02319c48723fca96913f5690a", "persistent", "mutated-b", true],
+        ["host-control-64-distinct-ordinary-resident-integrity0.json", "305e388175a586bbe8883f81b9e9a1541e253e14b1f81b04fece9f007b10f6e3", "ordinary", "resident", false],
+        ["host-control-64-distinct-ordinary-resident-integrity1.json", "ffc096e0383544221bce945b028cea70ee94a3f73adb0c389c206756048222c4", "ordinary", "resident", true],
+        ["host-control-64-distinct-ordinary-mutated-b-integrity0.json", "e5bb326cbcdacbc2645a69e3263b88a556c8c552de17e580ea03c188daa023b0", "ordinary", "mutated-b", false],
+        ["host-control-64-distinct-ordinary-mutated-b-integrity1.json", "bf937512b06fa1a0647a9bd92c6d82c84d84ac782aeea2eeba8ab1228c041533", "ordinary", "mutated-b", true],
+        ["host-control-64-distinct-graph-resident-integrity0.json", "d6ef265376a66659e986d68fbf0fbd97dcea9556b26eb14318d5d9cdf73888b1", "graph", "resident", false],
+        ["host-control-64-distinct-graph-resident-integrity1.json", "f082573af36c1bff003744108716b998bb26895a21cc9e2b5c3997e90748bb66", "graph", "resident", true],
+        ["host-control-64-distinct-graph-mutated-b-integrity0.json", "098d16be047f592e4fe708f488e17316a507a3ced543b2ee245d56c1f55b987a", "graph", "mutated-b", false],
+        ["host-control-64-distinct-graph-mutated-b-integrity1.json", "3c3bb1ef703c5dd5b93ef8f946df89143be7235f2b91f56b88000f1ff6b0a717", "graph", "mutated-b", true]
+      ]
+    },
+    {
+      "root": "object",
+      "keys": [
+        "schema",
+        "mode",
+        "input_policy",
+        "encoded_b",
+        "schedule",
+        "chunk",
+        "workers",
+        "reuse",
+        "warmups",
+        "repeats",
+        "seed",
+        "padding",
+        "host_diagnostics",
+        "integrity",
+        "tasks"
+      ],
+      "defaults": {
+        "schema": "public_native_group_case_v1",
+        "encoded_b": false,
+        "schedule": 3,
+        "chunk": 4,
+        "workers": 32,
+        "reuse": 4,
+        "warmups": 3,
+        "repeats": 9,
+        "seed": 3838,
+        "padding": 3,
+        "host_diagnostics": true,
+        "tasks": {
+          "$rns8_records": {
+            "layouts": [["m", "n", "k", "prefix", "group", "unsigned_inputs", "b_slot"]],
+            "defaults": {
+              "m": 17,
+              "n": 19,
+              "k": 17,
+              "prefix": 20,
+              "group": 2,
+              "unsigned_inputs": false
+            },
+            "rows": [
+              {
+                "repeat": 64,
+                "row": [
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "columns": [
+        "mode",
+        "input_policy",
+        "integrity"
+      ],
+      "rows": [
+        ["host-control-64-shared-persistent-resident-integrity0.json", "d5424b6023080b09902ef9bb64f9cfadb6bfa68a6ffd6e32a381e26020bafa46", "persistent", "resident", false],
+        ["host-control-64-shared-persistent-resident-integrity1.json", "acbf6e893e82e9ac6ded37193df0de172aaff933ca3817f25d3e81c279064e69", "persistent", "resident", true],
+        ["host-control-64-shared-persistent-mutated-b-integrity0.json", "9c42d57451fcffda32970fdc4c8f346ed8643f748302345a7d55277eca7b178a", "persistent", "mutated-b", false],
+        ["host-control-64-shared-persistent-mutated-b-integrity1.json", "094d058255db497d6e788f97d2b89c552da041df8536a87f4f5a5c4935635824", "persistent", "mutated-b", true],
+        ["host-control-64-shared-ordinary-resident-integrity0.json", "afcf04599395eb60f8fbbc2ed76c3f7f5b6a004e1e8f1e2cecce943254c38589", "ordinary", "resident", false],
+        ["host-control-64-shared-ordinary-resident-integrity1.json", "07fb81bcf6278f2d867aa295bffb333292f63a9054809e41d1ff11c08a119735", "ordinary", "resident", true],
+        ["host-control-64-shared-ordinary-mutated-b-integrity0.json", "85cffa4ea57c9f02d957247e67a0e5fb26c8ae9804444016f5bee21a8aa015b8", "ordinary", "mutated-b", false],
+        ["host-control-64-shared-ordinary-mutated-b-integrity1.json", "2e631eddcd131e4f7a67bd1aa6df742dabb6af9335c70ff453ddb7a1dee7591b", "ordinary", "mutated-b", true],
+        ["host-control-64-shared-graph-resident-integrity0.json", "a040d413eb7fbc122ccd6e702c929efc9ad6fcc32174e37bf6139a23b6414e78", "graph", "resident", false],
+        ["host-control-64-shared-graph-resident-integrity1.json", "3f509a87a6c3b264e23da7a82c273910ea816cda5d9e8270d6f042aa6697d455", "graph", "resident", true],
+        ["host-control-64-shared-graph-mutated-b-integrity0.json", "d5f97eaf9f57cdb2bf8d84162b8dae6b659b3bcaade1daa15de5d9d148634102", "graph", "mutated-b", false],
+        ["host-control-64-shared-graph-mutated-b-integrity1.json", "5896dac5ca7fa6b6e20ef7dc3aeea868ca55952a6deefc4358f6010e6486c61d", "graph", "mutated-b", true]
+      ]
+    }
+  ]
+}

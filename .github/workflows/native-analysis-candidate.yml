@@ -1,0 +1,104 @@
+name: Native CPU Analysis Candidate
+
+# Automatic lanes require explicit repository activation after native baseline,
+# finding disposition and cost review. This source change sets no variables.
+on:
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 2"
+  workflow_dispatch:
+    inputs:
+      advisory:
+        description: Report unclassified findings without accepting them as clean
+        type: boolean
+        default: true
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-cpu-analysis-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  change-scope:
+    name: Native analysis source scope
+    uses: ./.github/workflows/native-check-scope.yml
+    with:
+      event: ${{ github.event_name }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+  host-analysis:
+    needs: change-scope
+    if: >-
+      needs.change-scope.outputs.source_required == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (vars.RNS8_NATIVE_ANALYSIS_CI == 'enabled' &&
+       (github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      RNS8_ANALYSIS_ADVISORY: ${{ github.event_name == 'workflow_dispatch' && inputs.advisory }}
+      RNS8_ANALYSIS_CHANGED_PATHS: ${{ needs.change-scope.outputs.analysis_changed_paths }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Select ordinary native CPU dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++ catch2 nlohmann-json3-dev libboost-dev
+      - name: Install shared hash-locked analysis tools
+        run: |
+          python tools/init_quality.py --out temp/analysis-tools
+          python tools/init_build_tools.py --github-path
+      - name: Configure actual non-unity CPU contexts
+        run: >-
+          cmake --preset linux-analysis-cpu -B build/analysis-cpu
+          -DCMAKE_CXX_COMPILER=/usr/bin/g++
+          -DPython3_EXECUTABLE=${{ github.workspace }}/temp/analysis-tools/bin/python
+      - name: Check analysis input, native decoder and evidence protocols
+        run: |
+          temp/analysis-tools/bin/python tools/test_analysis_inputs.py
+          temp/analysis-tools/bin/python tools/test_analysis_diagnostics.py
+          temp/analysis-tools/bin/python tools/test_static_analysis.py
+          temp/analysis-tools/bin/python tools/test_analysis_dispositions.py
+      - name: Analyze with native sensitivity controls and bounded serial passes
+        id: analysis
+        run: >-
+          temp/analysis-tools/bin/python tools/static_analysis.py
+          --build-dir build/analysis-cpu --out-dir temp/native-analysis
+          --tool-bin temp/analysis-tools/bin --execute --prepare --advisory
+          --changed-paths-json "$RNS8_ANALYSIS_CHANGED_PATHS"
+          --timeout-seconds 120 --total-seconds 3600
+          --max-artifact-bytes 1073741824 --minimum-free-bytes 5368709120
+      - name: Reopen native evidence and apply reviewed dispositions
+        if: ${{ always() && steps.analysis.outcome == 'success' }}
+        run: |
+          if [ "$RNS8_ANALYSIS_ADVISORY" = "true" ]; then
+            temp/analysis-tools/bin/python tools/analysis_dispositions.py \
+              --receipt temp/native-analysis/results.json \
+              --output temp/native-analysis-dispositions.json --advisory
+          else
+            temp/analysis-tools/bin/python tools/analysis_dispositions.py \
+              --receipt temp/native-analysis/results.json \
+              --output temp/native-analysis-dispositions.json
+          fi
+      - name: Preserve first failure and native coverage receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-cpu-analysis-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            temp/native-analysis/
+            temp/native-analysis-dispositions.json
+            build/analysis-cpu/CMakeCache.txt
+            build/analysis-cpu/compile_commands.json
+            build/analysis-cpu/rns8-analysis-*.json
+            build/analysis-cpu/generated/

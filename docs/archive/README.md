@@ -14,6 +14,21 @@ available in this checkout.
 - [Former implementation status](roadmap-status.md), [public roadmap](public-roadmap.md),
   and [release checklist](release-checklist.md)
 
-For current work use the [audit](../audit-2026-10-06.md),
-[roadmap](../roadmap.md), and [performance policy](../performance.md).
+## Dated implementation and local evidence
+
+- [Implementation checkpoints through October 23](implementation-checkpoints-2026-10-23.md)
+- [October 6 audit](../audit-2026-10-06.md) and [continuation](../continuation-2026-10-06.md)
+- [CPU lifting](../local-cpu-lifting-20261008.md), [admission-driven continuation](../local-cpu-auto-continuation-20261008.md),
+  [allocation](../local-cpu-allocation-20261008.md), [package](../local-cpu-package-20261008.md)
+- [Lineage review](../local-lineage-review-20261008.md), [range continuation](../local-range-continuation-20261008.md),
+  [moment range](../local-moment-range-20261011.md), [runtime caches](../local-runtime-cache-20261011.md)
+- [Refactoring record](../large-file-refactor-notes.md)
+- [Resident-output proposal](resident-output-api-draft.md) and [old HTML dashboard](dashboard.html)
+- [Initial 256³ measurement](../7900xtx-throughput-2026-10-23.md), superseded as scaling evidence by
+  the [512³/1024³ report](../7900xtx-large-throughput-2026-10-23.md)
+
+The checkpoint files retain their original paths for backlinks. Their dates and
+commits delimit their evidence. For current work use the
+[roadmap](../roadmap.md), [performance methodology](../performance.md) and
+[documentation index](../README.md).
 Future design requirements remain in the active [research specification](../RNS8_RESEARCH_SPEC.md).

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
+from modulus_set_search import validate_search_report
 
 
 DEFAULT_OUT_DIR = Path("temp") / "modulus-set-autotune-reports"
@@ -47,12 +48,10 @@ def _load_search_report(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"{path}: failed to read modulus-set search report: {exc}") from exc
-    if not isinstance(data, dict) or data.get("schema_version") not in {1, 2}:
-        raise SystemExit(f"{path}: modulus-set search report must be a schema v1/v2 object")
-    candidates = data.get("candidates")
-    if not isinstance(candidates, list):
-        raise SystemExit(f"{path}: modulus-set search report must contain candidates")
-    return data
+    try:
+        return validate_search_report(data)
+    except ValueError as exc:
+        raise SystemExit(f"{path}: {exc}") from exc
 
 
 def _candidate_index(search_report: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -70,7 +69,7 @@ def _candidate_index(search_report: dict[str, Any]) -> dict[str, dict[str, Any]]
 def _load_capture(path: Path) -> dict[str, Any]:
     try:
         capture = load_capture(path)
-    except Exception as exc:  # noqa: BLE001 - keep report tolerant over mixed roots.
+    except Exception as exc:
         return {
             "_path": str(path),
             "_schema_status": "invalid",
@@ -105,7 +104,9 @@ def _timing_median(capture: dict[str, Any]) -> float | None:
             return float(end_to_end["median"])
     raw = capture.get("raw_timings_us")
     if isinstance(raw, dict) and isinstance(raw.get("end_to_end"), list):
-        values = sorted(float(value) for value in raw["end_to_end"] if isinstance(value, (int, float)))
+        values = sorted(
+            float(value) for value in raw["end_to_end"] if isinstance(value, (int, float))
+        )
         if values:
             return values[len(values) // 2]
     return None
@@ -153,7 +154,10 @@ def _anchor_for(capture: dict[str, Any], captures: list[dict[str, Any]]) -> dict
     rows = same_backend or default_rows
     if not rows:
         return None
-    return min(rows, key=lambda item: _timing_median(item) if _timing_median(item) is not None else float("inf"))
+    return min(
+        rows,
+        key=lambda item: _timing_median(item) if _timing_median(item) is not None else float("inf"),
+    )
 
 
 def _speedup(candidate: dict[str, Any], anchor: dict[str, Any] | None) -> float | None:
@@ -215,17 +219,27 @@ def _candidate_blockers(
 
 
 def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> dict[str, Any]:
+    search_report = validate_search_report(search_report)
     captures = [_load_capture(path) for path in _as_list(capture_paths)]
     search_candidates = _candidate_index(search_report)
     rows: list[dict[str, Any]] = []
     summary = Counter()
     for capture in captures:
         blockers, search_candidate = _candidate_blockers(capture, search_candidates, captures)
+        if (
+            _modulus_name(capture) != "default"
+            and search_report["semantic_range_evidence_status"] != "strict_products_verified"
+        ):
+            blockers.append("legacy_search_missing_strict_semantic_range_proof")
         anchor = _anchor_for(capture, captures) if _modulus_name(capture) != "default" else None
         evidence_blockers = [
             blocker
             for blocker in blockers
-            if blocker not in {"runtime_ladder_not_selectable", "default_change_requires_spec_cache_schema_proof"}
+            if blocker
+            not in {
+                "runtime_ladder_not_selectable",
+                "default_change_requires_spec_cache_schema_proof",
+            }
         ]
         if _modulus_name(capture) == "default" and capture.get("_schema_status") == "valid":
             decision = "comparison_anchor"
@@ -252,12 +266,18 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
             "selected_prefix": capture.get("selected_prefix"),
             "requested_prefix": capture.get("requested_max_prefix"),
             "residue_autotune_scope": _nested(capture, "residue_count_policy.autotune_scope"),
-            "search_candidate": search_candidate.get("name") if isinstance(search_candidate, dict) else None,
-            "search_disposition": search_candidate.get("disposition") if isinstance(search_candidate, dict) else None,
+            "search_candidate": search_candidate.get("name")
+            if isinstance(search_candidate, dict)
+            else None,
+            "search_disposition": search_candidate.get("disposition")
+            if isinstance(search_candidate, dict)
+            else None,
             "anchor_path": anchor.get("_path") if isinstance(anchor, dict) else None,
             "anchor_backend": _backend(anchor) if isinstance(anchor, dict) else None,
             "median_end_to_end_us": _timing_median(capture),
-            "speedup_vs_anchor": _speedup(capture, anchor),
+            "speedup_vs_anchor": None,
+            "descriptive_individual_capture_ratio_vs_anchor": _speedup(capture, anchor),
+            "timing_scope": "descriptive_individual_capture_not_qualified_process_comparison",
             "promotion_eligible": False,
             "runtime_routing_allowed": False if _modulus_name(capture) != "default" else None,
             "decision": decision,
@@ -268,11 +288,13 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
         "schema_version": 1,
         "policy": "modulus_set_residue_count_evidence_only",
         "runtime_ladder_changed": False,
+        "timing_comparison_qualified": False,
         "default_change_gate": search_report.get(
             "default_change_gate",
             "spec_cache_schema_proof_and_same_target_review_required",
         ),
         "search_report_policy": search_report.get("policy"),
+        "semantic_range_evidence_status": search_report["semantic_range_evidence_status"],
         "search_dimensions": search_report.get("search_dimensions", []),
         "summary": dict(summary),
         "rows": rows,
@@ -291,12 +313,12 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> Path:
         f"- Runtime ladder changed: `{str(report['runtime_ladder_changed']).lower()}`",
         f"- Default-change gate: `{report['default_change_gate']}`",
         "",
-        "| Decision | Backend | Semantics | Shape | Modulus Set | Prefix | Speedup Vs Anchor | Blockers |",
+        "| Decision | Backend | Semantics | Shape | Modulus Set | Prefix | Descriptive Capture Ratio | Blockers |",
         "|---|---|---|---|---|---:|---:|---|",
     ]
     for row in report["rows"]:
         shape = row["shape"]
-        speedup = row.get("speedup_vs_anchor")
+        speedup = row.get("descriptive_individual_capture_ratio_vs_anchor")
         lines.append(
             "| {decision} | {backend} | {semantics} | {m}x{n}x{k} | `{modulus}` | {prefix} | {speedup} | {blockers} |".format(
                 decision=row["decision"],

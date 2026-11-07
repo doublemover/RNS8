@@ -1,0 +1,323 @@
+{
+  "schema": "rns8_local_validation_v1",
+  "date": "2026-10-25",
+  "branch": "codex/runtime-cache-transactions-20261011",
+  "reviewed_source_commit": "5456408",
+  "host": {
+    "os": "Windows",
+    "gpu": "Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "visual_studio": "2026 18.11.1",
+    "msvc": "19.51",
+    "hip": "7.1",
+    "python": "3.15.1",
+    "llvm": "23.1.4",
+    "cmake": "4.4.4",
+    "ninja": "1.13.2",
+    "omp_num_threads": 3
+  },
+  "build_plan": {
+    "python": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+    "cmake": "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/Scripts/cmake.exe",
+    "builds": [
+      {
+        "directory": "build/validation-20261025-gpu",
+        "configure_arguments": [
+          "-G",
+          "Ninja",
+          "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+          "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
+          "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
+          "-DVCPKG_MANIFEST_INSTALL=OFF",
+          "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+          "-DRNS8_BUILD_TESTS=ON",
+          "-DRNS8_BUILD_EXAMPLES=ON",
+          "-DRNS8_BUILD_TOOLS=ON",
+          "-DRNS8_BUILD_BENCHMARKS=ON",
+          "-DRNS8_BUILD_SHARED=ON",
+          "-DRNS8_AMDGPU_TARGETS=gfx1100",
+          "-DRNS8_HIP_ROOT=C:/Program Files/AMD/ROCm/7.1",
+          "-DRNS8_HIPBLASLT_ROOT=C:/Program Files/AMD/ROCm/7.1",
+          "-DRNS8_CK_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/composable_kernel",
+          "-DRNS8_ROCWMMA_ROOT=C:/Users/sneak/Development/RNS8/third_party/rocm/rocWMMA",
+          "-DRNS8_GMP_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
+          "-DRNS8_FLINT_ROOT=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed/x64-windows",
+          "-DRNS8_ENABLE_HIP=ON",
+          "-DRNS8_ENABLE_CPU_PARALLEL=ON",
+          "-DRNS8_ENABLE_HIPBLASLT=ON",
+          "-DRNS8_ENABLE_CK=ON",
+          "-DRNS8_ENABLE_ROCWMMA=ON",
+          "-DRNS8_ENABLE_AMDGPU_BUILTINS=ON",
+          "-DRNS8_ENABLE_GMP=ON",
+          "-DRNS8_ENABLE_FLINT=ON",
+          "-DRNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=ON",
+          "-DRNS8_EXPERIMENTAL_GARNER_TABLE=OFF",
+          "-DRNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS=ON",
+          "-DRNS8_WORKLOAD_GPU_TESTS=ON",
+          "-DCMAKE_CXX_COMPILER=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe"
+        ]
+      },
+      {
+        "directory": "build/validation-20261025-asan",
+        "configure_arguments": [
+          "-G",
+          "Ninja",
+          "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+          "-DCMAKE_TOOLCHAIN_FILE=C:/Users/sneak/AppData/Local/RNS8/dependencies/vcpkg-b42e8ed/scripts/buildsystems/vcpkg.cmake",
+          "-DVCPKG_INSTALLED_DIR=C:/Users/sneak/AppData/Local/RNS8/dependencies/installed-b42e8ed",
+          "-DVCPKG_MANIFEST_INSTALL=OFF",
+          "-DPython3_EXECUTABLE=C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+          "-DRNS8_BUILD_TESTS=ON",
+          "-DRNS8_BUILD_EXAMPLES=ON",
+          "-DRNS8_BUILD_TOOLS=ON",
+          "-DRNS8_BUILD_BENCHMARKS=ON",
+          "-DRNS8_BUILD_SHARED=OFF",
+          "-DCMAKE_CXX_COMPILER=C:/Users/sneak/AppData/Local/RNS8/dependencies/llvm-23.1.4/clang+llvm-23.1.4-x86_64-pc-windows-msvc/bin/clang-cl.exe",
+          "-DRNS8_ENABLE_HIP=OFF",
+          "-DRNS8_ENABLE_CPU_PARALLEL=OFF",
+          "-DRNS8_ENABLE_WINDOWS_CLANG_ASAN=ON",
+          "-DRNS8_BUILD_FUZZERS=ON",
+          "-DRNS8_WORKLOAD_GPU_TESTS=OFF",
+          "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+          "-DVCPKG_TARGET_TRIPLET=x64-windows-static",
+          "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/fsanitize=address /Zi /O1"
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "cpu_tests": {
+      "path": "build/validation-20261025-asan/rns8_tests.exe",
+      "build_commit": "8f7ba18",
+      "sha256": "3e748ced5e47a90a9a3f3f40f4d80cfb1e8e5d0182dea318c939c7b56ab76231"
+    },
+    "gpu_tests": {
+      "path": "build/validation-20261025-gpu/rns8_tests.exe",
+      "build_commit": "9b2e3c5",
+      "sha256": "f892cc9fd869e2a408f6c37aefd1c806581a567b4d216dfcc9f39b8607a6f45c"
+    },
+    "dot4_tests": {
+      "path": "build/validation-20261025-dot4-table/rns8_tests.exe",
+      "build_commit": "9b2e3c5",
+      "sha256": "f9b9cf7bd65caef785338a1d0f1965ce4696b839e00395995c9c774fe0c9353f"
+    },
+    "scalar_tests": {
+      "path": "build/validation-20261025-scalar-control/rns8_tests.exe",
+      "build_commit": "9b2e3c5",
+      "sha256": "3cc74bba3a9499e13c6b59f90ad37e77f35ae0d8e65691003e6c965874ad2da6"
+    },
+    "host_transfer": {
+      "path": "build/validation-20261025-gpu/rns8-host-transfer-calibrate.exe",
+      "build_commit": "ef2dabd",
+      "sha256": "32171c7d6c806aec57a38df0885772ccbd1915dc708bdab1266bacead5712911"
+    },
+    "verifier": {
+      "path": "build/validation-20261025-gpu/rns8-verify.exe",
+      "build_commit": "5456408",
+      "sha256": "696b510f8ae4ad06c35cdbf7ac7db6010cc8917496b4943ef08626c66f2a6e45"
+    }
+  },
+  "results": {
+    "cpu_asan_batch": {
+      "tests": 550,
+      "passed": 528,
+      "failed": 0,
+      "skipped": 22,
+      "seconds": 215.0,
+      "raw_xml_sha256": "468be740a5ce5b5dd01030f984e548da1fb1a90e0f44bf8bc24924778cc3dda5",
+      "raw_xml": "temp/validation-20261025/pass2-tests-shared-proof/asan/ctest.xml"
+    },
+    "full_feature_gpu_batch": {
+      "tests": 908,
+      "passed": 891,
+      "failed": 0,
+      "skipped": 17,
+      "seconds": 670.0,
+      "raw_xml_sha256": "b09391b38a2e077fb7d3a7aa4894d3c22de78fd576b24a651c28e8731c754a10",
+      "raw_xml": "temp/validation-20261025/pass2-tests-6ba0b6e/gpu/ctest.xml"
+    },
+    "dot4_garner_gpu": {
+      "tests": 657,
+      "passed": 652,
+      "failed": 0,
+      "skipped": 5,
+      "seconds": 158.852,
+      "raw_xml_sha256": "42c47599ce479732401d7befc8cc2a37b0c268557080fa863744aa32c8a1443f",
+      "raw_xml": "temp/validation-20261025/pass2-tests-6ba0b6e/dot4-table/catch.xml"
+    },
+    "scalar_control_gpu": {
+      "tests": 657,
+      "passed": 652,
+      "failed": 0,
+      "skipped": 5,
+      "seconds": 161.919,
+      "raw_xml_sha256": "0208c35c78068ed60abf048a76d1cb2c72add4c1cd4f5633331150344e69dc2b",
+      "raw_xml": "temp/validation-20261025/pass2-tests-ef2dabd/scalar-control/catch.xml"
+    },
+    "corrected_host_transfers": {
+      "tests": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 16.0,
+      "raw_xml_sha256": "df9d56d83a5a0632991b887ec28f6674ee5983ac73d50c030bbaa709f52b6547",
+      "raw_xml": "temp/validation-20261025/repaired-host-transfer/ctest.xml"
+    },
+    "host_transfer_collector": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.0,
+      "raw_xml_sha256": "2047981aacaf6c87f75b1b5a744f7d57a2e2c2c07022d39ee3bbca1ce37f6ce1",
+      "raw_xml": "temp/validation-20261025/repaired-tooling/ctest.xml"
+    },
+    "registered_gpu_verifiers": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.0,
+      "raw_xml_sha256": "10851f3baaf2993be0ed7043c904905a652fc509eb56b9bf8af424dcc2c4e5be",
+      "raw_xml": "temp/validation-20261025/repaired-verifier/ctest.xml"
+    },
+    "registered_asan_verifier": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 0.0,
+      "raw_xml_sha256": "fcf1a5040bb3e9990f60e2d10847e90b216e99d6eaf643a934f61930ed0a6afa",
+      "raw_xml": "temp/validation-20261025/registered-cpu-verifier/ctest.xml"
+    },
+    "native_consumer_static": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.0,
+      "raw_xml_sha256": "f4bc4533b86932cec7240cd92f208eaca34571bad7e35b98d4168ad21a2ca8a5",
+      "raw_xml": "temp/validation-20261025/pass3-6ba0b6e/native-consumers/static.xml"
+    },
+    "native_consumer_shared": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.0,
+      "raw_xml_sha256": "feb6ed03537d28459b33f8c60b3103eef5594d0a5b3b2974472f78aec792dede",
+      "raw_xml": "temp/validation-20261025/pass3-6ba0b6e/native-consumers/shared.xml"
+    },
+    "logical_proof": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1020.41,
+      "raw_xml_sha256": "c9b7d3cd31be0e5e3c24143a6858ef7bc0227cd9fb294d886250c45b2e97779c",
+      "raw_xml": "build/validation-20261025-asan/temp/validation-20261025/repaired-logical/ctest.xml",
+      "seconds_scope": "CTest testcase execution"
+    }
+  },
+  "coverage": {
+    "logical_proof_shared_once": true,
+    "cpu_registered": {
+      "tests": 552,
+      "passed": 530,
+      "skipped": 22,
+      "failed": 0
+    },
+    "gpu_registered": {
+      "tests": 911,
+      "passed": 896,
+      "skipped": 15,
+      "failed": 0
+    },
+    "method": "Union of named initial/repaired result partitions; two initial stream skips replaced by successful corrected mode smokes; new verifier registrations and shared logical proof included. These are not single-invocation totals.",
+    "audit": {
+      "asan": {
+        "inventory": 552,
+        "covered": 552,
+        "missing": [],
+        "extra": [],
+        "passed": 530,
+        "skipped": 22,
+        "failed": 0
+      },
+      "gpu": {
+        "inventory": 911,
+        "covered": 911,
+        "missing": [],
+        "extra": [],
+        "passed": 896,
+        "skipped": 15,
+        "failed": 0
+      }
+    },
+    "audit_sha256": "193b7d413c92232d5d1a1b397eeca4502aca987e432e5ca7d36c8b897b8347eb"
+  },
+  "standalone": {
+    "suites": 28,
+    "failed": 0
+  },
+  "fuzz": {
+    "harnesses": 3,
+    "runs_each": 1000,
+    "seed": 3135,
+    "timeout_seconds": 10,
+    "failed": 0
+  },
+  "closed_issues": [
+    27,
+    72,
+    74,
+    75,
+    76,
+    77
+  ],
+  "open_issue_count": 45,
+  "first_pass_failures": [
+    "paired-column arithmetic mismatch",
+    "two stale documentation inventory tests",
+    "LLVM objcopy rewrote inspected COFF object",
+    "logical checker 1500.02-second timeout",
+    "two unintended plain-stream skips",
+    "standalone verifier assumed eager host mirror"
+  ],
+  "repairs": [
+    "9b2e3c5",
+    "6ba0b6e",
+    "6f1aae3",
+    "ef2dabd",
+    "5456408"
+  ],
+  "remaining_gates": {
+    "deferred_hardware_issues": [
+      45,
+      50,
+      52
+    ],
+    "remaining_general_representation_selection": 42,
+    "git_selected": "2.56.0.windows.3",
+    "git_observed": "2.52.0.windows.1",
+    "rocm_10_1": "deferred_by_user",
+    "official_external_links": {
+      "reachable": 16,
+      "unresolved_http_429": 28
+    },
+    "performance_campaign": "stopped_not_resumed",
+    "other_issue_specific_qualification": "open; no blanket completion inferred"
+  },
+  "publication_checks": {
+    "documentation_inventory": 133,
+    "local_documentation_errors": 0,
+    "documentation_regressions": {
+      "tests": 16,
+      "passed": 15,
+      "optional_pyyaml_skipped": 1
+    },
+    "release_tree": "passed",
+    "dependency_lock": "consistent_candidate_not_qualified",
+    "diff_check": "passed"
+  }
+}

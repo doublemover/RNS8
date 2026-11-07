@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+import evidence_database_lib.io as database_io
+import evidence_database_lib.isa as database_isa
+import evidence_database_lib.outputs as database_outputs
+import evidence_database_lib.rows as database_rows
 import contextlib
 import io
 import json
 import tempfile
 from pathlib import Path
 
-import evidence_database
+from test_capture_identity_support import synthetic_static_isa_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +72,7 @@ def main() -> int:
                                 "modulus_role": "generic_non_hot_prime",
                                 "prime_or_composite": "prime",
                             },
-                        }
+                        },
                     ],
                 }
             ),
@@ -87,7 +91,9 @@ def main() -> int:
                                 {
                                     "capture": str(hip_capture),
                                     "promotable": False,
-                                    "promotion_blockers": ["missing_required_baseline:cpu-reference"],
+                                    "promotion_blockers": [
+                                        "missing_required_baseline:cpu-reference"
+                                    ],
                                     "primary_loss_phase_vs_direct_hip": "rns_gemm",
                                     "speedup_vs_direct_hip": None,
                                     "speedup_vs_vector_alu": None,
@@ -134,21 +140,21 @@ def main() -> int:
         invalid_capture.write_text(json.dumps({"schema_version": 4}), encoding="utf-8")
         candidate_cache = tmp / "candidate-autotune-cache.json"
         candidate_cache.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
-        discovered_names = {path.name for path in evidence_database.discover_capture_paths([tmp])}
+        discovered_names = {path.name for path in database_io.discover_capture_paths([tmp])}
         assert "invalid_capture.json" in discovered_names
         assert "review_report.json" not in discovered_names
         assert "scenario_manifest.json" not in discovered_names
         assert "candidate-autotune-cache.json" not in discovered_names
         assert "ck_backend_kernels-gfx1100-ck-isa-summary.json" not in discovered_names
         try:
-            evidence_database.load_validated_captures([invalid_capture])
+            database_io.load_validated_captures([invalid_capture])
         except Exception:
             pass
         else:
             raise AssertionError("strict evidence database loading should reject invalid captures")
         skipped_invalid: list[dict[str, str]] = []
         with contextlib.redirect_stderr(io.StringIO()):
-            skip_loaded = evidence_database.load_validated_captures(
+            skip_loaded = database_io.load_validated_captures(
                 [hip_capture, invalid_capture],
                 skip_invalid=True,
                 invalid_captures=skipped_invalid,
@@ -157,14 +163,19 @@ def main() -> int:
         assert len(skipped_invalid) == 1
         assert skipped_invalid[0]["capture_path"] == str(invalid_capture)
 
-        captures = evidence_database.load_validated_captures([hip_capture, ck_capture])
+        captures = database_io.load_validated_captures([hip_capture, ck_capture])
+        original_isa = json.loads(isa_report.read_text())
+        ck_bound = next(c for c in captures if c["backend_selected"] == "ck")
+        isa_report.write_text(
+            json.dumps(synthetic_static_isa_report(ck_bound, original_isa["instruction_totals"]))
+        )
         captures[0]["timing_summary_us"]["pack_a"] = {"avg": 24.0, "median": 24.0, "p95": 24.0}
         captures[0]["timing_summary_us"]["pack_b"] = {"avg": 16.0, "median": 16.0, "p95": 16.0}
-        database = evidence_database.build_database(
+        database = database_rows.build_database(
             captures,
-            scenario_index=evidence_database.load_scenario_index([scenario_manifest]),
-            review_index=evidence_database.load_review_index([review_report]),
-            isa_index=evidence_database.load_isa_index([isa_report]),
+            scenario_index=database_io.load_scenario_index([scenario_manifest]),
+            review_index=database_io.load_review_index([review_report]),
+            isa_index=database_isa.load_isa_index([isa_report]),
             invalid_captures=skipped_invalid,
         )
 
@@ -256,7 +267,7 @@ def main() -> int:
         assert ck_row["isa_vgpr_count"] == 64
         assert ck_row["isa_occupancy"] == 8
 
-        outputs = evidence_database.write_outputs(database, tmp / "evidence")
+        outputs = database_outputs.write_outputs(database, tmp / "evidence")
         for path in outputs.values():
             assert Path(path).exists()
         written = json.loads(Path(outputs["evidence_database"]).read_text(encoding="utf-8"))
@@ -286,7 +297,8 @@ def main() -> int:
         assert "GPU Roofline Priority" in markdown
         assert "Roofline Priority" in markdown
         assert "bottleneck us" in markdown
-        assert "median GOP/s" in markdown
+        assert "useful GOP/s" in markdown
+        assert "representation GOP/s" in markdown
         assert "Scenario Metadata" in markdown
         assert "large_shape_role" in markdown
         assert "throughput_probe" in markdown

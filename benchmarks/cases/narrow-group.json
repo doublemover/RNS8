@@ -1,0 +1,35 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "narrow-group",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "m", "n", "k", "tasks", "prefix", "unsigned_inputs", "shared_b", "mode", "method", "residency", "output", "repeats", "warmups", "seed"],
+      "defaults": {"schema": "narrow_group_case_v1", "prefix": 0, "repeats": 9, "warmups": 3, "seed": 5353},
+      "columns": ["m", "n", "k", "tasks", "unsigned_inputs", "shared_b", "mode", "method", "residency", "output"],
+      "rows": [
+        ["1x1x17-t8-scalar-resident-limbs-u0-single.json", "9a42805a4cf7c9ee7809e2c33de4bf03fa64f1855f38c4b4d98445ea80095f0d", 1, 1, 17, 8, false, true, "single", "scalar", "resident", "limbs"],
+        ["1x1x17-t8-scalar-resident-limbs-u0-group.json", "5cbb1759fca267ed7dd35844a2e860d801d649ae25e025f936da95e7e052bfbc", 1, 1, 17, 8, false, true, "group", "scalar", "resident", "limbs"],
+        ["1x1x17-t8-scalar-resident-limbs-u0-rns.json", "eb65f7b5d1258c88496efc4206ab22fa36a4e1622c47b1819748847f1f60387a", 1, 1, 17, 8, false, true, "rns", "scalar", "resident", "limbs"],
+        ["8x3x65537-t8-split-k-resident-resident-u0-single.json", "72e1d023332d03aeeb26b526b5b88309762f4702c2103ba42c0c8af71f499153", 8, 3, 65537, 8, false, true, "single", "split-k", "resident", "resident"],
+        ["8x3x65537-t8-split-k-resident-resident-u0-group.json", "42e9041f3b58f21fa9528fa51551254761ba9dc1d6447d0ef2290ebd2e7281f6", 8, 3, 65537, 8, false, true, "group", "split-k", "resident", "resident"],
+        ["8x3x65537-t8-split-k-resident-resident-u0-rns.json", "a998dfcd8b9434085b3a6ca7325b4854cb25c4924e52e47cdc5d291a9dcb68b7", 8, 3, 65537, 8, false, true, "rns", "split-k", "resident", "resident"],
+        ["64x64x257-t8-wmma-resident-resident-u0-single.json", "7d17bb92320daa27997912dd32d99a301a32eec30070454dd05e812b3b0f6def", 64, 64, 257, 8, false, false, "single", "wmma", "resident", "resident"],
+        ["64x64x257-t8-wmma-resident-resident-u0-group.json", "186b5033aafbb0adfd50306c26df315fa8743575f9e420120b8cf2b997fcb45d", 64, 64, 257, 8, false, false, "group", "wmma", "resident", "resident"],
+        ["64x64x257-t8-wmma-resident-resident-u0-rns.json", "e13a28c3710d57ec5004387ff5d2126dc328d0aec20dd9f1ed16baed28a87fb0", 64, 64, 257, 8, false, false, "rns", "wmma", "resident", "resident"],
+        ["17x3x4097-t4-wmma-repack-a-limbs-u0-single.json", "44c6042ddbb483e840de7bef7347a1ddc94c530ef90da03f349022b5bc6044bf", 17, 3, 4097, 4, false, true, "single", "wmma", "repack-a", "limbs"],
+        ["17x3x4097-t4-wmma-repack-a-limbs-u0-group.json", "8c6ae1cbf05b548ef0c7945e87a1904db9d1a1e46bce2f3c21fe0560a871f6ab", 17, 3, 4097, 4, false, true, "group", "wmma", "repack-a", "limbs"],
+        ["17x3x4097-t4-wmma-repack-a-limbs-u0-rns.json", "6b31a280e47ca6cae3b556a9610dbf34a621fdacfd77e82712a048a009092d84", 17, 3, 4097, 4, false, true, "rns", "wmma", "repack-a", "limbs"],
+        ["17x3x4097-t4-scalar-repack-b-resident-u0-single.json", "f712d72b1380572b982b3ffa51b05c32f1783ca67ae7c32f272eda0737b146ce", 17, 3, 4097, 4, false, true, "single", "scalar", "repack-b", "resident"],
+        ["17x3x4097-t4-scalar-repack-b-resident-u0-group.json", "8dd1b568a96d6df8e9c23bae77cfd86a4302d96129ca29e4ce8fce992e23ad61", 17, 3, 4097, 4, false, true, "group", "scalar", "repack-b", "resident"],
+        ["17x3x4097-t4-scalar-repack-b-resident-u0-rns.json", "7542beb54e53d9352a87f894327b72a85d6d4bb0b0fc24682084caa82cbf89cd", 17, 3, 4097, 4, false, true, "rns", "scalar", "repack-b", "resident"],
+        ["17x19x31-t4-wmma-repack-limbs-u1-single.json", "6907f1f34c43206f8d34011586426aacb4fb0922f69ecfbd31ec44cf3b6ff946", 17, 19, 31, 4, true, false, "single", "wmma", "repack", "limbs"],
+        ["17x19x31-t4-wmma-repack-limbs-u1-group.json", "ac37e0041de1bcceab8fa8e810552f5228a1a08cd7b8831823532f45b78b3446", 17, 19, 31, 4, true, false, "group", "wmma", "repack", "limbs"],
+        ["17x19x31-t4-wmma-repack-limbs-u1-rns.json", "3a596e7a336757c60796f4fe2b49a2196dccce979ee90dbf530ace5b21f33b46", 17, 19, 31, 4, true, false, "rns", "wmma", "repack", "limbs"],
+        ["17x19x31-t4-scalar-cold-limbs-u0-single.json", "cbb767bb8e75c914774cbb94a5bd7201d0925d3963154a4792d867a9f3d6e523", 17, 19, 31, 4, false, true, "single", "scalar", "cold", "limbs"],
+        ["17x19x31-t4-scalar-cold-limbs-u0-group.json", "a33f5f1ad8d1b014a5678c19528f9c94ad63a7b46b06d18fdd84a07698004052", 17, 19, 31, 4, false, true, "group", "scalar", "cold", "limbs"],
+        ["17x19x31-t4-scalar-cold-limbs-u0-rns.json", "bfd4f725b6ce8871e9585124563a6272c696ecc0ea650a71bcd68b8c1a2aba88", 17, 19, 31, 4, false, true, "rns", "scalar", "cold", "limbs"]
+      ]
+    }
+  ]
+}

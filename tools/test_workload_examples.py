@@ -1,0 +1,2037 @@
+#!/usr/bin/env python3
+"""Workload recipes, malformed observation fixtures and optional compiled CLI tests."""
+
+from __future__ import annotations
+import argparse
+import copy
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import collect_workload_examples as collector
+
+ROOT = Path(__file__).resolve().parents[1]
+RECIPES = json.loads((ROOT / "examples/workloads/recipes.json").read_text(encoding="utf-8"))
+BIN = None
+PROGRAMS = (
+    "integer-cross-product",
+    "gf251-transform",
+    "resident-chain",
+    "complex-product",
+    "exactness-walkthrough",
+)
+
+
+def fixture(workload="integer_cross_product"):
+    if workload == "split_complex_integer_product":
+        return complex_fixture()
+    field = workload == "gf251_linear_transform"
+    chain = workload == "resident_integer_chain"
+    gram = workload == "integer_gram"
+    recipe = (
+        "tiny_gf251_v1"
+        if field
+        else "tiny_cross_chain_v1"
+        if chain
+        else "tiny_cross_v1_gram_transpose_v1"
+        if gram
+        else "tiny_cross_v1"
+    )
+    values = RECIPES["fixtures"][recipe]
+    a, b, t = list(values["a"]), list(values["b"]), list(values.get("t", []))
+    input_hash = collector.checksum_bytes(collector.canonical_words(a + b + t))
+    a[0] = (a[0] + 1) % 251 if field else a[0] + 1
+    if gram:
+        b[0] = a[0]
+    changed_input = collector.checksum_bytes(collector.canonical_words(a + b + t))
+    result = {
+        "schema": collector.SCHEMA,
+        "status": "passed",
+        "run_id": "run1",
+        "workload": workload,
+        "m": 2,
+        "n": 2,
+        "k": 3,
+        "bits": 8,
+        "seed": 3135,
+        "pattern": "seeded",
+        "size": "tiny",
+        "repeats": 2,
+        "warmups": 0,
+        "sustained_ms": 0,
+        "sustained_order": [],
+        "backend_requested": "cpu-reference",
+        "device_requested": -1,
+        "compiler": "fixture compiler",
+        "os": "fixture",
+        "cpu_comparator_threads": 1,
+        "declared_memory_budget_bytes": 256 * 1024 * 1024,
+        "build_manifest": {"source": "fixture"},
+        "workload_source_identity": {"recipes.json": "a" * 64},
+        "semantics": "finite_u8_field"
+        if field
+        else "exact_wide_signed"
+        if chain
+        else "bounded_i64",
+        "output_contract": "fixture_contract",
+        "dataset_recipe": recipe,
+        "input_checksum_u64": input_hash,
+        "changed_input_checksum_u64": changed_input,
+        "checksum_u64": 123,
+        "checksum_hex": "000000000000007b",
+        "changed_checksum_u64": 456,
+        "clock": {"source": "host_monotonic", "resolution_ns": 1, "censor_threshold_ns": 5},
+        "promotion_eligible": False,
+        "isa_verified": False,
+    }
+
+    def sample(hash_value):
+        return {
+            "application_ns": 100,
+            "verification_ns": 2,
+            "phases_ns": {"application_ns": 90},
+            "checksum_u64": hash_value,
+            "exact_reference_passed": True,
+        }
+
+    changed = sample(456)
+    changed["source_version"] = 2
+    result["variants"] = [
+        {
+            "name": "rns8_cpu-reference",
+            "status": "passed",
+            "median_steady_ns": 100,
+            "calls_per_second": 10000000,
+            "samples": [sample(123), sample(123)],
+            "cold_call": sample(123),
+            "changed_input": changed,
+            "cold_application_total_ns": 200,
+            "cold_total_scope": "explicit_scope",
+            "metadata": {
+                "device": {
+                    "backend_requested": "cpu-reference",
+                    "backend_selected": "cpu-reference",
+                    "device_id": -1,
+                    "device": "fixtureCPU",
+                    "target": "host",
+                },
+                "plan": {"selected_kernel": "fixture"},
+            },
+        }
+    ]
+    return result
+
+
+def complex_fixture():
+    report = fixture()
+    row = RECIPES["fixtures"]["tiny_split_complex_v1"]
+    operands = [list(row[key]) for key in ("ar", "ai", "br", "bi")]
+    before = collector.canonical_words(sum(operands, []))
+    operands[0][0] += 1
+    changed = collector.canonical_words(sum(operands, []))
+    expected = collector.checksum_bytes(collector.canonical_words(row["real"] + row["imag"], 3))
+    changed_expected = collector.checksum_bytes(
+        collector.canonical_words(row["changed_real"] + row["changed_imag"], 3)
+    )
+    report.update(
+        workload="split_complex_integer_product",
+        semantics="exact_wide_signed_split_complex",
+        output_limbs_per_component_cell=3,
+        output_contract="real_row_major_signed_three_u64_limbs_then_imag_same",
+        dataset_recipe="tiny_split_complex_v1",
+        input_checksum_u64=collector.checksum_bytes(before),
+        changed_input_checksum_u64=collector.checksum_bytes(changed),
+        checksum_u64=expected,
+        checksum_hex=f"{expected:016x}",
+        changed_checksum_u64=changed_expected,
+        abs_partial_sum_bound="207",
+        bounds={"component_absolute_partial_sum": "207", "selected_prefix": 20},
+    )
+    prototype = report["variants"][0]
+    for sample in [prototype["cold_call"], *prototype["samples"]]:
+        sample["checksum_u64"] = expected
+    prototype["changed_input"]["checksum_u64"] = changed_expected
+    report["variants"] = []
+    for method in ("3m", "4m"):
+        variant = copy.deepcopy(prototype)
+        variant["name"] = "rns8_complex_" + method
+        variant["metadata"].update(
+            public_api="rns8_gemm_complex_exact_signed",
+            method=method,
+            real_product_count=int(method[0]),
+            scratch_budget_bytes=4096,
+        )
+        variant["metadata"]["plan"]["selected_prefix"] = 20
+        report["variants"].append(variant)
+    baseline = copy.deepcopy(prototype)
+    baseline["name"] = "blocked_cpp_int_complex_4m"
+    baseline["metadata"] = {}
+    report["variants"].insert(0, baseline)
+    return report
+
+
+def gram_batch_fixture(products=3, policy="once"):
+    report = fixture("integer_gram")
+    batch = collector.gram_batch_contract(products, policy)
+    report.update(
+        gram_batch=batch,
+        output_limbs_per_cell=1,
+        output_contract="row_major_signed_i64",
+        abs_partial_sum_bound="243",
+    )
+    report.update(
+        useful_integer_products_per_call=12 * products,
+        gram_dense_equivalent_integer_products_per_call=12 * products,
+        gram_independent_integer_products_per_call=9 * products,
+    )
+    before = collector.checksum_bytes(collector.canonical_words([14, -22, -22, 161]))
+    after = collector.checksum_bytes(collector.canonical_words([17, -14, -14, 161]))
+    report.update(checksum_u64=before, checksum_hex=f"{before:016x}", changed_checksum_u64=after)
+    prototype = report["variants"][0]
+    report["variants"] = []
+    for name, implementation in (
+        ("blocked_cpp_int", "cpu_native_comparator"),
+        ("rns8_prepared_dense_gram_control", "public_prepared_dense"),
+        ("rns8_single_source_gram_scalar", "retained_single_source"),
+        ("blocked_native_i64", "cpu_native_comparator"),
+    ):
+        row = copy.deepcopy(prototype)
+        row["name"] = name
+        rns = name.startswith("rns8_")
+        single = implementation == "retained_single_source"
+        metadata = dict(
+            batch,
+            implementation=implementation,
+            public_api="rns8_gram_residues" if single else "rns8_execute_prepared" if rns else None,
+            rns_exports_per_batch=(products if policy == "each" else 1) if rns else 0,
+            native_serializations_per_batch=0 if rns else products,
+            prepared_gram_api=False,
+            job_list_allocated_per_call=single,
+            capability_probed_per_call=False,
+        )
+        row["metadata"]["gram_batch"] = metadata
+        if single:
+            row["metadata"].update(
+                independent_integer_products_per_call=9 * products,
+                dense_equivalent_integer_products_per_call=12 * products,
+            )
+        row.update(
+            median_gram_product_ns=100 / products,
+            gram_products_per_second=1e9 * products / 100,
+            call_rate_unit="complete_R_product_application_batches_per_second",
+        )
+        for sample in [row["cold_call"], *row["samples"], row["changed_input"]]:
+            sample.update(
+                checksum_u64=before,
+                gram_products=products,
+                rns_exports=metadata["rns_exports_per_batch"],
+                verified_outputs_after_interval=1,
+            )
+        row["changed_input"].update(checksum_u64=after)
+        if rns:
+            row["changed_input"]["phases_ns"]["changed_input_pack_and_prepared_refresh_ns"] = 10
+        report["variants"].append(row)
+    return report
+
+
+def prepared_gram_fixture(products=3, policy="once", expanded=False, hip=False):
+    report = gram_batch_fixture(products, policy)
+    report["gram_prepared_owner_cohort"] = 1
+    prepared = copy.deepcopy(report["variants"][2])
+    prepared["name"] = "rns8_prepared_single_source_gram_scalar"
+    prepared["metadata"]["gram_batch"].update(
+        implementation="public_prepared_single_source",
+        public_api="rns8_execute_prepared_gram",
+        prepared_gram_api=True,
+        job_list_allocated_per_call=False,
+        generation_policy="refresh_or_explicit_recreate_on_expanded_bound",
+        host_job_preparation="once_per_owner_during_setup_or_changed_input",
+        device_job_allocation="not_applicable",
+        device_job_initialization="not_applicable",
+        wmma_capability_probe="not_applicable",
+    )
+    prepared["metadata"]["modeled_retained_gram_job_payload_bytes"] = 20
+    retained = dict(
+        generation_action="retained_owner",
+        packed_source_version=1,
+        owner_first_execution=False,
+        owner_builds=1,
+        owner_refreshes=0,
+    )
+    prepared["cold_call"]["execution_evidence"] = dict(retained, owner_first_execution=True)
+    for sample in prepared["samples"]:
+        sample["execution_evidence"] = dict(retained)
+    prepared["changed_input"]["execution_evidence"] = dict(
+        generation_action="recreated_owner_for_larger_bound" if expanded else "refreshed_owner",
+        packed_source_version=2,
+        owner_first_execution=expanded,
+        owner_builds=2 if expanded else 1,
+        owner_refreshes=0 if expanded else 1,
+    )
+    report["variants"].append(prepared)
+    if expanded:
+        report.update(
+            pattern="zero",
+            dataset_recipe="splitmix64_signed_magnitude_v1_gram_transpose_v1",
+            abs_partial_sum_bound="3",
+        )
+        before_input = [0] * 12
+        after_input = before_input.copy()
+        after_input[0] = after_input[6] = 1
+        before = collector.checksum_bytes(collector.canonical_words([0] * 4))
+        after = collector.checksum_bytes(collector.canonical_words([1, 0, 0, 0]))
+        report.update(
+            input_checksum_u64=collector.checksum_bytes(collector.canonical_words(before_input)),
+            changed_input_checksum_u64=collector.checksum_bytes(
+                collector.canonical_words(after_input)
+            ),
+            checksum_u64=before,
+            checksum_hex=f"{before:016x}",
+            changed_checksum_u64=after,
+        )
+        for row in report["variants"]:
+            for sample in [row["cold_call"], *row["samples"]]:
+                sample["checksum_u64"] = before
+            row["changed_input"]["checksum_u64"] = after
+    if hip:
+        report.update(backend_requested="hip-direct", device_requested=0)
+        ordinary_wmma = copy.deepcopy(report["variants"][2])
+        ordinary_wmma["name"] = "rns8_single_source_gram_wmma"
+        ordinary_wmma["metadata"]["gram_batch"]["capability_probed_per_call"] = True
+        prepared_wmma = copy.deepcopy(prepared)
+        prepared_wmma["name"] = "rns8_prepared_single_source_gram_wmma"
+        prepared_wmma["metadata"]["gram_batch"]["wmma_capability_probe"] = (
+            "first_execution_per_owner"
+        )
+        report["variants"].extend([ordinary_wmma, prepared_wmma])
+        for row in report["variants"]:
+            if not row["name"].startswith("rns8_"):
+                continue
+            row["metadata"]["device"].update(
+                backend_requested="hip-direct",
+                backend_selected="hip-direct",
+                device_id=0,
+                target="gfx1100",
+            )
+            if row["metadata"]["gram_batch"]["prepared_gram_api"]:
+                row["metadata"]["gram_batch"].update(
+                    device_job_allocation="once_per_owner_during_setup_or_changed_input",
+                    device_job_initialization="first_execution_per_owner",
+                )
+    return report
+
+
+def mfma_gram_fixture(products=3, policy="once"):
+    # Synthetic report admission only, never a gfx942 execution receipt.
+    report = prepared_gram_fixture(products, policy, hip=True)
+    report["gram_matrix_methods_cohort"] = 1
+    for row in report["variants"]:
+        if row["name"].startswith("rns8_"):
+            row["metadata"]["device"]["target"] = "gfx942"
+        if row["name"].endswith("_wmma"):
+            row["name"] = row["name"][:-5] + "_mfma_gfx942"
+            row["metadata"]["gram_method"] = "gfx942_mfma_i8_wave64"
+            batch = row["metadata"]["gram_batch"]
+            if batch["prepared_gram_api"]:
+                batch["wmma_capability_probe"] = "not_applicable"
+                batch["mfma_capability_probe"] = "first_execution_per_owner"
+    return report
+
+
+def five_gram_fixture(products=3, policy="once", hip=False, prefix=4, target="gfx1100"):
+    report = (
+        mfma_gram_fixture(products, policy)
+        if hip and target == "gfx942"
+        else prepared_gram_fixture(products, policy, hip=hip)
+    )
+    if hip and target not in {"gfx1100", "gfx1101", "gfx1102", "gfx942"}:
+        report["variants"] = [
+            row for row in report["variants"] if not row["name"].endswith("_wmma")
+        ]
+    report["gram_five_product_cohort"] = 2
+    for row in report["variants"]:
+        if row["name"].startswith("rns8_"):
+            row["metadata"]["plan"]["selected_prefix"] = prefix
+            if hip:
+                row["metadata"]["device"]["target"] = target
+    prototype = next(
+        row
+        for row in report["variants"]
+        if row["name"] == "rns8_prepared_single_source_gram_scalar"
+    )
+    prime = sum(collector.is_prime(q) for q in collector.DEFAULT_MODULI[:prefix])
+    for matrix in (False, True):
+        name = "rns8_prepared_single_source_gram_five_" + ("matrix" if matrix else "scalar")
+        if matrix and not hip:
+            report["variants"].append(
+                dict(name=name, status="unsupported", reason="synthetic CPU-only outcome")
+            )
+            continue
+        row = copy.deepcopy(prototype)
+        row["name"] = name
+        row["metadata"]["gram_method"] = "builtin_matrix" if matrix else "scalar"
+        arena = 9 * prime + 4 * prefix
+        owned = (arena + 3) // 4 * 4 + 16 if hip else arena + 8
+        classical_method = (
+            (6 if target == "gfx942" else 1 if target in {"gfx1100", "gfx1101", "gfx1102"} else 0)
+            if matrix
+            else 0
+        )
+        row["metadata"]["gram_five_product"] = dict(
+            version=2,
+            matrix_subproducts=matrix,
+            classical_method=classical_method,
+            algebraic_product_count=5,
+            algebraic_prime_planes=prime,
+            classical_planes=prefix - prime,
+            algebraic_operand_bytes=4 * prime,
+            algebraic_product_bytes=5 * prime,
+            algebraic_staging_bytes=4 * prefix,
+            host_job_bytes=8,
+            device_job_bytes=8 if hip else 0,
+            owned_payload_bytes=owned,
+            modeled_payload_envelope_bytes=23 + 13 * prefix,
+            count_scope="queried_retained_requests_and_algebraic_products_not_observed_instructions",
+        )
+        provider = dict(
+            method=classical_method,
+            classical_planes=prefix - prime,
+            matrix_probe_observed=int(classical_method != 0),
+            matrix_probe_supported=int(classical_method != 0),
+        )
+        for sample in [
+            row["cold_call"],
+            *row["samples"],
+            row["changed_input"],
+            row.get("sustained", {}),
+        ]:
+            if "execution_evidence" in sample:
+                sample["execution_evidence"]["classical_provider"] = copy.deepcopy(provider)
+        report["variants"].append(row)
+    return report
+
+
+class WorkloadExtentAdmission(unittest.TestCase):
+    def test_larger_and_long_k_gram_cases_are_admitted_without_allocating(self):
+        for n in (1, 15, 16, 17, 32, 33, 128, 512, 1024, 2048):
+            for k in (32, 256, 4096, 65535, 65536, 65537):
+                for reuse in (1, 2, 8, 32):
+                    report = dict(
+                        workload="integer_gram",
+                        size="large",
+                        m=n,
+                        n=n,
+                        k=k,
+                        gram_batch=dict(products_per_batch=reuse),
+                        declared_memory_budget_bytes=16384 * 1024 * 1024,
+                    )
+                    with self.subTest(n=n, k=k, reuse=reuse):
+                        if n * n * k * reuse <= 134217728:
+                            self.assertTrue(collector.validate_workload_extent(report))
+                        else:
+                            with self.assertRaises(ValueError):
+                                collector.validate_workload_extent(report)
+
+    def test_explicit_reference_budget_admits_large_shapes_independent_of_gpu_reuse(self):
+        for n in (32, 128, 512, 1024, 2048):
+            for k in (32, 256, 4096, 65535, 65536, 65537):
+                work = n * n * k
+                for reuse in (1, 2, 8, 32, 256):
+                    report = dict(
+                        workload="integer_gram",
+                        size="large",
+                        m=n,
+                        n=n,
+                        k=k,
+                        gram_batch=dict(products_per_batch=reuse),
+                        declared_memory_budget_bytes=16384 * 1024 * 1024,
+                        gram_reference_budget=dict(
+                            version=1,
+                            max_products_per_generation=work,
+                            products_per_generation=work,
+                            reference_generations=2,
+                            total_reference_products=2 * work,
+                            repeat_products_reuse_complete_reference=True,
+                        ),
+                    )
+                    with self.subTest(n=n, k=k, reuse=reuse):
+                        self.assertTrue(collector.validate_workload_extent(report))
+                        collector.validate_requested_reference_budget(report, work)
+                        for key, value in (
+                            ("version", True),
+                            ("products_per_generation", work - 1),
+                            ("reference_generations", 1),
+                            ("total_reference_products", work),
+                            ("repeat_products_reuse_complete_reference", 1),
+                        ):
+                            changed = copy.deepcopy(report)
+                            changed["gram_reference_budget"][key] = value
+                            with self.assertRaises(ValueError):
+                                collector.validate_workload_extent(changed)
+                        report["gram_reference_budget"]["max_products_per_generation"] -= 1
+                        with self.assertRaises(ValueError):
+                            collector.validate_workload_extent(report)
+
+    def test_reference_budget_scope_type_and_request_tampering(self):
+        arguments = [
+            "--size",
+            "large",
+            "--gram",
+            "--gram-reuse",
+            "32",
+            "--reference-max-products",
+            "4294967296",
+        ]
+        self.assertEqual(collector.requested_reference_budget(arguments), 4294967296)
+        self.assertIsNone(collector.requested_reference_budget(["--gram", "--gram-reuse", "32"]))
+        for args in (
+            ["--reference-max-products", "12"],
+            arguments[:-1],
+            arguments[:-1] + ["true"],
+            arguments[:-1] + ["0"],
+            arguments[:-1] + [str(2048 * 2048 * 65537 + 1)],
+            arguments + ["--reference-max-products", "12"],
+        ):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                collector.requested_reference_budget(args)
+        for budget in (
+            None,
+            True,
+            {},
+            dict(max_products_per_generation=True),
+            dict(max_products_per_generation=12),
+        ):
+            report = dict(gram_reference_budget=budget)
+            with self.subTest(budget=budget), self.assertRaises(ValueError):
+                collector.validate_requested_reference_budget(report, 4294967296)
+
+    def test_large_aggregate_allowance_remains_distinct_from_device_allocation(self):
+        work = 2048 * 2048 * 4096
+        report = dict(
+            workload="integer_gram",
+            size="large",
+            m=2048,
+            n=2048,
+            k=4096,
+            gram_batch=dict(products_per_batch=32),
+            declared_memory_budget_bytes=131072 * 1024 * 1024,
+            gram_reference_budget=dict(
+                version=1,
+                max_products_per_generation=work,
+                products_per_generation=work,
+                reference_generations=2,
+                total_reference_products=2 * work,
+                repeat_products_reuse_complete_reference=True,
+            ),
+        )
+        self.assertTrue(collector.validate_workload_extent(report))
+        report["declared_memory_budget_bytes"] += 1
+        with self.assertRaises(ValueError):
+            collector.validate_workload_extent(report)
+        ordinary = dict(
+            workload="integer_gram",
+            size="modest",
+            m=32,
+            n=32,
+            k=32,
+            declared_memory_budget_bytes=4096 * 1024 * 1024 + 1,
+        )
+        with self.assertRaises(ValueError):
+            collector.validate_workload_extent(ordinary)
+
+    def test_extent_scope_overflow_types_and_budget_are_rejected_before_recipe_work(self):
+        base = dict(
+            workload="integer_gram",
+            size="large",
+            m=32,
+            n=32,
+            k=65537,
+            gram_batch=dict(products_per_batch=1),
+            declared_memory_budget_bytes=16384 * 1024 * 1024,
+        )
+        for changes in (
+            dict(workload="integer_cross_product"),
+            dict(size="modest"),
+            dict(gram_batch={}),
+            dict(gram_batch=True),
+            dict(gram_batch=dict(products_per_batch=True)),
+            dict(m=True),
+            dict(m=0),
+            dict(m=2049),
+            dict(n=31),
+            dict(k=65538),
+            dict(k=1 << 63),
+            dict(declared_memory_budget_bytes=True),
+            dict(declared_memory_budget_bytes=0),
+            dict(declared_memory_budget_bytes=131072 * 1024 * 1024 + 1),
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                collector.validate_workload_extent({**base, **changes})
+
+
+class FiveProductGramReports(unittest.TestCase):
+    def test_compact_queries_and_existing_lifecycle_contract(self):
+        for hip in (False, True):
+            for prefix in (4, 9, 20):
+                for policy in ("each", "once"):
+                    report = five_gram_fixture(policy=policy, hip=hip, prefix=prefix)
+                    identity = collector.validate_report(
+                        report,
+                        "run1",
+                        "hip-direct" if hip else "cpu-reference",
+                        0 if hip else -1,
+                        collector.gram_batch_contract(3, policy),
+                    )
+                    self.assertEqual(identity["gram_five_product_cohort"], 2)
+
+    def test_classical_bucket_method_and_completed_probe_follow_actual_target(self):
+        for target, method in (("gfx1100", 1), ("gfx942", 6), ("gfx1201", 0)):
+            report = five_gram_fixture(hip=True, target=target)
+            collector.validate_report(report, "run1", "hip-direct", 0)
+            self.assertEqual(
+                report["variants"][-1]["metadata"]["gram_five_product"]["classical_method"], method
+            )
+            for key, value in (
+                ("method", 3),
+                ("matrix_probe_observed", True),
+                ("matrix_probe_supported", 0 if method else 1),
+                ("classical_planes", 0),
+            ):
+                bad = copy.deepcopy(report)
+                bad["variants"][-1]["samples"][0]["execution_evidence"]["classical_provider"][
+                    key
+                ] = value
+                with self.subTest(target=target, key=key), self.assertRaises(ValueError):
+                    collector.validate_report(bad, "run1", "hip-direct", 0)
+            bad = copy.deepcopy(report)
+            bad["variants"][-1]["metadata"]["gram_five_product"]["classical_method"] = (
+                0 if method else 1
+            )
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "hip-direct", 0)
+
+    def test_omissions_recipe_drift_and_retained_extent_controls(self):
+        mutations = [
+            lambda r: r.update(gram_five_product_cohort=True),
+            lambda r: r["variants"].pop(),
+            lambda r: r["variants"][-2].update(status="unsupported", reason="omitted scalar"),
+            lambda r: r["variants"][-2]["metadata"].update(gram_ablations={}),
+            lambda r: r["variants"][-2]["metadata"].update(gram_method="wmma"),
+            lambda r: r["variants"][-2]["metadata"]["plan"].update(selected_prefix=True),
+            lambda r: r["variants"][-2]["metadata"]["gram_five_product"].update(unknown=0),
+        ]
+        for key in five_gram_fixture()["variants"][-2]["metadata"]["gram_five_product"]:
+            mutations.append(
+                lambda r, key=key: r["variants"][-2]["metadata"]["gram_five_product"].pop(key)
+            )
+            mutations.append(
+                lambda r, key=key: r["variants"][-2]["metadata"]["gram_five_product"].update(
+                    {key: None}
+                )
+            )
+        for mutation in mutations:
+            report = five_gram_fixture()
+            mutation(report)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+        for key in (
+            "algebraic_prime_planes",
+            "classical_planes",
+            "algebraic_operand_bytes",
+            "algebraic_product_bytes",
+            "algebraic_staging_bytes",
+            "device_job_bytes",
+            "owned_payload_bytes",
+            "modeled_payload_envelope_bytes",
+        ):
+            report = five_gram_fixture(hip=True)
+            report["variants"][-1]["metadata"]["gram_five_product"][key] = False
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+
+    def test_explicit_five_product_request_admission(self):
+        valid = ["--gram", "--gram-reuse", "2", "--gram-five-product"]
+        self.assertTrue(collector.requested_five_gram(valid))
+        self.assertFalse(collector.requested_five_gram(valid[:-1]))
+        for args in (
+            ["--gram-five-product"],
+            ["--gram", "--gram-five-product"],
+            valid + ["--gram-five-product"],
+        ):
+            with self.assertRaises(ValueError):
+                collector.requested_five_gram(args)
+
+
+def native_gram_fixture(policy="once"):
+    report = five_gram_fixture(policy=policy, hip=True)
+    report["native_diagnostics_cohort"] = 1
+    products = report["gram_batch"]["products_per_batch"]
+    exports = products if policy == "each" else 1
+    for row in report["variants"]:
+        if row["status"] != "passed" or not row["name"].startswith("rns8_"):
+            continue
+        labels = {"synthetic_ordinary_gram": products}
+        if "gram_five_product" in row["metadata"]:
+            labels = {
+                "gram_five_compact_transform_v2": 5 * products,
+                "gram_five_compact_products_v2": 5 * products,
+                "gram_five_classical_triangular_bucket_v2": products,
+                "gram_five_compact_recombine_v2": products,
+                "gram_five_ordered_commit_v2": products,
+            }
+            if row["metadata"]["gram_five_product"]["matrix_subproducts"]:
+                labels["amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel_indexed_batched_v2"] = (
+                    5 * products
+                )
+        row["separate_batch_observation"] = dict(
+            schema="rns8_native_application_batch_v1",
+            scope="one_separate_public_application_batch",
+            observed_batches=1,
+            gram_products=products,
+            rns_exports=exports,
+            inside_timed_samples=False,
+            inside_sustained_interval=False,
+            copy_scope="tracked_completed_synchronous_HIP_copy_wrappers",
+            native_event_receipts_complete=True,
+            event_time_scope="per_label_sums_may_overlap_not_additive_end_to_end",
+            full_exact_output_checked_after_observation=True,
+            checksum_u64=report["checksum_u64"],
+            allocation_epoch=1,
+            device_allocation_calls=0,
+            device_free_calls=0,
+            h2d_calls=0,
+            h2d_bytes=0,
+            d2h_calls=exports,
+            d2h_bytes=exports * 32,
+            event_labels=labels,
+            event_microseconds={key: 1.5 for key in labels},
+        )
+    return report
+
+
+class NativeGramReports(unittest.TestCase):
+    def test_separate_batch_durations_and_matched_native_identity(self):
+        for policy in ("each", "once"):
+            report = native_gram_fixture(policy)
+            identity = collector.validate_report(report, "run1", "hip-direct", 0)
+            self.assertEqual(identity["native_diagnostics_cohort"], 1)
+            self.assertEqual(len(identity["native_diagnostic_identity"]), 7)
+
+    def test_missing_inconsistent_or_timed_native_receipts_are_rejected(self):
+        mutations = [
+            lambda r: r.update(native_diagnostics_cohort=True),
+            lambda r: r.pop("native_diagnostics_cohort"),
+            lambda r: r["variants"][-1].pop("separate_batch_observation"),
+            lambda r: r["variants"][0].update(separate_batch_observation={}),
+        ]
+        values = dict(
+            inside_timed_samples=True,
+            inside_sustained_interval=True,
+            observed_batches=True,
+            checksum_u64=0,
+            gram_products=1,
+            rns_exports=2,
+            allocation_epoch=False,
+            event_labels={},
+            event_microseconds={},
+            copy_scope="all_async_and_sync_transfers",
+            native_event_receipts_complete=False,
+            full_exact_output_checked_after_observation=False,
+            device_allocation_calls=1,
+            device_free_calls=1,
+            h2d_calls=1,
+            h2d_bytes=1,
+            d2h_calls=0,
+            event_time_scope="additive_end_to_end",
+        )
+        for key, value in values.items():
+            mutations.append(
+                lambda r, key=key, value=value: r["variants"][-1][
+                    "separate_batch_observation"
+                ].update({key: value})
+            )
+        for key in native_gram_fixture()["variants"][-1]["separate_batch_observation"]:
+            mutations.append(
+                lambda r, key=key: r["variants"][-1]["separate_batch_observation"].pop(key)
+            )
+        for mutation in mutations:
+            report = native_gram_fixture()
+            mutation(report)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+        for value in (-1, True, float("inf"), float("nan"), 10**1000):
+            report = native_gram_fixture()
+            report["variants"][-1]["separate_batch_observation"]["event_microseconds"][
+                "gram_five_compact_products_v2"
+            ] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+        for phase in (
+            "gram_five_compact_transform_v2",
+            "gram_five_compact_products_v2",
+            "gram_five_classical_triangular_bucket_v2",
+            "gram_five_compact_recombine_v2",
+            "gram_five_ordered_commit_v2",
+            "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_kernel_indexed_batched_v2",
+        ):
+            report = native_gram_fixture()
+            report["variants"][-1]["separate_batch_observation"]["event_labels"][phase] += 1
+            with self.subTest(phase=phase), self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "hip-direct", 0)
+
+
+class GramBatchReports(unittest.TestCase):
+    def test_prepared_gram_controls_refresh_recreate_and_first_use(self):
+        for products in (1, 3, 32):
+            for policy in ("each", "once"):
+                for expanded in (False, True):
+                    for hip in (False, True):
+                        report = prepared_gram_fixture(products, policy, expanded, hip)
+                        identity = collector.validate_report(
+                            report,
+                            "run1",
+                            "hip-direct" if hip else "cpu-reference",
+                            0 if hip else -1,
+                            collector.gram_batch_contract(products, policy),
+                        )
+                        self.assertEqual(identity["gram_prepared_owner_cohort"], 1)
+                        self.assertEqual(
+                            identity["dataset_bytes"]["gram_max_magnitudes"]["original"],
+                            "0" if expanded else "9",
+                        )
+        for mutate in (
+            lambda r: r.update(gram_prepared_owner_cohort=True),
+            lambda r: r["variants"].pop(),
+            lambda r: r["variants"][-1]["metadata"]["gram_batch"].update(
+                job_list_allocated_per_call=True
+            ),
+            lambda r: r["variants"][-1]["metadata"].update(
+                modeled_retained_gram_job_payload_bytes=19
+            ),
+            lambda r: r["variants"][-1]["cold_call"]["execution_evidence"].update(
+                owner_first_execution=False
+            ),
+            lambda r: r["variants"][-1]["samples"][0]["execution_evidence"].update(owner_builds=2),
+            lambda r: r["variants"][-1]["changed_input"]["execution_evidence"].update(
+                generation_action="retained_owner"
+            ),
+        ):
+            report = prepared_gram_fixture()
+            mutate(report)
+            with self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+        report = prepared_gram_fixture(expanded=True)
+        report["variants"][-1]["changed_input"]["execution_evidence"].update(
+            owner_builds=1, generation_action="refreshed_owner"
+        )
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+        report = prepared_gram_fixture(hip=True)
+        report["variants"][-1]["metadata"]["gram_batch"]["capability_probed_per_call"] = True
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "hip-direct", 0)
+
+    def test_mfma_gram_identity_cannot_inherit_wmma_or_other_target_evidence(self):
+        report = mfma_gram_fixture()
+        collector.validate_report(report, "run1", "hip-direct", 0)
+        for mutate in (
+            lambda r: r.pop("gram_matrix_methods_cohort"),
+            lambda r: r.update(gram_matrix_methods_cohort=True),
+            lambda r: r["variants"][-1]["metadata"]["device"].update(target="gfx1100"),
+            lambda r: r["variants"][-1]["metadata"].update(gram_method="wmma"),
+            lambda r: r["variants"][-1]["metadata"]["gram_batch"].pop("mfma_capability_probe"),
+            lambda r: r["variants"][-1]["metadata"]["gram_batch"].update(
+                wmma_capability_probe="first_execution_per_owner"
+            ),
+            lambda r: r["variants"].pop(),
+        ):
+            bad = mfma_gram_fixture()
+            mutate(bad)
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "hip-direct", 0)
+
+    def test_gram_ablation_payload_and_matched_controls(self):
+        for hip in (False, True):
+            report = prepared_gram_fixture(hip=hip)
+            report["gram_ablation_cohort"] = 1
+            report.setdefault("declared_memory_budget_bytes", 1 << 26)
+            prepared = [
+                row
+                for row in report["variants"]
+                if row["name"].startswith("rns8_prepared_single_source_gram_")
+            ]
+            for original in prepared:
+                method = "wmma" if original["name"].endswith("_wmma") else "scalar"
+                for kind in ("native", "transpose", "reconstruct_once", "separate_mirror"):
+                    if kind == "native" and not (
+                        hip and report["semantics"] == "exact_wide_signed"
+                    ):
+                        continue
+                    row = copy.deepcopy(original)
+                    row["name"] = f"rns8_prepared_single_source_gram_{kind}_{method}"
+                    report["variants"].append(row)
+            n, k = report["n"], report["k"]
+            prefix = 3
+            limbs = report["output_limbs_per_cell"]
+            for row in report["variants"]:
+                name = row["name"]
+                if not name.startswith("rns8_prepared_single_source_gram_"):
+                    continue
+                row["metadata"]["plan"] = {"selected_prefix": prefix}
+                native = "_gram_native_" in name
+                transpose = "_gram_transpose_" in name
+                once = "_reconstruct_once_" in name
+                wmma = name.endswith("_wmma")
+                adapter = k * n * prefix if transpose else 0
+                host = n * n * limbs * 8 if once else 0
+                device_export = host + 4 if hip and once else 0
+                jobs = ((n + 15) // 16) * ((n + 15) // 16 + 1) // 2 * 8
+                device = jobs + (4 if wmma else 0) + adapter if hip else 0
+                if hip and once:
+                    device = (device + 7) // 8 * 8 + device_export
+                row["metadata"]["gram_ablations"] = dict(
+                    version=1,
+                    input_policy=1 if native else 2 if transpose else 0,
+                    reconstruction_policy="independent_once_then_mirror"
+                    if once
+                    else "dense_each_cell",
+                    owned_payload_bytes=jobs
+                    + (adapter if not hip else 0)
+                    + host
+                    + (prefix if once and not hip else 0)
+                    + device,
+                    adapter_bytes=adapter,
+                    host_export_bytes=host,
+                    device_export_bytes=device_export,
+                    independent_cells=n * (n + 1) // 2,
+                    dense_cells=n * n,
+                    native_storage_retained=native,
+                    adapter_generation_policy="first_execute_after_prepare_or_refresh",
+                    mirror_policy="separate_tiled"
+                    if "_separate_mirror_" in name
+                    else "producer_stores",
+                    output_validity="complete_dense_residues",
+                )
+            # Direct schema validation avoids inventing timing-order receipts for
+            # these synthetic added variants. Full producer fixtures run separately.
+            dataset = collector.dataset_identity(report)
+            collector.validate_gram_batch(report, report["variants"], dataset=dataset)
+            for key in (
+                "owned_payload_bytes",
+                "independent_cells",
+                "host_export_bytes",
+                "input_policy",
+            ):
+                bad = copy.deepcopy(report)
+                bad["variants"][-2]["metadata"]["gram_ablations"][key] = -1
+                with self.assertRaises(ValueError):
+                    collector.validate_gram_batch(bad, bad["variants"], dataset=dataset)
+            bad = copy.deepcopy(report)
+            bad["variants"].pop()
+            with self.assertRaises(ValueError):
+                collector.validate_gram_batch(bad, bad["variants"], dataset=dataset)
+
+    def test_sustained_prepared_gram_reuses_initialized_owner(self):
+        report = prepared_gram_fixture()
+        report["sustained_ms"] = 1
+        report["sustained_order"] = [row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"] = {
+                "calls": 16,
+                "elapsed_ns": 2000000,
+                "mean_call_ns": 125000,
+                "target_ms": 1,
+                "call_limit": 4096,
+                "target_reached": True,
+                "checksum_u64": report["checksum_u64"],
+                "final_exact_reference_passed": True,
+                "verification_ns": 2,
+                "phase_timing_enabled": False,
+                "scope": "fixture final output only",
+                "gram_products": 48,
+                "rns_exports": 16 * row["metadata"]["gram_batch"]["rns_exports_per_batch"],
+                "mean_gram_product_ns": 2000000 / 48,
+                "verified_outputs_after_interval": 1,
+            }
+            if row["metadata"]["gram_batch"]["prepared_gram_api"]:
+                row["sustained"]["execution_evidence"] = dict(
+                    row["samples"][0]["execution_evidence"]
+                )
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        report["variants"][-1]["sustained"]["execution_evidence"]["owner_first_execution"] = True
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_matched_batch_export_policies_and_counts(self):
+        for products in (1, 3, 32, 256):
+            for policy in ("each", "once"):
+                report = gram_batch_fixture(products, policy)
+                identity = collector.validate_report(
+                    report,
+                    "run1",
+                    "cpu-reference",
+                    -1,
+                    collector.gram_batch_contract(products, policy),
+                )
+                self.assertEqual(identity["gram_batch"]["products_per_batch"], products)
+        for controls in (
+            ["--gram-reuse", "3"],
+            ["--gram", "--gram-export", "once"],
+            ["--gram", "--gram-reuse", "0"],
+            ["--gram", "--gram-reuse", "1.0"],
+            ["--gram", "--gram-reuse", "3", "--gram-export", "sometimes"],
+            ["--gram", "--gram-reuse", "3", "--gram-reuse", "3"],
+        ):
+            with self.assertRaises(ValueError):
+                collector.requested_gram_batch(controls)
+        self.assertEqual(
+            collector.requested_gram_batch(["--gram", "--gram-reuse", "3"]),
+            collector.gram_batch_contract(3, "once"),
+        )
+
+    def test_malformed_preparation_materialization_and_oracle(self):
+        mutations = [
+            lambda r: r["gram_batch"].update(products_per_batch=True),
+            lambda r: r["gram_batch"].update(export_policy="late"),
+            lambda r: r.update(gram_batch={}),
+            lambda r: r.update(checksum_u64=123, checksum_hex="000000000000007b"),
+            lambda r: r["variants"][0]["metadata"]["gram_batch"].update(
+                native_serializations_per_batch=1
+            ),
+            lambda r: r["variants"][1]["metadata"]["gram_batch"].update(public_api="rns8_gemm_rns"),
+            lambda r: r["variants"][2]["metadata"]["gram_batch"].update(prepared_gram_api=True),
+            lambda r: r.update(useful_integer_products_per_call=12),
+            lambda r: r["variants"][2]["metadata"].update(
+                dense_equivalent_integer_products_per_call=12
+            ),
+            lambda r: r["variants"][1]["samples"][0].update(gram_products=1),
+            lambda r: r["variants"][1]["samples"][0]["phases_ns"].update(pack_and_upload_ns=10),
+            lambda r: r["variants"][1]["changed_input"]["phases_ns"].pop(
+                "changed_input_pack_and_prepared_refresh_ns"
+            ),
+            lambda r: r["variants"][1].update(median_gram_product_ns=1),
+        ]
+        for mutate in mutations:
+            report = gram_batch_fixture()
+            mutate(report)
+            with self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+        report = gram_batch_fixture()
+        with self.assertRaises(ValueError):
+            collector.validate_report(
+                report, "run1", "cpu-reference", -1, collector.gram_batch_contract(3, "each")
+            )
+
+    def test_sustained_batch_products_and_final_only_verification(self):
+        report = gram_batch_fixture()
+        report["sustained_ms"] = 1
+        report["sustained_order"] = [row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"] = {
+                "calls": 16,
+                "elapsed_ns": 2000000,
+                "mean_call_ns": 125000,
+                "target_ms": 1,
+                "call_limit": 4096,
+                "target_reached": True,
+                "checksum_u64": report["checksum_u64"],
+                "final_exact_reference_passed": True,
+                "verification_ns": 2,
+                "phase_timing_enabled": False,
+                "scope": "fixture final output only",
+                "gram_products": 48,
+                "rns_exports": 16 * row["metadata"]["gram_batch"]["rns_exports_per_batch"],
+                "mean_gram_product_ns": 2000000 / 48,
+                "verified_outputs_after_interval": 1,
+            }
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        report["variants"][0]["sustained"]["gram_products"] = 16
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_requested_cohort_mismatch_retains_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "fake.exe"
+            executable.write_bytes(b"fixture")
+
+            def process(command, **kwargs):
+                report = gram_batch_fixture(3, "once")
+                report["run_id"] = command[-1]
+                return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                record = collector.collect(
+                    executable,
+                    ["--reference-only", "--gram", "--gram-reuse", "3", "--gram-export", "each"],
+                    1,
+                    10,
+                )
+            self.assertEqual(record["status"], "failed")
+            self.assertIn("requested Gram batch", record["errors"][0]["reason"])
+
+
+def optional_fixture(gmp=True, flint=True, chain=False):
+    report = fixture("resident_integer_chain" if chain else "integer_cross_product")
+    expected = [67, -34, 22, -24] if chain else [20, -27, 4, -14]
+    changed = [61, -17, 22, -24] if chain else [21, -19, 4, -14]
+    limbs = 3 if chain else 1
+    before = collector.checksum_bytes(collector.canonical_words(expected, limbs))
+    after = collector.checksum_bytes(collector.canonical_words(changed, limbs))
+    report.update(
+        optional_reference_cohort=1,
+        output_limbs_per_cell=limbs,
+        output_contract="row_major_signed_three_u64_limbs_per_cell"
+        if chain
+        else "row_major_signed_i64",
+        checksum_u64=before,
+        checksum_hex=f"{before:016x}",
+        changed_checksum_u64=after,
+        declared_memory_budget_bytes=1 << 26,
+        aggregate_memory_envelope_bytes=1 << 20,
+    )
+    report["workload_source_identity"].update(
+        {"workload_optional_references.hpp": "b" * 64, "optional_references.cmake": "c" * 64}
+    )
+    base = report["variants"][0]
+    for sample in [base["cold_call"], *base["samples"]]:
+        sample["checksum_u64"] = before
+    base["changed_input"]["checksum_u64"] = after
+    identities = {"version": 1}
+
+    def artifacts(library):
+        headers = (
+            ["gmp.h"] if library == "gmp" else ["flint/flint.h", "flint/fmpz.h", "flint/fmpz_mat.h"]
+        )
+        return dict(
+            headers_sha256={header: "d" * 64 for header in headers},
+            link_input_sha256="e" * 64,
+            extra_link_inputs_sha256=[],
+            runtime_binary_sha256=None,
+            runtime_binary_verified=False,
+        )
+
+    for library, enabled in (("gmp", gmp), ("flint", flint)):
+        name = ("gmp_mpz_blocked" if library == "gmp" else "flint_fmpz_mat_mul") + (
+            "_chain" if chain else ""
+        )
+        if not enabled:
+            reason = library.upper() + " workload adapter not enabled in this executable"
+            identities[library] = dict(enabled=False, status="unavailable", reason=reason)
+            report["variants"].append(dict(name=name, status="unavailable", reason=reason))
+            continue
+        version = "6.3.1" if library == "gmp" else "3.6.0"
+        item = dict(
+            enabled=True,
+            status="available",
+            header_version=version,
+            runtime_version=version,
+            artifacts=artifacts(library),
+        )
+        if library == "flint":
+            item.update(
+                gmp_header_version="6.3.1",
+                gmp_runtime_version="6.3.1",
+                gmp_artifacts=artifacts("gmp"),
+            )
+        identities[library] = item
+        row = copy.deepcopy(base)
+        row["name"] = name
+        contract = collector.optional_reference_contract(library, chain, limbs)
+        cells = 2 * 3 + 3 * 2 + 2 * 2 + (2 * 2 + 2 * 2 if chain else 0)
+        contract.update(
+            identity=item, modeled_memory_allowance_bytes=1024 * cells + 2 * 2 * 3 * 8 + 4096
+        )
+        row["metadata"] = {"optional_exact_reference": contract}
+        for sample in [row["cold_call"], *row["samples"], row["changed_input"]]:
+            sample["phases_ns"] = {
+                "optional_input_conversion_ns": 10,
+                "optional_exact_gemm_ns": 70,
+                "optional_output_serialization_ns": 10,
+            }
+        report["variants"].append(row)
+    report["optional_references"] = identities
+    return report
+
+
+def add_matched_cpu_fixture(report):
+    """Synthetic protocol receipts; full executable fixtures are exercised separately."""
+    report["cpu_lifecycle_cohort"] = 2
+    report["workload_source_identity"]["cpu_comparator_lifecycle.hpp"] = "f" * 64
+    products = report.get("gram_batch", {}).get("products_per_batch", 1)
+    policy = report.get("gram_batch", {}).get("export_policy", "each")
+    outputs = products if policy == "each" else 1
+    chain = report["workload"] == "resident_integer_chain"
+    if "optional_reference_cohort" in report:
+        report["optional_reference_cohort"] = 2
+    old = list(report["variants"])
+    native = [row for row in old if row["name"] in {"blocked_cpp_int", "blocked_native_i64"}]
+    if not native:
+        row = copy.deepcopy(next(row for row in old if row.get("status") == "passed"))
+        row["name"] = "blocked_cpp_int"
+        row["metadata"] = {}
+        report["variants"].append(row)
+        native = [row]
+    for source in [*native, *(row for row in old if row["name"].startswith(("gmp_", "flint_")))]:
+        retained = copy.deepcopy(source)
+        converted = source["name"].startswith(("gmp_", "flint_"))
+        retained["name"] += "_retained_inputs" if converted else "_matched_lifecycle"
+        if retained.get("status") != "passed":
+            report["variants"].append(retained)
+            continue
+        retained["metadata"]["cpu_lifecycle"] = dict(
+            version=2,
+            input_conversion_policy="generation_bound_converted_inputs"
+            if converted
+            else "native_inputs",
+            materialization_policy=policy,
+            computed_expressions_per_batch=products,
+            materialized_outputs_per_batch=outputs,
+            output_cached=False,
+            recomputation_policy="compiler_memory_barrier_after_each_expression_v1",
+            output_materialization="native_i64_view"
+            if source["name"] == "blocked_native_i64" and report.get("output_limbs_per_cell") == 1
+            else "checked_signed_word_serialization",
+            initial_conversion_charged="variant_setup"
+            if converted
+            else "not_applicable_native_inputs",
+            source_identity_policy="dataset_identity_address_length_and_explicit_operand_generation",
+            complete_caller_output_per_batch=True,
+        )
+        if converted:
+            retained["metadata"]["optional_exact_reference"].update(
+                version=2,
+                input_conversion_per_call=False,
+                input_conversion_policy="generation_bound_converted_inputs",
+                materialization_policy=policy,
+            )
+        if "gram_batch" in retained["metadata"]:
+            storage = retained["metadata"]["cpu_lifecycle"]["output_materialization"]
+            retained["metadata"]["gram_batch"].update(
+                native_serializations_per_batch=0 if storage == "native_i64_view" else outputs,
+                cpu_lifecycle_version=2,
+                materialized_native_outputs_per_batch=outputs,
+                native_output_storage=storage,
+            )
+
+        def evidence(calls, changed=False, *, converted=converted):
+            generations = (
+                [2, 2 if report["workload"] == "integer_gram" else 1, 1] if changed else [1, 1, 1]
+            )
+            passes = (
+                [
+                    2 if changed else 1,
+                    2 if changed and report["workload"] == "integer_gram" else 1,
+                    1 if chain else 0,
+                ]
+                if converted
+                else [0, 0, 0]
+            )
+            m, n, k = (report[key] for key in ("m", "n", "k"))
+            cells = [m * k, k * n, n * n if chain else 0]
+            return dict(
+                schema="rns8_cpu_comparator_lifecycle_v2",
+                source_identity=3135,
+                source_generations=generations,
+                converted_generations=[
+                    generations[0],
+                    generations[1],
+                    generations[2] if chain else None,
+                ]
+                if converted
+                else [None, None, None],
+                conversion_passes=passes,
+                converted_values=[a * b for a, b in zip(passes, cells)],
+                computed_expressions=calls * products,
+                gemm_products=calls * products * (2 if chain else 1),
+                materialized_outputs=calls * outputs,
+                retained_static_storage_bytes=1234,
+                converted_inputs=converted,
+                dynamic_library_peak_measured=False,
+            )
+
+        retained["cold_call"]["execution_evidence"] = evidence(1)
+        for index, sample in enumerate(retained["samples"]):
+            sample["execution_evidence"] = evidence(2 + report["warmups"] + index)
+        retained["changed_input"]["execution_evidence"] = evidence(
+            2 + report["warmups"] + report["repeats"], True
+        )
+        if not converted:
+            for sample in [retained["cold_call"], *retained["samples"], retained["changed_input"]]:
+                sample["phases_ns"] = dict(cpu_exact_gemm_ns=60, cpu_output_materialization_ns=20)
+        report["variants"].append(retained)
+    return report
+
+
+class CPUComparatorLifecycles(unittest.TestCase):
+    def test_optional_old_and_retained_cohorts_validate_together(self):
+        for gmp, flint in ((False, False), (True, False), (False, True), (True, True)):
+            for chain in (False, True):
+                with self.subTest(gmp=gmp, flint=flint, chain=chain):
+                    report = add_matched_cpu_fixture(optional_fixture(gmp, flint, chain))
+                    collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_matched_gram_each_and_once_keep_all_products(self):
+        for policy in ("each", "once"):
+            report = add_matched_cpu_fixture(gram_batch_fixture(3, policy))
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+            row = next(
+                row
+                for row in report["variants"]
+                if row["name"] == "blocked_cpp_int_matched_lifecycle"
+            )
+            self.assertEqual(row["cold_call"]["execution_evidence"]["computed_expressions"], 3)
+            self.assertEqual(
+                row["cold_call"]["execution_evidence"]["materialized_outputs"],
+                3 if policy == "each" else 1,
+            )
+
+    def test_missing_generation_wrong_materialization_and_output_reuse_are_rejected(self):
+        source = add_matched_cpu_fixture(optional_fixture())
+        matched = next(
+            index
+            for index, row in enumerate(source["variants"])
+            if row["name"] == "gmp_mpz_blocked_retained_inputs"
+        )
+        for mutate in (
+            lambda r: r.pop("cpu_lifecycle_cohort"),
+            lambda r: r["variants"][matched]["metadata"]["cpu_lifecycle"].update(
+                output_cached=True
+            ),
+            lambda r: r["variants"][matched]["changed_input"]["execution_evidence"].update(
+                source_generations=[1, 1, 1]
+            ),
+            lambda r: r["variants"][matched]["samples"][0]["execution_evidence"].update(
+                conversion_passes=[2, 2, 0]
+            ),
+            lambda r: r["variants"][matched]["cold_call"]["execution_evidence"].update(
+                computed_expressions=0
+            ),
+            lambda r: r["variants"][matched]["cold_call"]["execution_evidence"].update(
+                materialized_outputs=0
+            ),
+            lambda r: r["variants"][matched]["cold_call"].pop("execution_evidence"),
+            lambda r: r["workload_source_identity"].pop("cpu_comparator_lifecycle.hpp"),
+        ):
+            bad = copy.deepcopy(source)
+            mutate(bad)
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "cpu-reference", -1)
+
+
+class OptionalReferences(unittest.TestCase):
+    def test_gram_batch_optional_conversion_counts_and_sustained_scope(self):
+        for products in (1, 3):
+            for policy in ("each", "once"):
+                report = gram_batch_fixture(products, policy)
+                optional = optional_fixture()
+                report.update(
+                    optional_reference_cohort=1,
+                    optional_references=optional["optional_references"],
+                    output_limbs_per_cell=1,
+                    output_contract="row_major_signed_i64",
+                    declared_memory_budget_bytes=1 << 26,
+                    aggregate_memory_envelope_bytes=1 << 20,
+                )
+                report["workload_source_identity"] = optional["workload_source_identity"]
+                for row in optional["variants"][1:]:
+                    contract = row["metadata"]["optional_exact_reference"]
+                    contract["real_gemm_products_per_call"] = products
+                    row["metadata"]["gram_batch"] = copy.deepcopy(
+                        report["variants"][0]["metadata"]["gram_batch"]
+                    )
+                    row.update(
+                        median_gram_product_ns=100 / products,
+                        gram_products_per_second=1e9 * products / 100,
+                        call_rate_unit="complete_R_product_application_batches_per_second",
+                    )
+                    for sample in [row["cold_call"], *row["samples"]]:
+                        sample["checksum_u64"] = report["checksum_u64"]
+                    row["changed_input"]["checksum_u64"] = report["changed_checksum_u64"]
+                    for sample in [row["cold_call"], *row["samples"], row["changed_input"]]:
+                        sample.update(
+                            gram_products=products, rns_exports=0, verified_outputs_after_interval=1
+                        )
+                    report["variants"].append(row)
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+                bad = copy.deepcopy(report)
+                bad["variants"][-1]["metadata"]["optional_exact_reference"][
+                    "real_gemm_products_per_call"
+                ] = products + 1
+                with self.assertRaises(ValueError):
+                    collector.validate_report(bad, "run1", "cpu-reference", -1)
+        report = optional_fixture()
+        report["sustained_ms"] = 1
+        report["sustained_order"] = [row["name"] for row in report["variants"]]
+        for row in report["variants"]:
+            row["sustained"] = dict(
+                calls=16,
+                elapsed_ns=2000000,
+                mean_call_ns=125000,
+                target_ms=1,
+                call_limit=4096,
+                target_reached=True,
+                checksum_u64=report["checksum_u64"],
+                final_exact_reference_passed=True,
+                verification_ns=2,
+                phase_timing_enabled=False,
+                scope="fixture final output only",
+            )
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        report["variants"][-1]["sustained"]["final_exact_reference_passed"] = False
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_enabled_disabled_and_chain_cohorts_replay_complete_outputs(self):
+        for chain in (False, True):
+            for gmp in (False, True):
+                for flint in (False, True):
+                    report = optional_fixture(gmp, flint, chain)
+                    identity = collector.validate_report(report, "run1", "cpu-reference", -1)
+                    self.assertEqual(identity["optional_references"]["gmp"]["enabled"], gmp)
+                    self.assertEqual(identity["optional_references"]["flint"]["enabled"], flint)
+                    for key in ("checksum_u64", "changed_checksum_u64"):
+                        bad = copy.deepcopy(report)
+                        bad[key] ^= 1
+                        if key == "checksum_u64":
+                            bad["checksum_hex"] = f"{bad[key]:016x}"
+                        with self.assertRaises(ValueError):
+                            collector.validate_report(bad, "run1", "cpu-reference", -1)
+
+    def test_boundary_artifact_thread_and_unavailable_fixtures(self):
+        mutations = [
+            lambda r: r.update(optional_reference_cohort=True),
+            lambda r: r.pop("optional_reference_cohort"),
+            lambda r: r["variants"].pop(),
+            lambda r: r["workload_source_identity"].pop("optional_references.cmake"),
+            lambda r: r["optional_references"]["gmp"].update(runtime_version="6.2.1"),
+            lambda r: r["optional_references"]["gmp"]["artifacts"].update(link_input_sha256="bad"),
+            lambda r: r["optional_references"]["gmp"]["artifacts"].update(
+                runtime_binary_verified=True
+            ),
+            lambda r: r["optional_references"]["flint"].update(gmp_runtime_version="6.2.1"),
+            lambda r: r["variants"][1]["metadata"]["optional_exact_reference"].update(
+                input_conversion_per_call=False
+            ),
+            lambda r: r["variants"][1]["metadata"]["optional_exact_reference"].update(
+                retained_result_reuse=True
+            ),
+            lambda r: r["variants"][1]["metadata"]["optional_exact_reference"].update(threads=8),
+            lambda r: r["variants"][1]["metadata"]["optional_exact_reference"].update(
+                modeled_memory_allowance_bytes=0
+            ),
+            lambda r: r["variants"][2]["metadata"]["optional_exact_reference"].update(
+                arithmetic="fake_native128"
+            ),
+            lambda r: r["variants"][2]["samples"][0]["phases_ns"].pop(
+                "optional_input_conversion_ns"
+            ),
+            lambda r: r.update(aggregate_memory_envelope_bytes=1),
+            lambda r: r.update(declared_memory_budget_bytes=1),
+        ]
+        for mutate in mutations:
+            report = optional_fixture()
+            mutate(report)
+            with self.assertRaises(ValueError):
+                collector.validate_report(report, "run1", "cpu-reference", -1)
+        report = optional_fixture(False, False)
+        report["variants"][1].update(status="not_run")
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_optional_identity_change_is_retained_across_independent_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "fake.exe"
+            executable.write_bytes(b"fixture executable")
+            calls = 0
+
+            def process(command, **kwargs):
+                nonlocal calls
+                report = optional_fixture()
+                report["run_id"] = command[-1]
+                if calls:
+                    report["optional_references"]["gmp"]["artifacts"]["link_input_sha256"] = (
+                        "f" * 64
+                    )
+                    report["optional_references"]["flint"]["gmp_artifacts"]["link_input_sha256"] = (
+                        "f" * 64
+                    )
+                calls += 1
+                return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                result = collector.collect(
+                    executable, ["--reference-only", "--size", "tiny"], 2, 10
+                )
+            self.assertEqual(result["status"], "failed")
+            self.assertEqual(len(result["runs"]), 2)
+            self.assertIn("comparison identity changed", result["errors"][0]["reason"])
+            self.assertTrue(result["runs"][1]["stdout"])
+
+    def test_frozen_optional_cases_and_malformed_manifests(self):
+        path = ROOT / "examples/workloads/optional-reference-cases.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(value["cases"]), 18)
+        for case in value["cases"]:
+            arguments, identity = collector.load_optional_case(
+                path, case["id"], Path("rns8-workload-" + case["program"] + ".exe")
+            )
+            self.assertEqual(arguments, case["arguments"])
+            self.assertEqual(identity["case"], case)
+            if case["id"] in {"cross-512", "gram-512"}:
+                self.assertEqual(arguments[arguments.index("--memory-mib") + 1], "4096")
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "cases.json"
+            one = {"schema": value["schema"], "cases": [copy.deepcopy(value["cases"][0])]}
+            mutations = [
+                lambda v: v.update(schema="unknown"),
+                lambda v: v.update(cases=[]),
+                lambda v: v["cases"].append(copy.deepcopy(v["cases"][0])),
+                lambda v: v["cases"][0].update(program={}),
+                lambda v: v["cases"][0].update(id="../escape"),
+                lambda v: v["cases"][0]["arguments"].extend(["--json"]),
+                lambda v: v["cases"][0]["arguments"].extend(["--run-id", "owned"]),
+                lambda v: v["cases"][0]["arguments"].extend(["--repeats", "3"]),
+                lambda v: v["cases"][0]["arguments"].extend(["--unknown", "1"]),
+                lambda v: v["cases"][0]["arguments"].pop(),
+            ]
+            for mutate in mutations:
+                malformed = copy.deepcopy(one)
+                mutate(malformed)
+                target.write_text(json.dumps(malformed))
+                with self.assertRaises(ValueError):
+                    collector.load_optional_case(
+                        target,
+                        one["cases"][0]["id"],
+                        Path("rns8-workload-integer-cross-product.exe"),
+                    )
+            target.write_text(
+                '{"schema":"bad","schema":"rns8_optional_reference_cases_v1","cases":[]}'
+            )
+            with self.assertRaisesRegex(ValueError, "duplicate"):
+                collector.load_optional_case(target, "missing", Path("fake.exe"))
+            with self.assertRaises(ValueError):
+                collector.load_optional_case(path, "missing", Path("fake.exe"))
+            with self.assertRaises(ValueError):
+                collector.load_optional_case(
+                    path, "cross-tiny", Path("rns8-workload-resident-chain.exe")
+                )
+
+    def test_case_manifest_mutation_retains_raw_failure_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "rns8-workload-integer-cross-product.exe"
+            executable.write_bytes(b"fixture")
+            cases = root / "cases.json"
+            cases.write_bytes(
+                (ROOT / "examples/workloads/optional-reference-cases.json").read_bytes()
+            )
+            arguments, identity = collector.load_optional_case(cases, "cross-tiny", executable)
+
+            def process(command, **kwargs):
+                report = optional_fixture()
+                report["run_id"] = command[-1]
+                cases.write_text("changed")
+                return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                result = collector.collect(
+                    executable, arguments, 1, 10, case_file=cases, case_identity=identity
+                )
+            self.assertEqual(result["status"], "failed")
+            self.assertTrue(result["runs"][0]["stdout"])
+            self.assertIn("case manifest changed", result["errors"][0]["reason"])
+
+
+class Reports(unittest.TestCase):
+    def test_sustained_final_verification_and_bounded_duration(self):
+        report = fixture()
+        report.update(sustained_ms=250, sustained_order=["rns8_cpu-reference"])
+        burst = {
+            "calls": 100,
+            "elapsed_ns": 250000000,
+            "mean_call_ns": 2500000,
+            "target_ms": 250,
+            "call_limit": 4096,
+            "target_reached": True,
+            "checksum_u64": 123,
+            "final_exact_reference_passed": True,
+            "verification_ns": 10,
+            "phase_timing_enabled": False,
+            "scope": "full application",
+        }
+        report["variants"][0]["sustained"] = burst
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        for key, value in (
+            ("calls", True),
+            ("calls", 4097),
+            ("mean_call_ns", 1),
+            ("elapsed_ns", float("nan")),
+            ("target_reached", False),
+            ("target_ms", 1),
+            ("call_limit", 1),
+            ("checksum_u64", 456),
+            ("final_exact_reference_passed", False),
+            ("phase_timing_enabled", True),
+            ("verification_ns", -1),
+            ("scope", ""),
+        ):
+            with self.subTest(key=key, value=value):
+                bad = copy.deepcopy(report)
+                bad["variants"][0]["sustained"][key] = value
+                with self.assertRaises(ValueError):
+                    collector.validate_report(bad, "run1", "cpu-reference", -1)
+        burst.update(calls=4096, elapsed_ns=4096000, mean_call_ns=1000, target_reached=False)
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        bad = copy.deepcopy(report)
+        bad["sustained_order"] = []
+        with self.assertRaises(ValueError):
+            collector.validate_report(bad, "run1", "cpu-reference", -1)
+        burst.update(calls=4095, elapsed_ns=4095000)
+        with self.assertRaises(ValueError):
+            collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_exactness_witness_validation(self):
+        report = fixture()
+        report.update(
+            workload="exactness_walkthrough", dataset_recipe="exactness_five_witnesses_v1"
+        )
+        values = [
+            int(value)
+            for value in RECIPES["fixtures"]["exactness_five_witnesses_v1"]["output_decimal"]
+        ]
+        report["checksum_u64"] = collector.checksum_bytes(collector.canonical_words(values, 3))
+        report["checksum_hex"] = f"{report['checksum_u64']:016x}"
+        report["witnesses"] = [
+            {
+                "name": str(index),
+                "exact_decimal": str(value),
+                "exact_reference_passed": True,
+                "checksum_hex": f"{collector.checksum_bytes(collector.canonical_words([value], 3)):016x}",
+                "selected_prefix": 20,
+                "device": {"backend_selected": "cpu-reference", "device_id": -1},
+            }
+            for index, value in enumerate(values)
+        ]
+        report["witnesses"][0].update(
+            checked_i64={"status": "insufficient_range"},
+            binary64={"integer_difference_from_exact": "15"},
+        )
+        report["witnesses"][-1].update(
+            previous_output_preserved=True, out_of_range_status="range error"
+        )
+        collector.validate_report(report, "run1", "cpu-reference", -1)
+        for index, key, value in (
+            (0, "exact_decimal", "1"),
+            (4, "previous_output_preserved", False),
+            (2, "checksum_hex", "0000000000000000"),
+            (4, "out_of_range_status", "success"),
+        ):
+            with self.subTest(index=index, key=key):
+                bad = copy.deepcopy(report)
+                bad["witnesses"][index][key] = value
+                with self.assertRaises(ValueError):
+                    collector.validate_report(bad, "run1", "cpu-reference", -1)
+
+    def test_all_recipe_families(self):
+        for family in (
+            "integer_cross_product",
+            "integer_gram",
+            "gf251_linear_transform",
+            "resident_integer_chain",
+            "split_complex_integer_product",
+        ):
+            with self.subTest(family=family):
+                report = fixture(family)
+                identity = collector.validate_report(report, "run1", "cpu-reference", -1)
+                self.assertRegex(identity["dataset_bytes"]["sha256"], "^[0-9a-f]{64}$")
+
+    def test_hand_checked_fixtures(self):
+        for name, row in RECIPES["fixtures"].items():
+            if "a" not in row:
+                continue
+            m, n, k = row["shape"]
+            product = [
+                sum(row["a"][i * k + q] * row["b"][q * n + j] for q in range(k))
+                for i in range(m)
+                for j in range(n)
+            ]
+            if "t" in row:
+                product = [
+                    sum(product[i * n + q] * row["t"][q * n + j] for q in range(n))
+                    for i in range(m)
+                    for j in range(n)
+                ]
+            if "gf251" in name:
+                product = [value % 251 for value in product]
+            self.assertEqual(product, row["output"], name)
+
+    def test_complex_hand_answer_and_malformed_method_contracts(self):
+        row = RECIPES["fixtures"]["tiny_split_complex_v1"]
+        m, n, k = row["shape"]
+
+        def product(a, b):
+            return [
+                sum(a[i * k + q] * b[q * n + j] for q in range(k))
+                for i in range(m)
+                for j in range(n)
+            ]
+
+        rr, ii = product(row["ar"], row["br"]), product(row["ai"], row["bi"])
+        ri, ir = product(row["ar"], row["bi"]), product(row["ai"], row["br"])
+        self.assertEqual([a - b for a, b in zip(rr, ii)], row["real"])
+        self.assertEqual([a + b for a, b in zip(ri, ir)], row["imag"])
+        mutations = [
+            lambda r: r.update(output_contract="interleaved"),
+            lambda r: r.update(semantics="finite_ring"),
+            lambda r: r.update(abs_partial_sum_bound="0"),
+            lambda r: r["bounds"].update(selected_prefix=9),
+            lambda r: r.update(checksum_u64=0, checksum_hex="0000000000000000"),
+            lambda r: r.update(changed_checksum_u64=0),
+            lambda r: r["variants"].pop(),
+            lambda r: r["variants"].pop(0),
+            lambda r: r["variants"][1]["metadata"].update(method="4m"),
+            lambda r: r["variants"][1]["metadata"].update(real_product_count=4),
+            lambda r: r["variants"][1]["metadata"].update(scratch_budget_bytes=True),
+            lambda r: r["variants"][1]["metadata"].update(public_api="private_kernel"),
+        ]
+        for mutate in mutations:
+            bad = complex_fixture()
+            mutate(bad)
+            with self.assertRaises(ValueError):
+                collector.validate_report(bad, "run1", "cpu-reference", -1)
+
+    def test_complex_independent_process_scratch_identity_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "fixture"
+            executable.write_bytes(b"immutable")
+            count = 0
+
+            def process(command, **kwargs):
+                nonlocal count
+                report = complex_fixture()
+                report["run_id"] = command[-1]
+                report["variants"][1]["metadata"]["scratch_budget_bytes"] += count
+                count += 1
+                return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                record = collector.collect(executable, ["--reference-only"], 2, 1)
+            self.assertEqual(record["status"], "failed")
+            self.assertIn("identity changed", record["errors"][0]["reason"])
+
+    def test_malformed_observations(self):
+        mutations = {
+            "schema": lambda r: r.update(schema="rns8_benchmark_v4"),
+            "failed": lambda r: r.update(status="failed"),
+            "run_id": lambda r: r.update(run_id="different"),
+            "backend": lambda r: r.update(backend_requested="auto"),
+            "device": lambda r: r.update(device_requested=0),
+            "promotion": lambda r: r.update(promotion_eligible=True),
+            "isa": lambda r: r.update(isa_verified=True),
+            "dimensions_bool": lambda r: r.update(m=True),
+            "unknown_family": lambda r: r.update(workload="invented"),
+            "source_missing": lambda r: r.update(workload_source_identity=None),
+            "source_bad_hash": lambda r: r.update(workload_source_identity={"recipes.json": "bad"}),
+            "recipe_missing": lambda r: r.update(dataset_recipe="invented"),
+            "recipe_shape": lambda r: r.update(m=3),
+            "input_checksum": lambda r: r.update(input_checksum_u64=0),
+            "changed_input_checksum": lambda r: r.update(changed_input_checksum_u64=0),
+            "manifest_missing": lambda r: r.update(build_manifest=None),
+            "checksum_hex": lambda r: r.update(checksum_hex="bad"),
+            "clock_nan": lambda r: r["clock"].update(resolution_ns=float("nan")),
+            "empty_variants": lambda r: r.update(variants=[]),
+            "duplicate_variant": lambda r: r["variants"].append(copy.deepcopy(r["variants"][0])),
+            "effective_backend": lambda r: r["variants"][0]["metadata"]["device"].update(
+                backend_selected="hip-direct"
+            ),
+            "effective_device": lambda r: r["variants"][0]["metadata"]["device"].update(
+                device_id=0
+            ),
+            "repeats": lambda r: r.update(repeats=3),
+            "exact_failure": lambda r: r["variants"][0]["samples"][0].update(
+                exact_reference_passed=False
+            ),
+            "checksum_failure": lambda r: r["variants"][0]["samples"][0].update(checksum_u64=0),
+            "time_zero": lambda r: r["variants"][0]["samples"][0].update(application_ns=0),
+            "time_inf": lambda r: r["variants"][0]["samples"][0].update(
+                application_ns=float("inf")
+            ),
+            "time_null": lambda r: r["variants"][0]["samples"][0].update(application_ns=None),
+            "phase_missing": lambda r: r["variants"][0]["samples"][0].update(phases_ns={}),
+            "phase_negative": lambda r: r["variants"][0]["samples"][0].update(
+                phases_ns={"bad": -1}
+            ),
+            "verification_negative": lambda r: r["variants"][0]["samples"][0].update(
+                verification_ns=-1
+            ),
+            "changed_generation": lambda r: r["variants"][0]["changed_input"].update(
+                source_version=1
+            ),
+            "cold_scope": lambda r: r["variants"][0].update(cold_total_scope=""),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                report = fixture()
+                mutate(report)
+                with self.assertRaises((ValueError, KeyError, TypeError)):
+                    collector.validate_report(report, "run1", "cpu-reference", -1)
+
+    def test_process_identity_and_failures_are_retained(self):
+        with tempfile.TemporaryDirectory() as folder:
+            executable = Path(folder) / "executable"
+            executable.write_bytes(b"immutable")
+            counter = 0
+
+            def process(command, **kwargs):
+                nonlocal counter
+                report = fixture()
+                report["run_id"] = command[-1]
+                if counter:
+                    report["compiler"] = "changed compiler"
+                counter += 1
+                return subprocess.CompletedProcess(
+                    command, 0, json.dumps(report), "diagnostic stderr"
+                )
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                record = collector.collect(executable, ["--reference-only"], 2, 1)
+            self.assertEqual(record["status"], "failed")
+            self.assertEqual(len(record["runs"]), 2)
+            self.assertIn("identity changed", record["errors"][0]["reason"])
+            self.assertEqual(record["runs"][1]["stderr"], "diagnostic stderr")
+            for result in (
+                subprocess.CompletedProcess([], 77, '{"status":"unsupported"}', "missingGPU"),
+                subprocess.CompletedProcess([], 0, "not JSON", ""),
+                subprocess.TimeoutExpired("executable", 1, output=b"partial"),
+            ):
+                with patch.object(
+                    collector.subprocess,
+                    "run",
+                    side_effect=result if isinstance(result, Exception) else None,
+                    return_value=result,
+                ):
+                    record = collector.collect(executable, ["--reference-only"], 1, 1)
+                self.assertEqual(record["status"], "failed")
+                self.assertTrue(record["runs"][0]["error"])
+
+    def test_mutating_binary_is_rejected(self):
+        with tempfile.TemporaryDirectory() as folder:
+            executable = Path(folder) / "executable"
+            executable.write_bytes(b"before")
+
+            def process(command, **kwargs):
+                executable.write_bytes(b"after")
+                return subprocess.CompletedProcess(command, 0, "{}", "")
+
+            with patch.object(collector.subprocess, "run", side_effect=process):
+                record = collector.collect(executable, ["--reference-only"], 1, 1)
+            self.assertIn("executable changed", record["errors"][0]["reason"])
+
+    def test_adapter_preserves_admission_gaps_and_censoring(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "actual-isa.txt"
+            path.write_text("actual captured bytes", encoding="utf-8")
+            report = fixture()
+            report["variants"][0]["samples"][0]["application_ns"] = 2
+            identity = collector.validate_report(report, "run1", "cpu-reference", -1)
+            record = {
+                "status": "passed",
+                "executable_sha256": "b" * 64,
+                "comparison_identity": identity,
+                "runs": [{"run_id": "run1", "observation": report}],
+            }
+            result = collector.calibration_adapter(
+                record, path, "rns8_cpu-reference", "explicit_label", "unlocked", "default"
+            )
+            self.assertIn("isa_not_verified", result["admission_failures"])
+            self.assertIn("censored_samples", result["admission_failures"])
+            self.assertIn("fewer_than_five_independent_runs", result["admission_failures"])
+            self.assertFalse(result["rate_export_eligible"])
+            self.assertFalse(result["promotion_eligible"])
+            self.assertIsNone(result["raw"]["runs"][0]["elapsed_ns"][0])
+
+    def test_reserved_and_invalid_collection_controls(self):
+        for arguments in (
+            ["--json"],
+            ["--run-id", "x"],
+            ["--backend", "auto"],
+            ["--reference-only", "--backend", "ck"],
+        ):
+            with self.subTest(arguments=arguments), self.assertRaises(ValueError):
+                collector.request_identity(arguments)
+
+
+class Compiled(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        if BIN is None:
+            raise unittest.SkipTest("compiled workload directory not supplied")
+        missing = [name for name in PROGRAMS if not cls.exe(name).is_file()]
+        if missing:
+            raise RuntimeError("missing compiled workloads: " + ", ".join(missing))
+
+    @staticmethod
+    def exe(name):
+        return BIN / ("rns8-workload-" + name + (".exe" if os.name == "nt" else ""))
+
+    def invoke(self, name, arguments, success=True):
+        result = subprocess.run(
+            [str(self.exe(name)), "--reference-only", "--json", *arguments],
+            text=True,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=45,
+        )
+        self.assertEqual(result.returncode, 0 if success else 1, result.stdout + result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["status"], "passed" if success else "failed")
+        return report
+
+    def test_all_tiny_modes_collect_independent_processes(self):
+        for name in PROGRAMS:
+            with self.subTest(program=name):
+                result = collector.collect(
+                    self.exe(name),
+                    ["--reference-only", "--size", "tiny", "--repeats", "1", "--warmups", "0"],
+                    2,
+                    45,
+                )
+                self.assertEqual(result["status"], "passed", result["errors"])
+                self.assertEqual(len({row["run_id"] for row in result["runs"]}), 2)
+
+    def test_gram_wide_patterns_and_generator_override(self):
+        cases = [
+            ("integer-cross-product", ["--gram"]),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "once"]),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--gram-export", "each"]),
+            ("integer-cross-product", ["--wide", "--bits", "40"]),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--pattern", "zero"]),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "3", "--wide", "--bits", "40"]),
+            (
+                "integer-cross-product",
+                ["--gram", "--gram-reuse", "2", "--gram-five-product", "--wide", "--bits", "40"],
+            ),
+            ("integer-cross-product", ["--gram", "--gram-reuse", "2", "--gram-five-product"]),
+            ("integer-cross-product", ["--seed", "0"]),
+            ("integer-cross-product", ["--pattern", "zero"]),
+            ("gf251-transform", ["--seed", "1"]),
+            ("gf251-transform", ["--pattern", "sparse"]),
+            ("resident-chain", ["--pattern", "zero"]),
+            ("resident-chain", ["--bits", "12"]),
+            ("integer-cross-product", ["--m", "3", "--n", "1", "--k", "17"]),
+            ("gf251-transform", ["--m", "3", "--n", "5", "--k", "33"]),
+            ("resident-chain", ["--m", "3", "--n", "1", "--k", "17"]),
+            ("complex-product", ["--bits", "63"]),
+            ("complex-product", ["--pattern", "zero"]),
+            ("complex-product", ["--pattern", "sparse", "--seed", "0"]),
+            ("complex-product", ["--m", "3", "--n", "5", "--k", "17"]),
+        ]
+        for name, flags in cases:
+            with self.subTest(program=name, flags=flags):
+                result = collector.collect(
+                    self.exe(name),
+                    [
+                        "--reference-only",
+                        "--size",
+                        "tiny",
+                        "--repeats",
+                        "2",
+                        "--warmups",
+                        "0",
+                        *flags,
+                    ],
+                    1,
+                    45,
+                )
+                self.assertEqual(result["status"], "passed", result["errors"])
+
+    def test_sustained_application_modes(self):
+        for name in PROGRAMS[:-1]:
+            with self.subTest(program=name):
+                result = collector.collect(
+                    self.exe(name),
+                    [
+                        "--reference-only",
+                        "--size",
+                        "tiny",
+                        "--repeats",
+                        "1",
+                        "--warmups",
+                        "0",
+                        "--sustained-ms",
+                        "1",
+                    ],
+                    1,
+                    45,
+                )
+                self.assertEqual(result["status"], "passed", result["errors"])
+
+    def test_invalid_cli_is_rejected_before_gpu_work(self):
+        invalid = (
+            ["--gram-reuse", "3"],
+            ["--gram-export", "once"],
+            ["--gram", "--gram-reuse", "0"],
+            ["--gram", "--gram-reuse", "257"],
+            ["--m", "0"],
+            ["--n", "513"],
+            ["--k", "-1"],
+            ["--repeats", "0"],
+            ["--warmups", "21"],
+            ["--sustained-ms", "10001"],
+            ["--seed", "18446744073709551616"],
+            ["--bits", "64"],
+            ["--memory-mib", "0"],
+            ["--m", "2junk"],
+            ["--repeats", "1", "--repeats", "1"],
+            ["--unknown", "1"],
+            ["--backend", "auto"],
+            ["--backend", "hip-direct"],
+            ["--device", "0"],
+            ["--m"],
+        )
+        for name in PROGRAMS:
+            for flags in invalid:
+                with self.subTest(program=name, flags=flags):
+                    self.invoke(name, flags, success=False)
+        for name, flags in (
+            ("gf251-transform", ["--wide"]),
+            ("resident-chain", ["--gram"]),
+            ("exactness-walkthrough", ["--bits", "8"]),
+            ("exactness-walkthrough", ["--repeats", "2"]),
+            ("exactness-walkthrough", ["--sustained-ms", "1"]),
+            ("integer-cross-product", ["--size", "large", "--memory-mib", "1"]),
+            ("integer-cross-product", ["--size", "tiny", "--bits", "63"]),
+            ("resident-chain", ["--size", "tiny", "--bits", "63"]),
+        ):
+            with self.subTest(program=name, flags=flags):
+                self.invoke(name, flags, success=False)
+        for name in PROGRAMS[1:]:
+            self.invoke(
+                name, ["--gram", "--gram-reuse", "3", "--gram-export", "once"], success=False
+            )
+
+    def test_complex_specific_controls_and_unsupported_backend(self):
+        for flags in (["--wide"], ["--gram"], ["--size", "large", "--memory-mib", "1"]):
+            self.invoke("complex-product", flags, success=False)
+        result = subprocess.run(
+            [str(self.exe("complex-product")), "--backend", "ck", "--device", "0", "--json"],
+            text=True,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "unsupported")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--bin-dir", type=Path)
+    args, rest = parser.parse_known_args()
+    BIN = args.bin_dir.resolve() if args.bin_dir else None
+    unittest.main(argv=[sys.argv[0], *rest])

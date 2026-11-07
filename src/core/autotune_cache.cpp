@@ -1,4 +1,6 @@
 #include "core/autotune_cache.hpp"
+#include "backend_ck/implementation_contract.hpp"
+#include "backend_common/sha256.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -6,6 +8,10 @@
 #include "rns8/moduli.h"
 
 #include <cstdlib>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <cmath>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
@@ -13,11 +19,126 @@
 #include <sstream>
 #include <vector>
 #include <utility>
+#include <set>
+#include <stdexcept>
+#include <type_traits>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 namespace rns8::detail {
 namespace {
 
 using json = nlohmann::ordered_json;
+
+// JSON numeric conversion is deliberately stricter than get<T>(): floats and
+// out-of-range integers must never alias a reviewed plan's shape or workspace.
+template <typename T> T integer_field(const json& object, const char* name) {
+  const auto field = object.find(name);
+  if (field == object.end())
+    return T{0};
+  if (field->is_number_unsigned()) {
+    const auto value = field->get<uint64_t>();
+    if (value <= static_cast<uint64_t>(std::numeric_limits<T>::max()))
+      return static_cast<T>(value);
+  } else if (field->is_number_integer()) {
+    const auto value = field->get<int64_t>();
+    if constexpr (std::is_signed_v<T>) {
+      if (value >= std::numeric_limits<T>::min() && value <= std::numeric_limits<T>::max())
+        return static_cast<T>(value);
+    } else {
+      if (value >= 0 && static_cast<uint64_t>(value) <= std::numeric_limits<T>::max())
+        return static_cast<T>(value);
+    }
+  }
+  throw std::runtime_error(std::string("invalid integer field: ") + name);
+}
+
+bool valid_timings(const AutotuneCacheEntry& entry) {
+  for (double value : {entry.measured_median_pack_us, entry.measured_median_pack_a_us,
+                       entry.measured_median_pack_b_us, entry.measured_median_gemm_us,
+                       entry.measured_median_export_us, entry.measured_median_end_to_end_us}) {
+    if (!std::isfinite(value) || value < 0)
+      return false;
+  }
+  return true;
+}
+
+// A uniquely owned sibling directory avoids sharing or truncating a staging
+// file with another writer. Replacement is atomic; read-modify-write merging
+// across concurrent writers and power-loss durability are not promised.
+bool replace_cache_file(const std::filesystem::path& path, const std::string& contents,
+                        std::string& error) {
+  struct Staging {
+    std::filesystem::path directory;
+    std::filesystem::path file;
+    ~Staging() {
+      std::error_code ignored;
+      if (!file.empty())
+        std::filesystem::remove(file, ignored);
+      if (!directory.empty())
+        std::filesystem::remove(directory, ignored);
+    }
+  } staging;
+  std::error_code ec;
+  if (!path.parent_path().empty()) {
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+      error = ec.message();
+      return false;
+    }
+  }
+  static std::atomic<uint64_t> sequence{0};
+  for (unsigned attempt = 0; attempt < 100; ++attempt) {
+    auto candidate = path;
+    candidate += ".stage-" +
+                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" +
+                 std::to_string(sequence.fetch_add(1, std::memory_order_relaxed));
+    if (std::filesystem::create_directory(candidate, ec)) {
+      staging.directory = std::move(candidate);
+      break;
+    }
+    if (ec && ec != std::errc::file_exists) {
+      error = ec.message();
+      return false;
+    }
+    ec.clear();
+  }
+  if (staging.directory.empty()) {
+    error = "failed to reserve cache staging directory";
+    return false;
+  }
+  staging.file = staging.directory / "cache.json";
+  std::ofstream output(staging.file, std::ios::binary | std::ios::trunc);
+  output << contents;
+  output.flush();
+  if (!output) {
+    error = "failed to write autotune cache staging file";
+    return false;
+  }
+  output.close();
+  if (!output) {
+    error = "failed to close autotune cache staging file";
+    return false;
+  }
+#if defined(_WIN32)
+  if (!MoveFileExW(staging.file.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+    error = std::system_category().message(static_cast<int>(GetLastError()));
+    return false;
+  }
+#else
+  std::filesystem::rename(staging.file, path, ec);
+  if (ec) {
+    error = ec.message();
+    return false;
+  }
+#endif
+  return true;
+}
 
 std::string env_value(const char* name) {
 #if defined(_WIN32)
@@ -120,28 +241,35 @@ AutotuneCacheEntry entry_from_json(const json& item) {
   entry.target_id = item.value("target_id", "");
   entry.hip_sdk_or_library_version = item.value("hip_sdk_or_library_version", "");
   entry.semantic_contract = item.value("semantic_contract", "");
-  entry.finite_modulus = explicit_u32_field_or_zero(item, "finite_modulus");
+  entry.finite_modulus = integer_field<uint32_t>(item, "finite_modulus");
   if (const auto shape = item.find("shape"); shape != item.end() && shape->is_object()) {
-    entry.m = shape->value("m", int64_t{0});
-    entry.n = shape->value("n", int64_t{0});
-    entry.k = shape->value("k", int64_t{0});
+    entry.m = integer_field<int64_t>(*shape, "m");
+    entry.n = integer_field<int64_t>(*shape, "n");
+    entry.k = integer_field<int64_t>(*shape, "k");
+  } else if (shape != item.end()) {
+    throw std::runtime_error("autotune shape must be an object");
   }
   entry.layout = item.value("layout", "row_major");
   entry.prefix_schedule_hash = item.value("prefix_schedule_hash", "");
-  entry.k_block_size = item.value("k_block_size", int64_t{0});
-  entry.tile_m = item.value("tile_m", uint32_t{0});
-  entry.tile_n = item.value("tile_n", uint32_t{0});
+  entry.k_block_size = integer_field<int64_t>(item, "k_block_size");
+  entry.tile_m = integer_field<uint32_t>(item, "tile_m");
+  entry.tile_n = integer_field<uint32_t>(item, "tile_n");
   entry.epilogue = item.value("epilogue", "");
   entry.kernel_family = item.value("kernel_family", "");
-  entry.workspace_bytes = item.value("workspace_bytes", uint64_t{0});
-  if (const auto medians = item.find("measured_medians_us"); medians != item.end() && medians->is_object()) {
+  entry.workspace_bytes = integer_field<uint64_t>(item, "workspace_bytes");
+  if (const auto medians = item.find("measured_medians_us");
+      medians != item.end() && medians->is_object()) {
     entry.measured_median_pack_us = medians->value("pack", 0.0);
     entry.measured_median_pack_a_us = medians->value("pack_a", 0.0);
     entry.measured_median_pack_b_us = medians->value("pack_b", 0.0);
     entry.measured_median_gemm_us = medians->value("rns_gemm", 0.0);
     entry.measured_median_export_us = medians->value("crt_export", 0.0);
     entry.measured_median_end_to_end_us = medians->value("end_to_end", 0.0);
+  } else if (medians != item.end()) {
+    throw std::runtime_error("autotune measured_medians_us must be an object");
   }
+  if (!valid_timings(entry))
+    throw std::runtime_error("invalid autotune timing");
   entry.performance_validated = item.value("performance_validated", false);
   entry.validation_status = item.value("validation_status", "");
   entry.schema_version = explicit_u32_field_or_zero(item, "schema_version");
@@ -151,14 +279,20 @@ AutotuneCacheEntry entry_from_json(const json& item) {
 
 std::vector<std::pair<std::string, std::string>> parse_key_fields(const std::string& key) {
   std::vector<std::pair<std::string, std::string>> fields;
+  std::set<std::string> names;
   std::size_t begin = 0;
   while (begin <= key.size()) {
     const std::size_t end = key.find(';', begin);
-    const std::string part = key.substr(begin, end == std::string::npos ? std::string::npos : end - begin);
+    const std::string part =
+        key.substr(begin, end == std::string::npos ? std::string::npos : end - begin);
     if (!part.empty()) {
       const std::size_t equals = part.find('=');
       if (equals != std::string::npos && equals != 0) {
+        if (!names.insert(part.substr(0, equals)).second)
+          return {};
         fields.emplace_back(part.substr(0, equals), part.substr(equals + 1));
+      } else {
+        return {};
       }
     }
     if (end == std::string::npos) {
@@ -169,7 +303,8 @@ std::vector<std::pair<std::string, std::string>> parse_key_fields(const std::str
   return fields;
 }
 
-std::string key_field(const std::vector<std::pair<std::string, std::string>>& fields, const char* name) {
+std::string key_field(const std::vector<std::pair<std::string, std::string>>& fields,
+                      const char* name) {
   for (const auto& field : fields) {
     if (field.first == name) {
       return field.second;
@@ -178,10 +313,8 @@ std::string key_field(const std::vector<std::pair<std::string, std::string>>& fi
   return {};
 }
 
-std::string first_key_field(
-    const std::vector<std::pair<std::string, std::string>>& fields,
-    const char* first,
-    const char* second) {
+std::string first_key_field(const std::vector<std::pair<std::string, std::string>>& fields,
+                            const char* first, const char* second) {
   std::string value = key_field(fields, first);
   if (!value.empty()) {
     return value;
@@ -206,17 +339,14 @@ bool parse_i64(const std::string& text, int64_t& value) {
   }
 }
 
-std::string required_key_field(
-    const std::vector<std::pair<std::string, std::string>>& fields,
-    const char* name) {
+std::string required_key_field(const std::vector<std::pair<std::string, std::string>>& fields,
+                               const char* name) {
   const std::string value = key_field(fields, name);
   return value.empty() ? std::string("missing_key_") + name : std::string();
 }
 
-std::string require_key_i64(
-    const std::vector<std::pair<std::string, std::string>>& fields,
-    const char* name,
-    int64_t expected) {
+std::string require_key_i64(const std::vector<std::pair<std::string, std::string>>& fields,
+                            const char* name, int64_t expected) {
   const std::string value = key_field(fields, name);
   int64_t parsed = 0;
   if (!parse_i64(value, parsed)) {
@@ -228,10 +358,8 @@ std::string require_key_i64(
   return {};
 }
 
-std::string require_key_text(
-    const std::vector<std::pair<std::string, std::string>>& fields,
-    const char* name,
-    const char* expected) {
+std::string require_key_text(const std::vector<std::pair<std::string, std::string>>& fields,
+                             const char* name, const char* expected) {
   const std::string value = key_field(fields, name);
   if (value.empty()) {
     return std::string("missing_key_") + name;
@@ -242,10 +370,8 @@ std::string require_key_text(
   return {};
 }
 
-std::string require_optional_key_i64(
-    const std::vector<std::pair<std::string, std::string>>& fields,
-    const char* name,
-    int64_t expected) {
+std::string require_optional_key_i64(const std::vector<std::pair<std::string, std::string>>& fields,
+                                     const char* name, int64_t expected) {
   const std::string value = key_field(fields, name);
   if (value.empty()) {
     return {};
@@ -269,7 +395,8 @@ bool reviewed_autotune_backend_supports_semantic_contract(const AutotuneCacheEnt
       entry.selected_backend == "rocwmma" || entry.selected_backend == "amdgpu-builtins";
   const bool hip_resident_rns_semantic =
       entry.semantic_contract == "bounded_i64" || entry.semantic_contract == "bounded_u64" ||
-      entry.semantic_contract == "exact_wide_signed" || entry.semantic_contract == "exact_wide_unsigned" ||
+      entry.semantic_contract == "exact_wide_signed" ||
+      entry.semantic_contract == "exact_wide_unsigned" ||
       entry.semantic_contract == "finite_ring_u8" || entry.semantic_contract == "finite_field_u8";
   return public_accelerator && hip_resident_rns_semantic;
 }
@@ -286,29 +413,16 @@ bool is_finite_u8_semantic(const std::string& semantic_contract) {
   return semantic_contract == "finite_ring_u8" || semantic_contract == "finite_field_u8";
 }
 
-std::string expected_ck_finite_kernel(uint32_t finite_modulus) {
-  switch (finite_modulus) {
-    case 251:
-      return "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2";
-    case 255:
-      return "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2";
-    case 256:
-      return "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2";
-    default:
-      return "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2";
-  }
-}
-
 std::string expected_rocwmma_finite_kernel(uint32_t finite_modulus) {
   switch (finite_modulus) {
-    case 251:
-      return "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2";
-    case 255:
-      return "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2";
-    case 256:
-      return "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2";
-    default:
-      return "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
+  case 251:
+    return "rocwmma_i8_i32_signed_finite_u8_mod251_hot_residue_v2";
+  case 255:
+    return "rocwmma_i8_i32_signed_finite_u8_mod255_hot_residue_v2";
+  case 256:
+    return "rocwmma_i8_i32_signed_finite_u8_mod256_hot_residue_v2";
+  default:
+    return "rocwmma_i8_i32_signed_finite_u8_hot_residue_v1";
   }
 }
 
@@ -354,27 +468,36 @@ bool reviewed_amdgpu_builtin_kernel_supported_for_contract(const AutotuneCacheEn
       return false;
     }
     if (amdgpu_builtin_cdna3_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1" ||
-             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
+      return entry.selected_kernel ==
+                 "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1" ||
+             entry.selected_kernel ==
+                 "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1";
     }
     if (amdgpu_builtin_rdna3_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
+      return entry.selected_kernel ==
+             "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
     }
     if (amdgpu_builtin_rdna4_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
+      return entry.selected_kernel ==
+             "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1";
     }
     return false;
   }
-  if (is_exact_wide_semantic(entry.semantic_contract) || is_bounded_rns_semantic(entry.semantic_contract)) {
+  if (is_exact_wide_semantic(entry.semantic_contract) ||
+      is_bounded_rns_semantic(entry.semantic_contract)) {
     if (amdgpu_builtin_cdna3_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1" ||
-             entry.selected_kernel == "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
+      return entry.selected_kernel ==
+                 "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1" ||
+             entry.selected_kernel ==
+                 "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1";
     }
     if (amdgpu_builtin_rdna3_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
+      return entry.selected_kernel ==
+             "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
     if (amdgpu_builtin_rdna4_target_id(entry.target_id)) {
-      return entry.selected_kernel == "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
+      return entry.selected_kernel ==
+             "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1";
     }
   }
   return false;
@@ -393,14 +516,13 @@ bool reviewed_autotune_kernel_supported_for_contract(const AutotuneCacheEntry& e
       if (!finite_u8::static_byte_modulus_supported(entry.finite_modulus)) {
         return false;
       }
-      return entry.selected_kernel == expected_ck_finite_kernel(entry.finite_modulus);
+      return ck_kernel_matches(entry.selected_kernel, entry.finite_modulus);
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3";
+      return ck_kernel_matches(entry.selected_kernel);
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3" ||
-             entry.selected_kernel == "ck_wmma_cshuffle_tiled_i8_i32_default_moduli_static_centered_epilogue_v3";
+      return ck_kernel_matches(entry.selected_kernel, 0, true);
     }
   }
   if (entry.selected_backend == "rocwmma") {
@@ -464,13 +586,15 @@ bool reviewed_autotune_epilogue_supported_for_contract(const AutotuneCacheEntry&
   }
   if (entry.selected_backend == "amdgpu-builtins") {
     if (is_finite_u8_semantic(entry.semantic_contract)) {
-      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
+      return entry.epilogue ==
+             "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export";
     }
     if (is_exact_wide_semantic(entry.semantic_contract)) {
       return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output";
     }
     if (is_bounded_rns_semantic(entry.semantic_contract)) {
-      return entry.epilogue == "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
+      return entry.epilogue ==
+             "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export";
     }
   }
   return false;
@@ -507,7 +631,8 @@ const char* expected_accumulator_type_for_entry(const AutotuneCacheEntry& entry)
 
 const char* expected_accumulator_signedness_for_entry(const AutotuneCacheEntry& entry) {
   if (entry.selected_backend == "hip-vector-alu-int64") {
-    return entry.semantic_contract == "bounded_i64" ? "signed_i64x_signed_i64" : "unsigned_u64x_unsigned_u64";
+    return entry.semantic_contract == "bounded_i64" ? "signed_i64x_signed_i64"
+                                                    : "unsigned_u64x_unsigned_u64";
   }
   return "signed_i8x_signed_i8";
 }
@@ -533,10 +658,13 @@ int64_t expected_accumulator_k_block_cap_for_entry(const AutotuneCacheEntry& ent
 }
 
 std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
+  if (!valid_timings(entry) || entry.measured_median_end_to_end_us <= 0) {
+    return "invalid_entry_timings";
+  }
   if (entry.key.empty() || entry.selected_backend.empty() || entry.selected_kernel.empty() ||
       entry.target_id.empty() || entry.hip_sdk_or_library_version.empty() ||
-      entry.semantic_contract.empty() || entry.layout.empty() || entry.prefix_schedule_hash.empty() ||
-      entry.epilogue.empty() || entry.kernel_family.empty()) {
+      entry.semantic_contract.empty() || entry.layout.empty() ||
+      entry.prefix_schedule_hash.empty() || entry.epilogue.empty() || entry.kernel_family.empty()) {
     return "missing_required_entry_identity_field";
   }
   if (!reviewed_autotune_backend_supports_semantic_contract(entry)) {
@@ -548,10 +676,16 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   }
 
   const auto fields = parse_key_fields(entry.key);
-  if (std::string failure = required_key_field(fields, "backend"); !failure.empty()) return failure;
-  if (std::string failure = required_key_field(fields, "semantics"); !failure.empty()) return failure;
-  if (std::string failure = required_key_field(fields, "kernel"); !failure.empty()) return failure;
-  if (std::string failure = required_key_field(fields, "epilogue"); !failure.empty()) return failure;
+  if (fields.empty())
+    return "invalid_or_duplicate_key_fields";
+  if (std::string failure = required_key_field(fields, "backend"); !failure.empty())
+    return failure;
+  if (std::string failure = required_key_field(fields, "semantics"); !failure.empty())
+    return failure;
+  if (std::string failure = required_key_field(fields, "kernel"); !failure.empty())
+    return failure;
+  if (std::string failure = required_key_field(fields, "epilogue"); !failure.empty())
+    return failure;
 
   if (key_field(fields, "backend") != entry.selected_backend) {
     return "key_backend_mismatch";
@@ -559,43 +693,44 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (key_field(fields, "semantics") != entry.semantic_contract) {
     return "key_semantics_mismatch";
   }
-  if (key_field(fields, "kernel") != entry.selected_kernel || entry.kernel_family != entry.selected_kernel) {
+  if (key_field(fields, "kernel") != entry.selected_kernel ||
+      entry.kernel_family != entry.selected_kernel) {
     return "key_kernel_mismatch";
   }
   if (key_field(fields, "epilogue") != entry.epilogue) {
     return "key_epilogue_mismatch";
   }
-  if (std::string failure = require_key_i64(fields, "m", entry.m); !failure.empty()) return failure;
-  if (std::string failure = require_key_i64(fields, "n", entry.n); !failure.empty()) return failure;
-  if (std::string failure = require_key_i64(fields, "k", entry.k); !failure.empty()) return failure;
-  if (std::string failure = require_key_i64(fields, "tile_m", static_cast<int64_t>(entry.tile_m)); !failure.empty()) {
+  if (std::string failure = require_key_i64(fields, "m", entry.m); !failure.empty())
     return failure;
-  }
-  if (std::string failure = require_key_i64(fields, "tile_n", static_cast<int64_t>(entry.tile_n)); !failure.empty()) {
+  if (std::string failure = require_key_i64(fields, "n", entry.n); !failure.empty())
     return failure;
-  }
-  if (std::string failure = require_key_text(
-          fields,
-          "accumulator_type",
-          expected_accumulator_type_for_entry(entry));
+  if (std::string failure = require_key_i64(fields, "k", entry.k); !failure.empty())
+    return failure;
+  if (std::string failure = require_key_i64(fields, "tile_m", static_cast<int64_t>(entry.tile_m));
       !failure.empty()) {
     return failure;
   }
-  if (std::string failure = require_key_text(
-          fields,
-          "accumulator_signedness",
-          expected_accumulator_signedness_for_entry(entry));
+  if (std::string failure = require_key_i64(fields, "tile_n", static_cast<int64_t>(entry.tile_n));
       !failure.empty()) {
     return failure;
   }
-  if (std::string failure = require_key_text(
-          fields,
-          "accumulator_modulus_policy",
-          expected_accumulator_modulus_policy_for_entry(entry));
+  if (std::string failure =
+          require_key_text(fields, "accumulator_type", expected_accumulator_type_for_entry(entry));
       !failure.empty()) {
     return failure;
   }
-  if (std::string failure = require_key_i64(fields, "k_block_size", entry.k_block_size); !failure.empty()) {
+  if (std::string failure = require_key_text(fields, "accumulator_signedness",
+                                             expected_accumulator_signedness_for_entry(entry));
+      !failure.empty()) {
+    return failure;
+  }
+  if (std::string failure = require_key_text(fields, "accumulator_modulus_policy",
+                                             expected_accumulator_modulus_policy_for_entry(entry));
+      !failure.empty()) {
+    return failure;
+  }
+  if (std::string failure = require_key_i64(fields, "k_block_size", entry.k_block_size);
+      !failure.empty()) {
     return failure;
   }
   if (std::string failure =
@@ -617,7 +752,8 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
     if (entry.finite_modulus == 0) {
       return "missing_entry_finite_modulus";
     }
-    if (std::string failure = require_key_i64(fields, "finite_modulus", entry.finite_modulus); !failure.empty()) {
+    if (std::string failure = require_key_i64(fields, "finite_modulus", entry.finite_modulus);
+        !failure.empty()) {
       return failure;
     }
   } else if (entry.finite_modulus != 0) {
@@ -639,38 +775,39 @@ std::string validated_entry_identity_failure(const AutotuneCacheEntry& entry) {
   if (const std::string target = key_field(fields, "target_id"); target != entry.target_id) {
     return "key_target_id_mismatch";
   }
-  if (const std::string legacy_target = key_field(fields, "target"); !legacy_target.empty() &&
-      legacy_target != entry.target_id) {
+  if (const std::string legacy_target = key_field(fields, "target");
+      !legacy_target.empty() && legacy_target != entry.target_id) {
     return "key_target_mismatch";
   }
   if (const std::string version = first_key_field(fields, "hip_sdk_or_library_version", "version");
       !version.empty() && version != entry.hip_sdk_or_library_version) {
     return "key_version_mismatch";
   }
-  if (const std::string layout = key_field(fields, "layout"); !layout.empty() && layout != entry.layout) {
+  if (const std::string layout = key_field(fields, "layout");
+      !layout.empty() && layout != entry.layout) {
     return "key_layout_mismatch";
   }
   return {};
 }
 
-std::string validated_runtime_identity_failure(
-    const AutotuneCacheEntry& entry,
-    const AutotuneRuntimeIdentity& runtime) {
+std::string validated_runtime_identity_failure(const AutotuneCacheEntry& entry,
+                                               const AutotuneRuntimeIdentity& runtime) {
   if (!runtime.target_id.empty() && entry.target_id != runtime.target_id) {
     return "runtime_target_id_mismatch:" + entry.target_id + "!=" + runtime.target_id;
   }
   if (!runtime.hip_sdk_or_library_version.empty() &&
       entry.hip_sdk_or_library_version != runtime.hip_sdk_or_library_version) {
-    return "runtime_version_mismatch:" + entry.hip_sdk_or_library_version + "!=" +
-           runtime.hip_sdk_or_library_version;
+    return "runtime_version_mismatch:" + entry.hip_sdk_or_library_version +
+           "!=" + runtime.hip_sdk_or_library_version;
   }
   return {};
 }
 
-}  // namespace
+} // namespace
 
 std::filesystem::path autotune_cache_path() {
-  if (const std::string override_path = env_value("RNS8_AUTOTUNE_CACHE_PATH"); !override_path.empty()) {
+  if (const std::string override_path = env_value("RNS8_AUTOTUNE_CACHE_PATH");
+      !override_path.empty()) {
     return std::filesystem::path(override_path);
   }
 #if defined(_WIN32)
@@ -678,7 +815,8 @@ std::filesystem::path autotune_cache_path() {
     return std::filesystem::path(local_app_data) / "rns8-gemm" / "autotune.json";
   }
   if (const std::string user_profile = env_value("USERPROFILE"); !user_profile.empty()) {
-    return std::filesystem::path(user_profile) / "AppData" / "Local" / "rns8-gemm" / "autotune.json";
+    return std::filesystem::path(user_profile) / "AppData" / "Local" / "rns8-gemm" /
+           "autotune.json";
   }
 #else
   if (const std::string xdg_cache_home = env_value("XDG_CACHE_HOME"); !xdg_cache_home.empty()) {
@@ -691,54 +829,158 @@ std::filesystem::path autotune_cache_path() {
   return std::filesystem::path("rns8-gemm") / "autotune.json";
 }
 
-AutotuneCacheSnapshot read_autotune_cache() {
+std::shared_ptr<const AutotuneSelectionSnapshot>
+refresh_autotune_snapshot(const std::shared_ptr<const AutotuneSelectionSnapshot>& previous) {
   AutotuneCacheSnapshot snapshot{};
-  snapshot.path = autotune_cache_path();
+  snapshot.path = std::filesystem::absolute(autotune_cache_path()).lexically_normal();
+  std::string content_sha256;
+  const auto result = [&]() {
+    return std::make_shared<const AutotuneSelectionSnapshot>(std::move(snapshot),
+                                                             std::move(content_sha256));
+  };
   std::error_code ec;
   snapshot.exists = std::filesystem::exists(snapshot.path, ec);
   if (ec) {
     snapshot.error = ec.message();
-    return snapshot;
+    return result();
   }
   if (!snapshot.exists) {
     snapshot.loaded = true;
-    return snapshot;
+    if (previous && previous->cache().path == snapshot.path && !previous->cache().exists &&
+        previous->cache().loaded && previous->cache().error.empty())
+      return previous;
+    return result();
   }
 
   try {
-    std::ifstream input(snapshot.path);
+    constexpr size_t max_bytes = 16 * 1024 * 1024;
+    if (!std::filesystem::is_regular_file(snapshot.path) ||
+        std::filesystem::file_size(snapshot.path) > max_bytes)
+      throw std::runtime_error("autotune cache exceeds the bounded regular-file envelope");
+    std::ifstream input(snapshot.path, std::ios::binary);
     if (!input) {
       snapshot.error = "failed to open autotune cache";
-      return snapshot;
+      return result();
     }
-    json root = json::parse(input);
+    std::string bytes;
+    std::array<char, 65536> block{};
+    while (input.read(block.data(), block.size()) || input.gcount()) {
+      if (static_cast<size_t>(input.gcount()) > max_bytes - bytes.size())
+        throw std::runtime_error("autotune cache grew beyond the byte budget");
+      bytes.append(block.data(), static_cast<size_t>(input.gcount()));
+    }
+    if (input.bad() || !input.eof())
+      throw std::runtime_error("failed to read autotune cache");
+    content_sha256 = sha256(bytes);
+    if (previous && previous->cache().path == snapshot.path && previous->cache().exists &&
+        previous->content_sha256() == content_sha256)
+      return previous;
+    // The JSON DOM otherwise retains only the last spelling of a duplicate
+    // member. Reject it before identity checks lose that ambiguity.
+    std::vector<std::set<std::string>> object_keys;
+    json root = json::parse(bytes, [&](int depth, json::parse_event_t event, json& value) {
+      if (depth > 128)
+        throw std::runtime_error("autotune JSON exceeds the nesting budget");
+      if (event == json::parse_event_t::object_start)
+        object_keys.emplace_back();
+      if (event == json::parse_event_t::key &&
+          !object_keys.back().insert(value.get<std::string>()).second)
+        throw std::runtime_error("duplicate autotune JSON member");
+      if (event == json::parse_event_t::object_end)
+        object_keys.pop_back();
+      return true;
+    });
     if (!root.is_object()) {
       snapshot.error = "autotune cache root must be an object";
-      return snapshot;
+      return result();
     }
     snapshot.schema_version = explicit_u32_field_or_zero(root, "schema_version");
+    std::set<std::string> entry_keys;
     if (const auto entries = root.find("entries"); entries != root.end() && entries->is_array()) {
+      if (entries->size() > 65536)
+        throw std::runtime_error("autotune cache exceeds the entry budget");
       for (const auto& item : *entries) {
         if (!item.is_object()) {
-          continue;
+          throw std::runtime_error("autotune entry must be an object");
         }
         AutotuneCacheEntry entry = entry_from_json(item);
         if (!entry.key.empty()) {
+          if (!entry_keys.insert(entry.key).second)
+            throw std::runtime_error("duplicate autotune entry key");
           snapshot.entries.push_back(std::move(entry));
+        } else {
+          throw std::runtime_error("autotune entry key is empty");
         }
       }
+    } else {
+      throw std::runtime_error("autotune entries must be an array");
     }
     snapshot.loaded = true;
   } catch (const std::exception& error) {
+    snapshot.entries.clear();
     snapshot.error = error.what();
   }
-  return snapshot;
+  return result();
 }
 
-const AutotuneCacheEntry* find_exact_autotune_entry(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key) {
-  if (key.empty()) {
+AutotuneCacheSnapshot read_autotune_cache() {
+  return refresh_autotune_snapshot()->cache();
+}
+
+namespace {
+bool reviewed_entry(uint32_t schema, const AutotuneCacheEntry& entry) {
+  return schema == 1 && entry.performance_validated && entry.schema_version == 1 &&
+         entry.validation_status.rfind("reviewed_release_", 0) == 0 &&
+         validated_entry_identity_failure(entry).empty() &&
+         reviewed_validation_status_matches_target(entry);
+}
+} // namespace
+
+AutotuneSelectionSnapshot::AutotuneSelectionSnapshot(AutotuneCacheSnapshot snapshot,
+                                                     std::string content_sha256)
+    : cache_(std::move(snapshot)), content_sha256_(std::move(content_sha256)) {
+  if (!cache_.loaded)
+    return;
+  if (cache_.entries.size() > 65536)
+    throw std::invalid_argument("autotune cache exceeds the entry budget");
+  exact_.reserve(cache_.entries.size());
+  for (const auto& entry : cache_.entries) {
+    const bool reviewed = reviewed_entry(cache_.schema_version, entry);
+    if (entry.key.empty() || !exact_.emplace(entry.key, IndexedEntry{&entry, reviewed}).second)
+      throw std::invalid_argument("duplicate autotune entry key");
+    if (reviewed) {
+      cohorts_.emplace(entry.selected_backend, entry.semantic_contract, entry.finite_modulus,
+                       entry.m, entry.n, entry.k, entry.target_id);
+    }
+  }
+}
+
+bool AutotuneSelectionSnapshot::plausible(std::string_view backend, std::string_view semantics,
+                                          uint32_t modulus, int64_t m, int64_t n, int64_t k,
+                                          std::string_view target) const {
+  return cohorts_.find(Cohort{backend, semantics, modulus, m, n, k, target}) != cohorts_.end();
+}
+
+const AutotuneCacheEntry* AutotuneSelectionSnapshot::exact(const std::string& key) const {
+  const auto hit = exact_.find(key);
+  return hit == exact_.end() ? nullptr : hit->second.entry;
+}
+
+const AutotuneCacheEntry* AutotuneSelectionSnapshot::validated(const std::string& key) const {
+  const auto hit = exact_.find(key);
+  return hit == exact_.end() || !hit->second.reviewed ? nullptr : hit->second.entry;
+}
+
+const AutotuneCacheEntry*
+AutotuneSelectionSnapshot::runtime(const std::string& key,
+                                   const AutotuneRuntimeIdentity& identity) const {
+  const auto* hit = validated(key);
+  return hit && validated_runtime_identity_failure(*hit, identity).empty() ? hit : nullptr;
+}
+
+const AutotuneCacheEntry* find_exact_autotune_entry(const AutotuneCacheSnapshot& snapshot,
+                                                    const std::string& key) {
+  if (!snapshot.loaded || key.empty()) {
     return nullptr;
   }
   for (const auto& entry : snapshot.entries) {
@@ -749,32 +991,22 @@ const AutotuneCacheEntry* find_exact_autotune_entry(
   return nullptr;
 }
 
-const AutotuneCacheEntry* find_validated_autotune_entry(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key) {
+const AutotuneCacheEntry* find_validated_autotune_entry(const AutotuneCacheSnapshot& snapshot,
+                                                        const std::string& key) {
   if (!snapshot.loaded || snapshot.schema_version != 1) {
     return nullptr;
   }
   const AutotuneCacheEntry* hit = find_exact_autotune_entry(snapshot, key);
-  if (!hit || !hit->performance_validated || hit->schema_version != 1) {
-    return nullptr;
-  }
-  if (hit->validation_status.rfind("reviewed_release_", 0) != 0) {
-    return nullptr;
-  }
-  if (!validated_entry_identity_failure(*hit).empty()) {
-    return nullptr;
-  }
-  if (!reviewed_validation_status_matches_target(*hit)) {
+  if (!hit || !reviewed_entry(snapshot.schema_version, *hit)) {
     return nullptr;
   }
   return hit;
 }
 
-const AutotuneCacheEntry* find_validated_autotune_entry_for_runtime(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const AutotuneRuntimeIdentity& runtime) {
+const AutotuneCacheEntry*
+find_validated_autotune_entry_for_runtime(const AutotuneCacheSnapshot& snapshot,
+                                          const std::string& key,
+                                          const AutotuneRuntimeIdentity& runtime) {
   const AutotuneCacheEntry* hit = find_validated_autotune_entry(snapshot, key);
   if (!hit || !validated_runtime_identity_failure(*hit, runtime).empty()) {
     return nullptr;
@@ -783,77 +1015,77 @@ const AutotuneCacheEntry* find_validated_autotune_entry_for_runtime(
 }
 
 bool write_autotune_cache_entry(const AutotuneCacheEntry& entry, std::string& error) {
-  if (entry.key.empty()) {
-    error = "autotune cache entry key is empty";
-    return false;
-  }
-  AutotuneCacheSnapshot snapshot = read_autotune_cache();
-  if (!snapshot.loaded && snapshot.exists) {
-    error = snapshot.error.empty() ? "failed to read existing autotune cache" : snapshot.error;
-    return false;
-  }
-  bool replaced = false;
-  for (auto& existing : snapshot.entries) {
-    if (existing.key == entry.key) {
-      existing = entry;
-      replaced = true;
-      break;
-    }
-  }
-  if (!replaced) {
-    snapshot.entries.push_back(entry);
-  }
-
-  json root;
-  root["schema_version"] = uint32_t{1};
-  root["entries"] = json::array();
-  for (const auto& cached : snapshot.entries) {
-    root["entries"].push_back(entry_to_json(cached));
-  }
-
-  const std::filesystem::path path = autotune_cache_path();
-  std::error_code ec;
-  const std::filesystem::path parent = path.parent_path();
-  if (!parent.empty()) {
-    std::filesystem::create_directories(parent, ec);
-    if (ec) {
-      error = ec.message();
+  error.clear();
+  try {
+    if (entry.key.empty()) {
+      error = "autotune cache entry key is empty";
       return false;
     }
-  }
-  std::ofstream output(path, std::ios::trunc);
-  if (!output) {
-    error = "failed to open autotune cache for write";
+    AutotuneCacheSnapshot snapshot = read_autotune_cache();
+    if (!snapshot.loaded) {
+      error = snapshot.error.empty() ? "failed to read existing autotune cache" : snapshot.error;
+      return false;
+    }
+    if ((snapshot.exists && snapshot.schema_version != 1) || entry.schema_version != 1) {
+      error = "unsupported autotune cache schema version";
+      return false;
+    }
+    if (!valid_timings(entry)) {
+      error = "invalid autotune timing";
+      return false;
+    }
+    bool replaced = false;
+    for (auto& existing : snapshot.entries) {
+      if (existing.key == entry.key) {
+        existing = entry;
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) {
+      snapshot.entries.push_back(entry);
+    }
+
+    json root;
+    root["schema_version"] = uint32_t{1};
+    root["entries"] = json::array();
+    for (const auto& cached : snapshot.entries) {
+      root["entries"].push_back(entry_to_json(cached));
+    }
+
+    // Serialization can fail (for example, invalid UTF-8). Finish it before
+    // touching even the staging file, and preserve the path used for the read.
+    return replace_cache_file(snapshot.path, root.dump(2) + "\n", error);
+  } catch (const std::exception& failure) {
+    error = failure.what();
     return false;
   }
-  output << std::setw(2) << root << "\n";
-  return true;
 }
 
-std::string autotune_selection_rationale(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const std::string& selected_backend) {
+std::string autotune_selection_rationale(const AutotuneCacheSnapshot& snapshot,
+                                         const std::string& key,
+                                         const std::string& selected_backend) {
   return autotune_selection_rationale(snapshot, key, selected_backend, AutotuneRuntimeIdentity{});
 }
 
-std::string autotune_selection_rationale(
-    const AutotuneCacheSnapshot& snapshot,
-    const std::string& key,
-    const std::string& selected_backend,
-    const AutotuneRuntimeIdentity& runtime) {
+std::string autotune_selection_rationale(const AutotuneCacheSnapshot& snapshot,
+                                         const std::string& key,
+                                         const std::string& selected_backend,
+                                         const AutotuneRuntimeIdentity& runtime) {
   if (!snapshot.loaded) {
     return "cache_unavailable:" + snapshot.error;
   }
   if (const AutotuneCacheEntry* hit = find_exact_autotune_entry(snapshot, key)) {
     if (snapshot.schema_version != 1) {
-      return "exact_cache_hit_rejected_cache_schema_version:" + std::to_string(snapshot.schema_version);
+      return "exact_cache_hit_rejected_cache_schema_version:" +
+             std::to_string(snapshot.schema_version);
     }
     if (find_validated_autotune_entry_for_runtime(snapshot, key, runtime)) {
       return "exact_cache_hit_validated:" + hit->selected_backend + "/" + hit->selected_kernel;
     }
     if (!hit->performance_validated) {
-      return "exact_cache_hit_rejected_unvalidated:" + hit->selected_backend + "/" + hit->selected_kernel;
+      return "exact_cache_hit_rejected_unvalidated:" + hit->selected_backend + "/" +
+             hit->selected_kernel;
     }
     if (hit->schema_version != 1) {
       return "exact_cache_hit_rejected_schema_version:" + std::to_string(hit->schema_version);
@@ -861,10 +1093,12 @@ std::string autotune_selection_rationale(
     if (const std::string failure = validated_entry_identity_failure(*hit); !failure.empty()) {
       return "exact_cache_hit_rejected_identity:" + failure;
     }
-    if (const std::string failure = validated_runtime_identity_failure(*hit, runtime); !failure.empty()) {
+    if (const std::string failure = validated_runtime_identity_failure(*hit, runtime);
+        !failure.empty()) {
       return "exact_cache_hit_rejected_identity:" + failure;
     }
-    if (hit->validation_status.rfind("reviewed_release_", 0) == 0 && !reviewed_validation_status_matches_target(*hit)) {
+    if (hit->validation_status.rfind("reviewed_release_", 0) == 0 &&
+        !reviewed_validation_status_matches_target(*hit)) {
       return "exact_cache_hit_rejected_validation_status_target_mismatch:" + hit->validation_status;
     }
     return "exact_cache_hit_rejected_validation_status:" + hit->validation_status;
@@ -884,4 +1118,4 @@ std::string autotune_selection_rationale(
   return "missing_cache_using_capability_gated_backend";
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

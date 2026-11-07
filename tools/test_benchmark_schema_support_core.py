@@ -7,11 +7,6 @@ import copy
 from pathlib import Path
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
-from metadata_registry_constants import (
-    GROUPED_DISPATCH_EXECUTION_STRATEGIES,
-    GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS,
-    GROUPED_TASK_DEVICE_DESCRIPTOR_POLICIES,
-)
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -30,7 +25,9 @@ def expect_invalid(data: dict, needle: str) -> None:
     except BenchmarkSchemaError as exc:
         message = str(exc)
         if needle not in message:
-            raise AssertionError(f"expected validation error containing {needle!r}, got {message!r}") from exc
+            raise AssertionError(
+                f"expected validation error containing {needle!r}, got {message!r}"
+            ) from exc
         return
     raise AssertionError(f"expected validation error containing {needle!r}")
 
@@ -41,7 +38,11 @@ def zero_summary() -> dict:
 
 def summary(values: list[float]) -> dict:
     ordered = sorted(values)
-    return {"avg": sum(values) / len(values), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
+    return {
+        "avg": sum(values) / len(values),
+        "median": ordered[len(ordered) // 2],
+        "p95": ordered[-1],
+    }
 
 
 def ck_deep_chain_event_phases(prefix_count: int) -> list[str]:
@@ -74,7 +75,9 @@ def add_ck_chain_gpu_events(capture: dict, prefix_count: int) -> None:
     phases = ck_deep_chain_event_phases(prefix_count)
     repeats = capture["repeats"]
     capture["timing_metadata"]["gpu_event_timing"] = True
-    capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_residue_current_chain_backend_hooks"
+    capture["timing_metadata"]["gpu_event_timing_reason"] = (
+        "captured_by_residue_current_chain_backend_hooks"
+    )
     capture["timing_metadata"]["gpu_event_timing_status"] = "available"
     capture["timing_metadata"]["gpu_event_timing_source"] = "hipEventElapsedTime"
     capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
@@ -152,7 +155,7 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     batch_size = 4
     batch["benchmark"] = "rns8_host_api_batch_persistent_resident"
     batch["benchmark_execution_mode"] = "benchmark_host_api_batch"
-    batch["command_line"] = f'{batch["command_line"]} --host-api-batch-size {batch_size}'
+    batch["command_line"] = f"{batch['command_line']} --host-api-batch-size {batch_size}"
     batch["timing_note"] = (
         "host wall-clock timings for benchmark-owned host API batching; raw timings are aggregate batch totals"
     )
@@ -187,6 +190,9 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     metadata["prepack_reuse_strategy"] = "none"
     metadata["host_api_batch_enabled"] = True
     metadata["host_api_batch_size"] = batch_size
+    metadata["host_result_kind"] = "amortized_batch"
+    metadata["inner_repetitions"] = batch_size
+    metadata["amortization_policy"] = "explicit_independent_task_batch_with_per_task_output"
     metadata["phase_notes"]["pack"] = (
         "per-repeat aggregate host timing for packing A and B for independent resident tasks"
     )
@@ -202,148 +208,6 @@ def as_host_api_batch_capture(capture: dict) -> dict:
     return batch
 
 
-def as_grouped_dispatch_capture(capture: dict) -> dict:
-    grouped = copy.deepcopy(capture)
-    task_count = 8
-    kernel = "direct_hip_tiled_rns_gemm_v1"
-    epilogue = "fused_centered_residue_then_crt_export"
-    grouped["benchmark"] = "rns8_grouped_dispatch_persistent_resident"
-    grouped["benchmark_execution_mode"] = "benchmark_grouped_dispatch_evidence"
-    grouped["backend_requested"] = "hip-direct"
-    grouped["backend_selected"] = "hip-direct"
-    grouped["selected_kernel"] = kernel
-    metadata = grouped["backend_metadata"]
-    metadata["source"] = "rns8_get_plan_backend_info"
-    metadata["selected_kernel"] = kernel
-    metadata["accelerator_backend"] = False
-    metadata["matrix_engine_backend"] = False
-    metadata["accelerator_library"] = "HIP runtime"
-    metadata["accelerator_version"] = "7.1"
-    metadata["capability_status"] = "implemented_correctness_backend"
-    metadata["epilogue_mode"] = epilogue
-    metadata["workspace_mode"] = "resident_device_buffers"
-    metadata["workspace_required_bytes"] = 0
-    metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
-    apply_int32_accumulator_contract(grouped)
-    metadata["autotune_key"] = with_accumulator_key_fields(
-        (
-            f"backend=hip-direct;semantics={grouped['semantics']};m={grouped['m']};n={grouped['n']};"
-            f"k={grouped['k']};prefix={grouped['prefix']};tile_m={grouped['tile_m']};"
-            f"tile_n={grouped['tile_n']};groups=1;adaptive_prefix=0;adaptive_skip=0;"
-            "execution=benchmark_grouped_dispatch_evidence;"
-            f"kernel={kernel};epilogue={epilogue}"
-        ),
-        grouped,
-    )
-    grouped["command_line"] = f'{grouped["command_line"]} --backend hip-direct --grouped-dispatch {task_count}'
-    grouped["timing_note"] = (
-        "host wall-clock timings for benchmark-owned grouped dispatch evidence; raw timings are aggregate grouped totals"
-    )
-    grouped["reuse_packed_inputs"] = False
-    grouped["pack_mode"] = "per_repeat_repack"
-    grouped["bound_mode"] = "global"
-    grouped["bound_source"] = "static_profile"
-    grouped["prepack_reuse_operands"] = []
-    grouped["prepack_reuse_strategy"] = "none"
-    grouped["prepack_setup_us"] = None
-    grouped["avg_prepack_setup_us"] = None
-    grouped["host_api_batch"] = {
-        "enabled": False,
-        "batch_size": 1,
-        "tasks_per_measured_repeat": 1,
-        "total_measured_tasks": grouped["repeats"],
-        "setup_scope": "single_task_default_benchmark_mode",
-        "timing_policy": "single_call_totals_per_measured_repeat",
-        "checksum_policy": "single_final_output_checksum",
-    }
-    grouped_output_domain = "native_i64_u64_host"
-    if grouped["semantics"] in {"finite_ring_u8", "finite_field_u8"}:
-        grouped_output_domain = "finite_u8_host"
-    elif grouped["semantics"] in {"exact_wide_signed", "exact_wide_unsigned"}:
-        grouped_output_domain = "exact_wide_limb_host"
-    grouped_selected_prefix = grouped.get("selected_prefix", grouped["prefix"])
-    grouped["grouped_dispatch"] = {
-        "requested": True,
-        "task_count": task_count,
-        "descriptor_identity": (
-            f"same_shape_m={grouped['m']};n={grouped['n']};k={grouped['k']};"
-            f"semantics={grouped['semantics']}"
-        ),
-        "source_hash": str(grouped["seed"]),
-        "output_hash": "final_checksum_u64",
-        "setup_scope": "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks",
-        "execution_strategy": "host_phase_loop_per_task_export",
-        "batched_export_enabled": False,
-        "device_output_slab_bytes": 0,
-        "capture_status": "executed",
-        "unsupported_reason": None,
-        "promotion_eligible": False,
-        "task_descriptor_contract": {
-            "schema_version": 1,
-            "descriptor_layout": "same_shape_resident_task_triplets_v1",
-            "bucket_policy": "single_same_shape_bucket",
-            "bucket_count": 1,
-            "task_count": task_count,
-            "same_shape_required": True,
-            "shape_key": (
-                f"m={grouped['m']};n={grouped['n']};k={grouped['k']};"
-                f"tile_m={grouped['tile_m']};tile_n={grouped['tile_n']};"
-                f"prefix={grouped_selected_prefix}"
-            ),
-            "semantics": grouped["semantics"],
-            "output_domain": grouped_output_domain,
-            "source_version_policy": "per_task_monotonic_source_version_repack",
-            "workspace_policy": "one_workspace_per_task_shared_plan",
-            "matrix_ownership_policy": "benchmark_owns_all_task_triplets_until_capture_end",
-            "descriptor_reuse_policy": "reuse_after_shape_workspace_source_validation",
-            "stride_policy": "matrix_ld_matches_logical_shape_host_output_ld_explicit",
-            "output_currentness_policy": "device_residue_current_after_grouped_gemm_host_output_after_export",
-            "lifetime_policy": "task_matrices_and_workspaces_destroyed_after_capture",
-            "checksum_policy": "combined_per_task_checksum_u64",
-            "status_policy": "fail_fast_per_task_operation_status",
-            "device_descriptor_policy": "host_resident_task_loop",
-            "promotion_eligible": False,
-        },
-    }
-    grouped["per_modulus_gemm_estimate_applicable"] = False
-    grouped["avg_per_modulus_gemm_estimate_us"] = grouped["avg_rns_gemm_us"]
-    for field, source in [
-        ("avg_pack_per_task_us", "avg_pack_us"),
-        ("avg_rns_gemm_per_task_us", "avg_rns_gemm_us"),
-        ("avg_crt_export_per_task_us", "avg_crt_export_us"),
-        ("avg_end_to_end_per_task_us", "avg_end_to_end_us"),
-    ]:
-        grouped[field] = grouped[source] / float(task_count)
-    add_helper_lane_fields(grouped)
-    metadata = grouped["timing_metadata"]
-    metadata["benchmark_execution_mode"] = "benchmark_grouped_dispatch_evidence"
-    metadata["pack_mode"] = "per_repeat_repack"
-    metadata["prepack_reuse_operands"] = []
-    metadata["prepack_reuse_strategy"] = "none"
-    metadata["host_api_batch_enabled"] = False
-    metadata["host_api_batch_size"] = 1
-    metadata["grouped_dispatch_enabled"] = True
-    metadata["grouped_dispatch_task_count"] = task_count
-    metadata["grouped_dispatch_execution_strategy"] = "host_phase_loop_per_task_export"
-    metadata["grouped_dispatch_batched_export_enabled"] = False
-    metadata["grouped_dispatch_device_output_slab_bytes"] = 0
-    metadata["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-    metadata["generated_reducer_identity"] = "direct_hip_fixed_prefix_9_generated_reducer_v1"
-    metadata["phase_notes"]["pack"] = (
-        "per-repeat aggregate grouped-dispatch host timing for packing A and B for independent resident tasks"
-    )
-    metadata["phase_notes"]["rns_gemm"] = (
-        "per-repeat aggregate grouped-dispatch host timing for independent resident rns8_gemm calls"
-    )
-    metadata["phase_notes"]["crt_export"] = (
-        "per-repeat aggregate grouped-dispatch host timing for CRT export/reconstruction of every grouped task"
-    )
-    metadata["phase_notes"]["end_to_end"] = (
-        "per-repeat aggregate grouped-dispatch pack plus rns_gemm plus crt_export host timing for independent grouped tasks"
-    )
-    return grouped
-
-
 def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dict:
     bridge = copy.deepcopy(capture)
     bridge["benchmark"] = "rns8_bounded_gemm_native_to_rns_bridge"
@@ -351,7 +215,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     bridge["backend_requested"] = "auto"
     bridge["backend_selected"] = "hip-direct"
     bridge["selected_kernel"] = "direct_hip_tiled_rns_gemm_v1"
-    bridge["bound_kind"] = "global_max_abs" if bridge["semantics"] == "bounded_i64" else "global_max_unsigned"
+    bridge["bound_kind"] = (
+        "global_max_abs" if bridge["semantics"] == "bounded_i64" else "global_max_unsigned"
+    )
     bridge["bound_mode"] = "global"
     bridge["bound"] = 16384
     bridge["tile_bounds_u64"] = None
@@ -395,7 +261,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     metadata["prepack_reuse_operands"] = []
     metadata["prepack_reuse_strategy"] = "none"
     metadata["gpu_event_timing_reason"] = "captured_by_direct_hip_native_to_rns_bridge_hooks"
-    metadata["gpu_event_timing_source_scope"] = "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+    metadata["gpu_event_timing_source_scope"] = (
+        "direct_hip_native_to_rns_bridge_default_stream_operation_groups"
+    )
     metadata["gpu_event_timing_caveat"] = (
         "HIP event timings record direct-HIP pack/export operation groups plus forced native-to-RNS conversion"
     )
@@ -462,7 +330,9 @@ def as_native_to_rns_bridge_capture(capture: dict, conversion_event: str) -> dic
     bridge["gpu_event_timings_us"]["rns_gemm"] = [
         value + 2.0 for value in bridge["gpu_event_timings_us"]["rns_gemm_kernel_group"]
     ]
-    bridge["gpu_event_timings_us"] = {phase: bridge["gpu_event_timings_us"][phase] for phase in phases}
+    bridge["gpu_event_timings_us"] = {
+        phase: bridge["gpu_event_timings_us"][phase] for phase in phases
+    }
     bridge["gpu_event_timing_summary_us"] = {
         phase: summary(values) for phase, values in bridge["gpu_event_timings_us"].items()
     }
@@ -497,7 +367,11 @@ def as_vector_to_rns_chain_capture(
         chain["avg_prepack_setup_us"] = 321.0
     chain["command_line"] = (
         "rns8-bench --backend auto --semantics bounded-i64 --m 65 --n 65 --k 64 "
-        + ("--vector-to-rns-chain-host-repack-control" if host_repack_control else "--vector-to-rns-chain")
+        + (
+            "--vector-to-rns-chain-host-repack-control"
+            if host_repack_control
+            else "--vector-to-rns-chain"
+        )
         + (" --reuse-packed-b" if reuse_consumer_b else "")
         + " --warmups 1 --repeats 3 --seed 7"
     )
@@ -561,7 +435,9 @@ def as_vector_to_rns_chain_capture(
     metadata["phase_availability"]["prepack_setup"] = {
         "timed": reuse_consumer_b,
         "timing_key": "prepack_setup_us" if reuse_consumer_b else None,
-        "scope": "one_time_before_warmups" if reuse_consumer_b else "not_requested_per_repeat_repack",
+        "scope": "one_time_before_warmups"
+        if reuse_consumer_b
+        else "not_requested_per_repeat_repack",
         "reason": (
             "prepacked B once before warmups and reused for every measured repeat"
             if reuse_consumer_b
@@ -661,5 +537,3 @@ def add_per_tile_input_scan_fields(capture: dict) -> dict:
     }
     capture["command_line"] = f"{capture['command_line']} --bound-source input-scan"
     return capture
-
-

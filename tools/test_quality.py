@@ -1,0 +1,306 @@
+"""Offline controls for inventory, non-mutating plans, locks and archive members."""
+
+from __future__ import annotations
+
+import io
+import gzip
+import copy
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import subprocess
+import tarfile
+import tempfile
+import unittest
+from unittest.mock import patch
+import zipfile
+
+from init_quality import archive_executable
+from quality import command_plan, selected_tools
+from quality_inventory import ROOT, SourceFile, batches, classify, inventory
+from quality_policy import _wheel_closure, load_quality_lock
+from quality_controls import run_controls
+
+
+class Quality(unittest.TestCase):
+    def test_shared_wheel_closure_rejects_missing_and_mutated_coverage_without_tools(self):
+        lock = json.loads((ROOT / "metadata/quality-tools.json").read_text())
+        policy = json.loads((ROOT / "metadata/dependencies.json").read_text())
+        components = {row["name"]: row for row in policy["components"]}
+        expected = dict(
+            key="coverage",
+            checker="coverage",
+            requirements="scripts/requirements-coverage-tools.txt",
+            names={"coverage"},
+        )
+        for edit in (
+            lambda d: d.pop("coverage"),
+            lambda d: d["coverage"].update(wheels=[]),
+            lambda d: d["coverage"]["wheels"][0].update(version="0.0.0"),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(platform=[]),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(sha256="bad"),
+            lambda d: d["coverage"]["wheels"][0]["artifacts"][0].update(
+                url="http://insecure.invalid/wheel"
+            ),
+        ):
+            changed = copy.deepcopy(lock)
+            edit(changed)
+            with self.assertRaises(ValueError):
+                _wheel_closure(ROOT, changed, components, **expected)
+
+    def test_real_checker_control_protocol_is_fail_closed_without_executing_tools(self):
+        markers = {
+            "cpp-format": "clang-format-violations",
+            "python-lint": "F821",
+            "bash": "SC2086",
+            "workflow": "authored_missing_context",
+        }
+        tools = {
+            name: "authored never executed/" + name
+            for name in ("clang-format", "ruff", "shellcheck", "actionlint")
+        }
+
+        def runner_for(failure):
+            def run(argv, **kwargs):
+                label = kwargs["label"]
+                negative = label.startswith("quality-negative-")
+                output = ""
+                if label.startswith("quality-prepare-"):
+                    output = Path(argv[-1]).read_text(encoding="utf-8")
+                if negative:
+                    output = markers[label.removeprefix("quality-negative-")]
+                if label == "quality-negative-bash":
+                    diagnostic = dict(file=argv[-1], line=2, code=2086)
+                    if failure == "bash_wrong_file":
+                        diagnostic["file"] = "unrelated.sh"
+                    if failure == "bash_string_code":
+                        diagnostic["code"] = "2086"
+                    if failure == "bash_wrong_line":
+                        diagnostic["line"] = 1
+                    output = json.dumps([diagnostic])
+                    if failure == "bash_text_only":
+                        output = "SC2086"
+                    if failure == "bash_malformed_json":
+                        output = "["
+                if failure == "missing_marker" and negative:
+                    output = "unrelated tool failure"
+                if failure == "mutation" and label == "quality-positive-python-lint":
+                    (Path(kwargs["cwd"]) / argv[-1]).write_text(
+                        "changed by checker", encoding="utf-8"
+                    )
+                return dict(
+                    returncode=int(negative and failure != "negative_pass"),
+                    timed_out=failure == "timeout",
+                    limit_exceeded=None,
+                    capture_error=None,
+                    stdout=output,
+                    stderr="",
+                )
+
+            return run
+
+        result = run_controls(tools, plan=command_plan, runner=runner_for(None))
+        self.assertEqual(len(result["records"]), 9)
+        self.assertEqual(sum(row["expected"] == "reject" for row in result["records"]), 4)
+        for failure in (
+            "negative_pass",
+            "missing_marker",
+            "timeout",
+            "mutation",
+            "bash_wrong_file",
+            "bash_string_code",
+            "bash_wrong_line",
+            "bash_text_only",
+            "bash_malformed_json",
+        ):
+            with self.subTest(failure=failure), self.assertRaises(ValueError):
+                run_controls(tools, plan=command_plan, runner=runner_for(failure))
+
+    def setUp(self):
+        self.policy = json.loads((ROOT / "metadata/first-party-inventory.json").read_text())
+
+    def test_roles_include_hip_fragments_spaces_unicode_and_exclude_immutable_outputs(
+        self,
+    ):
+        rows = classify(
+            [
+                "src/a space/λ.hip",
+                "benchmarks/µ.inc",
+                "tools/report.py",
+                "scripts/probe.sh",
+                ".github/workflows/ci.yml",
+                "third_party/vendor/a.cpp",
+                "tools/data/certificate.json",
+                *self.policy["generated"],
+            ],
+            self.policy,
+        )
+        self.assertEqual({row.role for row in rows}, {"cpp", "python", "bash", "workflow"})
+        self.assertEqual(sum(row.role == "cpp" for row in rows), 2)
+        self.assertTrue(set(self.policy["generated"]).isdisjoint(row.path for row in rows))
+        for name in (
+            "../src/a.cpp",
+            "/src/a.cpp",
+            "src\\a.cpp",
+            "examples/unknown.inc",
+        ):
+            with self.assertRaises(ValueError):
+                classify([name], self.policy)
+        with self.assertRaises(ValueError):
+            classify(["src/a.cpp", "src/a.cpp"], self.policy)
+
+    def test_nul_inventory_is_not_shell_split_and_empty_role_is_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "metadata").mkdir()
+            (root / "metadata/first-party-inventory.json").write_text(json.dumps(self.policy))
+            paths = [
+                "src/a space λ.hip",
+                "tools/a.py",
+                "scripts/a.sh",
+                ".github/workflows/a.yml",
+            ]
+            for name in paths:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("authored")
+            with patch(
+                "quality_inventory.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    [], 0, ("\0".join(paths) + "\0").encode(), b""
+                ),
+            ):
+                self.assertEqual(len(inventory(root)), 4)
+            for data in (b"", b"src/a.cpp", b"src/a.cpp\0"):
+                with patch(
+                    "quality_inventory.subprocess.run",
+                    return_value=subprocess.CompletedProcess([], 0, data, b""),
+                ):
+                    with self.assertRaises(ValueError):
+                        inventory(root)
+
+    def test_batches_are_bounded_and_paths_are_never_requoted(self):
+        paths = ["src/λ space " + str(i) + ".hip" for i in range(25)]
+        groups = batches(paths, maximum_bytes=160)
+        self.assertGreater(len(groups), 1)
+        self.assertEqual([path for group in groups for path in group], paths)
+        with self.assertRaises(ValueError):
+            batches(["x" * 100], maximum_bytes=10)
+
+    def test_check_and_fix_plans_keep_semantic_lint_non_mutating(self):
+        rows = (
+            SourceFile("src/a.hip", "cpp"),
+            SourceFile("tools/a.py", "python"),
+            SourceFile("scripts/a.sh", "bash"),
+            SourceFile(".github/workflows/a.yml", "workflow"),
+        )
+        tools = {
+            name: "authored path/" + name
+            for name in ("ruff", "clang-format", "actionlint", "shellcheck")
+        }
+        check = command_plan(rows, tools)
+        fix = command_plan(rows, tools, fix=True)
+        self.assertIn("--dry-run", check[0].argv)
+        self.assertIn("--Werror", check[0].argv)
+        self.assertNotIn("-i", check[0].argv)
+        self.assertIn("-i", fix[0].argv)
+        self.assertTrue(any("--check" in row.argv for row in check if row.role == "python-format"))
+        self.assertFalse(any("--fix" in row.argv or "--unsafe-fixes" in row.argv for row in fix))
+        self.assertIn(
+            "--source-path=SCRIPTDIR",
+            next(row.argv for row in check if row.role == "bash"),
+        )
+        self.assertIn("--format=json", next(row.argv for row in check if row.role == "bash"))
+        self.assertTrue(all(isinstance(row.argv, tuple) for row in check))
+
+    def test_lock_rejects_changed_hash_version_and_requirements(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in (
+                "metadata/dependencies.json",
+                "metadata/quality-tools.json",
+                "scripts/requirements-quality-tools.txt",
+                "scripts/requirements-type-tools.txt",
+                "scripts/requirements-analysis-tools.txt",
+                "scripts/requirements-coverage-tools.txt",
+            ):
+                destination = root / name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / name, destination)
+            lock = load_quality_lock(root)
+            self.assertEqual(len(lock["tools"]), 4)
+            path = root / "metadata/quality-tools.json"
+            original = path.read_bytes()
+            path.write_bytes(original + b" ")
+            with self.assertRaisesRegex(ValueError, "shared dependency policy"):
+                load_quality_lock(root)
+            path.write_bytes(original)
+            requirements = root / "scripts/requirements-quality-tools.txt"
+            requirements.write_text("ruff==0.0.0 --hash=sha256:" + "0" * 64)
+            with self.assertRaisesRegex(ValueError, "requirements differ"):
+                load_quality_lock(root)
+
+    def test_missing_or_wrong_tool_versions_are_errors_without_running_real_tools(self):
+        lock = load_quality_lock(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "missing"):
+                selected_tools(lock, tool_bin=directory)
+            for row in lock["tools"]:
+                (directory / (row["name"] + (".exe" if os.name == "nt" else ""))).write_bytes(
+                    b"authored never executed"
+                )
+            with patch(
+                "quality.subprocess.run",
+                return_value=subprocess.CompletedProcess([], 0, "wrong 0.0.0", ""),
+            ):
+                with self.assertRaisesRegex(ValueError, "locked version"):
+                    selected_tools(lock, tool_bin=directory)
+
+    def test_zip_member_is_exact_regular_and_never_extracted(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tool.zip"
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("../do-not-extract", "untrusted")
+                archive.writestr("tool.exe", b"AUTHORED")
+            self.assertEqual(archive_executable(path, "tool.exe"), b"AUTHORED")
+            self.assertFalse((path.parent.parent / "do-not-extract").exists())
+            with zipfile.ZipFile(path, "w") as archive:
+                link = zipfile.ZipInfo("tool.exe")
+                link.external_attr = (stat.S_IFLNK | 0o777) << 16
+                archive.writestr(link, "target")
+            with self.assertRaises(ValueError):
+                archive_executable(path, "tool.exe")
+
+    def test_tar_member_rejects_links_missing_duplicates_and_expansion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tool.tar.gz"
+            for kind in ("regular", "link", "duplicate", "large"):
+                if kind == "large":
+                    member = tarfile.TarInfo("tool")
+                    member.size = 1024**3
+                    with gzip.open(path, "wb") as stream:
+                        stream.write(member.tobuf())
+                    with self.assertRaises(ValueError):
+                        archive_executable(path, "tool")
+                    continue
+                with tarfile.open(path, "w:gz") as archive:
+                    member = tarfile.TarInfo("tool")
+                    if kind == "link":
+                        member.type, member.linkname = tarfile.SYMTYPE, "target"
+                    else:
+                        member.size = 8
+                    archive.addfile(member, io.BytesIO(b"AUTHORED") if member.size == 8 else None)
+                    if kind == "duplicate":
+                        archive.addfile(member, io.BytesIO(b"AUTHORED"))
+                if kind == "regular":
+                    self.assertEqual(archive_executable(path, "tool"), b"AUTHORED")
+                else:
+                    with self.assertRaises(ValueError):
+                        archive_executable(path, "tool")
+
+
+if __name__ == "__main__":
+    unittest.main()

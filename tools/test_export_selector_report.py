@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 import export_selector_report
-from test_benchmark_schema import add_helper_lane_fields, as_exact_wide_capture, expect_valid
+from test_benchmark_sweep_support import exact_wide_capture
 from test_starfoundry_reports import starfoundry_capture
 
 
@@ -18,7 +18,8 @@ def write_capture(path: Path, capture: dict) -> None:
 
 
 def reviewable_fixed_limb_capture() -> dict:
-    capture = add_helper_lane_fields(as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json")))
+    capture = exact_wide_capture("ck", 100)
+    capture["exact_wide_limb_count"] = 4
     selected_kernel = "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device"
     capture["backend_selected"] = "ck"
     capture["backend_requested"] = "ck"
@@ -88,7 +89,9 @@ def main() -> int:
         row = report["groups"][0]["rows"][0]
         assert row["selector_key"]
         assert row["selected_kernel"] in row["selector_key"]
-        assert row["promotion_eligible"] is True
+        assert row["promotion_eligible"] is False
+        assert report["timing_comparison_qualified"] is False
+        assert report["runtime_promotion_authority"] is False
         assert row["selector_promotion_eligible"] is True
         assert "missing_selector_key" not in row["promotion_blockers"]
 
@@ -106,9 +109,11 @@ def main() -> int:
         reviewable_report = export_selector_report.build_report([reviewable_path])
         reviewable_row = reviewable_report["groups"][0]["rows"][0]
         assert reviewable_row["export_variant"] == "exact-wide-fixed-limb-export"
-        assert reviewable_row["promotion_eligible"] is True
+        assert reviewable_row["promotion_eligible"] is False
         assert reviewable_row["selector_promotion_eligible"] is True
-        assert reviewable_row["promotion_blockers"] == []
+        assert reviewable_row["promotion_blockers"] == [
+            "selector_inventory_not_runtime_promotion_evidence"
+        ]
 
         reviewable_compact = copy.deepcopy(reviewable)
         reviewable_compact["export_variant"]["selector_key"] = reviewable_compact["export_variant"][
@@ -120,9 +125,11 @@ def main() -> int:
         reviewable_compact_report = export_selector_report.build_report([reviewable_compact_path])
         reviewable_compact_row = reviewable_compact_report["groups"][0]["rows"][0]
         assert reviewable_compact_row["export_variant"] == "exact-wide-fixed-limb-export"
-        assert reviewable_compact_row["promotion_eligible"] is True
+        assert reviewable_compact_row["promotion_eligible"] is False
         assert reviewable_compact_row["selector_promotion_eligible"] is True
-        assert reviewable_compact_row["promotion_blockers"] == []
+        assert reviewable_compact_row["promotion_blockers"] == [
+            "selector_inventory_not_runtime_promotion_evidence"
+        ]
 
         blocked = copy.deepcopy(reviewable)
         blocked["export_variant"]["name"] = "compact-d2h-export-candidate"

@@ -21,4 +21,3 @@ typedef enum rns8_bound_kind RNS8_ENUM_BASE {
 #endif
 
 #endif
-

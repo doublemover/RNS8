@@ -14,32 +14,35 @@ struct ExactAutoFixture : ExactChainFixture {
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
   }
   rns8_status automatic(unsigned a, unsigned b, unsigned c, uint64_t budget, uint32_t& selected) {
-    return rns8_gemm_exact_wide_cpu_auto(ctx, plan, matrices[a], matrices[b], matrices[c], workspace, budget,
-                                         &selected);
+    return rns8_gemm_exact_wide_cpu_auto(ctx, plan, matrices[a], matrices[b], matrices[c],
+                                         workspace, budget, &selected);
   }
 };
 
 void check_auto_export(ExactAutoFixture& f, unsigned c, uint32_t selected,
                        const std::vector<boost::multiprecision::cpp_int>& expected) {
-  ExactLiftPlan export_plan(f.ctx, f.plan->desc.semantics, f.plan->desc.m, f.plan->desc.n, f.plan->desc.k,
-                            selected);
+  ExactLiftPlan export_plan(f.ctx, f.plan->desc.semantics, f.plan->desc.m, f.plan->desc.n,
+                            f.plan->desc.k, selected);
   std::vector<uint64_t> limbs(expected.size() * 3);
   const bool signed_values = f.plan->desc.semantics == RNS8_EXACT_WIDE_SIGNED;
   REQUIRE((signed_values
-               ? rns8_export_exact_wide_signed_limbs(f.ctx, export_plan.plan, f.matrices[c], limbs.data(),
-                                                     f.plan->desc.n, 3)
-               : rns8_export_exact_wide_unsigned_limbs(f.ctx, export_plan.plan, f.matrices[c], limbs.data(),
-                                                       f.plan->desc.n, 3)) == RNS8_SUCCESS);
+               ? rns8_export_exact_wide_signed_limbs(f.ctx, export_plan.plan, f.matrices[c],
+                                                     limbs.data(), f.plan->desc.n, 3)
+               : rns8_export_exact_wide_unsigned_limbs(f.ctx, export_plan.plan, f.matrices[c],
+                                                       limbs.data(), f.plan->desc.n, 3)) ==
+          RNS8_SUCCESS);
   for (std::size_t cell = 0; cell < expected.size(); ++cell) {
-    const auto reference =
-        signed_values ? signed_twos_complement_limbs(expected[cell], 3) : unsigned_limbs(expected[cell], 3);
-    CHECK(std::vector<uint64_t>(limbs.begin() + 3 * cell, limbs.begin() + 3 * cell + 3) == reference);
+    const auto reference = signed_values ? signed_twos_complement_limbs(expected[cell], 3)
+                                         : unsigned_limbs(expected[cell], 3);
+    CHECK(std::vector<uint64_t>(limbs.begin() + 3 * cell, limbs.begin() + 3 * cell + 3) ==
+          reference);
   }
 }
 
-}  // namespace
+} // namespace
 
-TEST_CASE("exact-wide opt-in CPU selection widens public signed and unsigned chains", "[exact-auto]") {
+TEST_CASE("exact-wide opt-in CPU selection widens public signed and unsigned chains",
+          "[exact-auto]") {
   for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     ExactAutoFixture f(semantics);
     const int64_t signed_high = INT64_MIN, signed_scale = 1024;
@@ -53,8 +56,9 @@ TEST_CASE("exact-wide opt-in CPU selection widens public signed and unsigned cha
     REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
     REQUIRE(f.multiply(0, 1, 3) == RNS8_SUCCESS);
     const boost::multiprecision::cpp_int value =
-        semantics == RNS8_EXACT_WIDE_SIGNED ? boost::multiprecision::cpp_int(signed_high) * signed_scale
-                                            : boost::multiprecision::cpp_int(unsigned_high) * unsigned_scale;
+        semantics == RNS8_EXACT_WIDE_SIGNED
+            ? boost::multiprecision::cpp_int(signed_high) * signed_scale
+            : boost::multiprecision::cpp_int(unsigned_high) * unsigned_scale;
     const boost::multiprecision::cpp_int expected = value * value;
     const boost::multiprecision::cpp_int range =
         semantics == RNS8_EXACT_WIDE_SIGNED ? 2 * expected : expected;
@@ -64,7 +68,7 @@ TEST_CASE("exact-wide opt-in CPU selection widens public signed and unsigned cha
     const auto base = f.plan->prefix;
     const auto workspace_prefix = f.workspace->prefix;
     const auto workspace_fingerprint = f.workspace->schedule_fingerprint;
-    CHECK(f.multiply(2, 3, 0) == RNS8_RANGE_ERROR);  // Existing call remains conservative.
+    CHECK(f.multiply(2, 3, 0) == RNS8_RANGE_ERROR); // Existing call remains conservative.
     check_lift_unchanged(*f.matrices[0], before_c);
     uint32_t selected = 777;
     const uint64_t budget = 2 * (required - base) + required;
@@ -90,8 +94,8 @@ TEST_CASE("exact-wide opt-in CPU selection widens public signed and unsigned cha
     uint64_t inadequate[3] = {999, 999, 999};
     CHECK((semantics == RNS8_EXACT_WIDE_SIGNED
                ? rns8_export_exact_wide_signed_limbs(f.ctx, f.plan, f.matrices[0], inadequate, 1, 3)
-               : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[0], inadequate, 1, 3)) ==
-          RNS8_RANGE_ERROR);
+               : rns8_export_exact_wide_unsigned_limbs(f.ctx, f.plan, f.matrices[0], inadequate, 1,
+                                                       3)) == RNS8_RANGE_ERROR);
     CHECK(inadequate[0] == 999);
     CHECK(inadequate[1] == 999);
     CHECK(inadequate[2] == 999);
@@ -112,7 +116,7 @@ TEST_CASE("exact-wide opt-in CPU selection handles asymmetric initialized ranges
   check_lift_unchanged(*f.matrices[1], before_b);
   check_lift_unchanged(*f.matrices[2], before_c);
   REQUIRE(f.automatic(0, 1, 2, 23, selected) == RNS8_SUCCESS);
-  CHECK(selected == 20);  // A needs one plane, B two, output twenty.
+  CHECK(selected == 20); // A needs one plane, B two, output twenty.
   check_lift_metadata(*f.matrices[0], before_a);
   check_lift_metadata(*f.matrices[1], before_b);
   check_lift_planes(*f.matrices[0], {a}, 20);
@@ -120,7 +124,8 @@ TEST_CASE("exact-wide opt-in CPU selection handles asymmetric initialized ranges
   check_auto_export(f, 2, selected, {3 * a});
 }
 
-TEST_CASE("exact-wide opt-in CPU selection honors strict output product boundaries", "[exact-auto]") {
+TEST_CASE("exact-wide opt-in CPU selection honors strict output product boundaries",
+          "[exact-auto]") {
   for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     ExactAutoFixture f(semantics);
     const uint32_t base = f.plan->prefix;
@@ -129,7 +134,8 @@ TEST_CASE("exact-wide opt-in CPU selection honors strict output product boundari
       INFO("semantics=" << semantics << " adjustment=" << adjustment);
       boost::multiprecision::cpp_int a = product / (semantics == RNS8_EXACT_WIDE_SIGNED ? 4 : 2);
       a += adjustment;
-      if (semantics == RNS8_EXACT_WIDE_SIGNED) a = -a;
+      if (semantics == RNS8_EXACT_WIDE_SIGNED)
+        a = -a;
       proven_lift_fixture(*f.matrices[0], {a}, base);
       proven_lift_fixture(*f.matrices[1], {2}, 1);
       uint32_t selected = 777;
@@ -161,7 +167,7 @@ TEST_CASE("exact-wide opt-in CPU selection rolls back both operands after late s
   check_lift_unchanged(*f.matrices[1], b_before);
   check_lift_unchanged(*f.matrices[2], c_before);
 
-  f.matrices[1]->residues[6 + 5] = -128;  // Last B cell, after A fully stages.
+  f.matrices[1]->residues[6 + 5] = -128; // Last B cell, after A fully stages.
   const auto malformed_b = *f.matrices[1];
   CHECK(f.automatic(0, 1, 2, budget, selected) == RNS8_INVALID_ARGUMENT);
   CHECK(selected == 777);
@@ -169,7 +175,7 @@ TEST_CASE("exact-wide opt-in CPU selection rolls back both operands after late s
   check_lift_unchanged(*f.matrices[1], malformed_b);
   check_lift_unchanged(*f.matrices[2], c_before);
   f.matrices[1]->residues[6 + 5] = b_before.residues[6 + 5];
-  f.matrices[1]->residues[5] = 1;  // Valid byte, reconstructed value contradicts proof.
+  f.matrices[1]->residues[5] = 1; // Valid byte, reconstructed value contradicts proof.
   const auto inconsistent_b = *f.matrices[1];
   CHECK(f.automatic(0, 1, 2, budget, selected) == RNS8_RANGE_ERROR);
   CHECK(selected == 777);
@@ -211,13 +217,15 @@ TEST_CASE("exact-wide opt-in CPU selection deduplicates shared inputs and honors
 
   ExactLiftPlan fixed(f.ctx, RNS8_EXACT_WIDE_SIGNED, 1, 1, 1, 20);
   proven_lift_fixture(*f.matrices[0], {3}, 1);
-  REQUIRE(rns8_gemm_exact_wide_cpu_auto(f.ctx, fixed.plan, f.matrices[0], f.matrices[0], f.matrices[2],
-                                        fixed.workspace, 39, &selected) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_exact_wide_cpu_auto(f.ctx, fixed.plan, f.matrices[0], f.matrices[0],
+                                        f.matrices[2], fixed.workspace, 39,
+                                        &selected) == RNS8_SUCCESS);
   CHECK(selected == 20);
   check_lift_planes(*f.matrices[2], {9}, 20);
 }
 
-TEST_CASE("exact-wide opt-in CPU selection rejects inadequate ceilings and absent proofs", "[exact-auto]") {
+TEST_CASE("exact-wide opt-in CPU selection rejects inadequate ceilings and absent proofs",
+          "[exact-auto]") {
   ExactAutoFixture f(RNS8_EXACT_WIDE_UNSIGNED);
   const boost::multiprecision::cpp_int a = rns8::detail::modulus_product(19) - 1;
   proven_lift_fixture(*f.matrices[0], {a}, 19);
@@ -227,7 +235,8 @@ TEST_CASE("exact-wide opt-in CPU selection rejects inadequate ceilings and absen
     const auto saved = *f.matrices[restricted];
     f.matrices[restricted]->prefix = f.matrices[restricted]->desc.max_prefix = 19;
     f.matrices[restricted]->residues.resize(19);
-    if (restricted == 2) f.matrices[restricted]->exact_range_prefix = 19;
+    if (restricted == 2)
+      f.matrices[restricted]->exact_range_prefix = 19;
     const auto before_a = *f.matrices[0], before_b = *f.matrices[1], before_c = *f.matrices[2];
     CHECK(f.automatic(0, 1, 2, UINT64_MAX, selected) == RNS8_RANGE_ERROR);
     CHECK(selected == 777);
@@ -244,7 +253,8 @@ TEST_CASE("exact-wide opt-in CPU selection rejects inadequate ceilings and absen
   REQUIRE(rns8_create_workspace(f.ctx, limited, &limited_workspace) == RNS8_SUCCESS);
   const auto before_a = *f.matrices[0], before_b = *f.matrices[1], before_c = *f.matrices[2];
   CHECK(rns8_gemm_exact_wide_cpu_auto(f.ctx, limited, f.matrices[0], f.matrices[1], f.matrices[2],
-                                      limited_workspace, UINT64_MAX, &selected) == RNS8_RANGE_ERROR);
+                                      limited_workspace, UINT64_MAX,
+                                      &selected) == RNS8_RANGE_ERROR);
   CHECK(selected == 777);
   check_lift_unchanged(*f.matrices[0], before_a);
   check_lift_unchanged(*f.matrices[1], before_b);
@@ -271,7 +281,8 @@ TEST_CASE("exact-wide opt-in CPU selection rejects inadequate ceilings and absen
   }
   *f.matrices[0] = before_a;
   f.matrices[0]->exact_range_prefix = 0;
-  proven_lift_fixture(*f.matrices[1], {0}, 1);  // Even a zero output cannot authorize an unknown input.
+  proven_lift_fixture(*f.matrices[1], {0},
+                      1); // Even a zero output cannot authorize an unknown input.
   const auto unknown = *f.matrices[0], zero = *f.matrices[1];
   CHECK(f.automatic(0, 1, 2, UINT64_MAX, selected) == RNS8_RANGE_ERROR);
   CHECK(selected == 777);
@@ -290,7 +301,7 @@ TEST_CASE("exact-wide opt-in CPU selection retains cancellation proofs and fails
   const auto before_a = *f.matrices[0], before_b = *f.matrices[1], before_c = *f.matrices[2];
   uint32_t selected = 777;
   CHECK(f.automatic(0, 1, 2, UINT64_MAX, selected) == RNS8_RANGE_ERROR);
-  CHECK(selected == 777);  // No proof from observing a reference GEMM's cancellation.
+  CHECK(selected == 777); // No proof from observing a reference GEMM's cancellation.
   check_lift_unchanged(*f.matrices[0], before_a);
   check_lift_unchanged(*f.matrices[1], before_b);
   check_lift_unchanged(*f.matrices[2], before_c);
@@ -299,7 +310,7 @@ TEST_CASE("exact-wide opt-in CPU selection retains cancellation proofs and fails
   f.matrices[1]->exact_axis_ranges =
       rns8::detail::native_exact_ranges(b.data(), 2, 2, 2, f.matrices[1]->exact_max_magnitude);
   const auto proved_a = *f.matrices[0], proved_b = *f.matrices[1];
-  const uint64_t budget = 4 * f.plan->prefix;  // Inputs need no extra planes.
+  const uint64_t budget = 4 * f.plan->prefix; // Inputs need no extra planes.
   REQUIRE(f.automatic(0, 1, 2, budget, selected) == RNS8_SUCCESS);
   CHECK(selected == f.plan->prefix);
   CHECK(f.matrices[2]->exact_max_magnitude == 0);
@@ -310,7 +321,8 @@ TEST_CASE("exact-wide opt-in CPU selection retains cancellation proofs and fails
   check_auto_export(f, 2, selected, {0, 0, 0, 0});
 }
 
-TEST_CASE("exact-wide opt-in CPU selection rejects invalid calls without mutation", "[exact-auto]") {
+TEST_CASE("exact-wide opt-in CPU selection rejects invalid calls without mutation",
+          "[exact-auto]") {
   ExactAutoFixture f(RNS8_EXACT_WIDE_SIGNED);
   const int64_t value = -7;
   REQUIRE(rns8_pack_i64(f.ctx, f.matrices[0], &value, 1, 1) == RNS8_SUCCESS);
@@ -319,8 +331,8 @@ TEST_CASE("exact-wide opt-in CPU selection rejects invalid calls without mutatio
   uint32_t selected = 777;
   CHECK(rns8_gemm_exact_wide_cpu_auto(nullptr, f.plan, f.matrices[0], f.matrices[1], f.matrices[2],
                                       f.workspace, 100, &selected) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_exact_wide_cpu_auto(f.ctx, f.plan, f.matrices[0], f.matrices[1], f.matrices[2], f.workspace,
-                                      100, nullptr) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_exact_wide_cpu_auto(f.ctx, f.plan, f.matrices[0], f.matrices[1], f.matrices[2],
+                                      f.workspace, 100, nullptr) == RNS8_INVALID_ARGUMENT);
   CHECK(f.automatic(0, 1, 0, 100, selected) == RNS8_INVALID_ARGUMENT);
   CHECK(f.automatic(0, 1, 1, 100, selected) == RNS8_INVALID_ARGUMENT);
   f.matrices[0]->host_residues_current = false;
@@ -330,6 +342,7 @@ TEST_CASE("exact-wide opt-in CPU selection rejects invalid calls without mutatio
   CHECK(f.automatic(0, 1, 2, 100, selected) == RNS8_INVALID_ARGUMENT);
   f.matrices[1]->desc.cols = 1;
   const auto backend = f.plan->backend;
+  f.plan->validated_contract.reset(); // Explicit internal corruption diagnostic.
   f.plan->backend = f.ctx->backend = RNS8_BACKEND_HIP_DIRECT;
   CHECK(f.automatic(0, 1, 2, 100, selected) == RNS8_UNSUPPORTED_BACKEND);
   f.plan->backend = f.ctx->backend = backend;

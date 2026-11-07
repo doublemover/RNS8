@@ -1,12 +1,21 @@
-#include <chrono>
+#include "../backend_common/packed_gemm_layout.hpp"
+#include "../backend_common/hip_backend_timing.hpp"
+
 #include <cstdint>
 #include <cstddef>
 #include <cstdio>
 
-#include <hip/hip_runtime.h>
-#include <rocwmma/rocwmma.hpp>
+#include "rocwmma_headers.hpp"
 
 #include "../backend_common/finite_u8_reducer.hpp"
+#include "../backend_common/residue_epilogue.hpp"
+#include "rocwmma_packing_policy.hpp"
+
+struct RocwmmaPackingState {
+  uint32_t policy = 0;
+  rns8::detail::RocwmmaPackingStats* stats = nullptr;
+  rns8::detail::RocwmmaPanelKey a, b;
+};
 
 struct rns8_plan_tile_schedule_entry {
   uint64_t struct_size;
@@ -24,19 +33,16 @@ struct rns8_plan_tile_schedule_entry {
   uint32_t range_bit_length;
 };
 
-namespace rns8::detail {
-bool hip_direct_timing_enabled();
-void hip_direct_timing_flush_pending_events();
-void hip_direct_timing_record_sample(const char* label, double microseconds);
-void hip_direct_timing_record_pending_event_with_alias(
-    const char* label,
-    const char* alias,
-    void* start_event,
-    void* stop_event);
-}  // namespace rns8::detail
-
 #include "rocwmma_backend_timing_workspace.inc"
 #include "rocwmma_backend_rns_kernels.inc"
+#include "rocwmma_backend_epilogue_kernel.inc"
 #include "rocwmma_backend_wrap64_kernel.inc"
 #include "rocwmma_backend_rns_wrappers.inc"
 #include "rocwmma_backend_finite_wrap64_wrappers.inc"
+
+extern "C" int rns8_rocwmma_runtime_wave_contract(int device_id) {
+  hipDeviceProp_t prop{};
+  if (hipGetDeviceProperties(&prop, device_id) != hipSuccess)
+    return 3;
+  return prop.warpSize == kRns8WmmaWaveThreads ? 0 : 2;
+}

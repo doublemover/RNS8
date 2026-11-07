@@ -1,4 +1,5 @@
-TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata are part of residency contract") {
+TEST_CASE(
+    "direct HIP bounded per-tile workspace and matrix schedule metadata are part of residency contract") {
   if (!hip_available()) {
     SKIP("no HIP device available for direct HIP bounded per-tile schedule contract smoke");
   }
@@ -14,7 +15,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   const std::vector<uint64_t> bounds_b = {0, 0, 7000000, 999999999};
   const std::vector<uint64_t> bounds_tile = {1000000000};
 
-  auto make_desc = [&](const std::vector<uint64_t>& bounds, uint32_t tile_m, uint32_t tile_n, rns8_backend_kind backend) {
+  auto make_desc = [&](const std::vector<uint64_t>& bounds, uint32_t tile_m, uint32_t tile_n,
+                       rns8_backend_kind backend) {
     auto desc = unsigned_desc(m, n, k, 0, backend);
     desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
     desc.tile_m = tile_m;
@@ -78,7 +80,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   REQUIRE(rns8_create_matrix(hip, &wrong_a_desc, &wrong_a_tile) == RNS8_SUCCESS);
   REQUIRE(rns8_create_matrix(hip, &wrong_c_desc, &wrong_c_tile) == RNS8_SUCCESS);
 
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, wrong_a_tile, A.data(), lda, 1) == RNS8_SUCCESS);
@@ -86,7 +89,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   REQUIRE(rns8_export_u64(hip, plan, c_matrix, hip_c.data(), ldc) == RNS8_SUCCESS);
   CHECK(hip_c == cpu_c);
 
-  const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  const auto warmed_snapshot =
+      capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   const uint64_t warmed_output_version = c_matrix->source_version;
   CHECK(warmed_output_version != 0);
   CHECK(warmed_snapshot.c_upload == nullptr);
@@ -96,11 +100,15 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   CHECK(workspace->schedule_fingerprint != workspace_b->schedule_fingerprint);
   CHECK(workspace->schedule_fingerprint != workspace_tile->schedule_fingerprint);
 
-  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_b) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_tile) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_rns(hip, plan, wrong_a_tile, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_b) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace_tile) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns(hip, plan, wrong_a_tile, b_matrix, c_matrix, workspace) ==
+        RNS8_INVALID_ARGUMENT);
   CHECK(rns8_export_u64(hip, plan, wrong_c_tile, hip_c.data(), ldc) == RNS8_INVALID_ARGUMENT);
-  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix,
+                                            workspace);
   CHECK(c_matrix->source_version == warmed_output_version);
 
   rns8_destroy_matrix(wrong_c_tile);
@@ -118,7 +126,8 @@ TEST_CASE("direct HIP bounded per-tile workspace and matrix schedule metadata ar
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident buffers across mixed prefixes") {
+TEST_CASE(
+    "direct HIP persistent per-tile bounded u64 K-split reuses resident buffers across mixed prefixes") {
   if (!hip_available()) {
     SKIP("no HIP device available for persistent per-tile direct HIP bounded K-split reuse smoke");
   }
@@ -142,7 +151,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
     std::fill(A.begin(), A.end(), sentinel);
     std::fill(B.begin(), B.end(), sentinel);
     for (int64_t row = 0; row < m; ++row) {
-      const uint64_t value = row < 64 ? (variant == 0 ? 1u : 2u) : (variant == 0 ? 1000000u : 500000u);
+      const uint64_t value =
+          row < 64 ? (variant == 0 ? 1u : 2u) : (variant == 0 ? 1000000u : 500000u);
       for (int64_t kk = 0; kk < k; ++kk) {
         A[static_cast<std::size_t>(row * lda + kk)] = value;
       }
@@ -203,7 +213,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   fill_inputs(0);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -211,9 +222,10 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   compare_outputs();
   const uint64_t first_output_version = c_matrix->source_version;
   CHECK(first_output_version != 0);
-  CHECK(first_output_version != a_matrix->source_version);
-  CHECK(first_output_version != b_matrix->source_version);
-  const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  CHECK(first_output_version == c_matrix->content_generation);
+  CHECK_FALSE(c_matrix->imported_source);
+  const auto warmed_snapshot =
+      capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
   CHECK(warmed_snapshot.c_upload == nullptr);
@@ -226,7 +238,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   fill_inputs(1);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -234,7 +247,8 @@ TEST_CASE("direct HIP persistent per-tile bounded u64 K-split reuses resident bu
   compare_outputs();
   CHECK(c_matrix->source_version != 0);
   CHECK(c_matrix->source_version != first_output_version);
-  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix,
+                                            workspace);
   CHECK(a_matrix->device_residues_current);
   CHECK_FALSE(a_matrix->host_residues_current);
   CHECK(b_matrix->device_residues_current);
@@ -295,8 +309,8 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
   auto cpu_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_CPU_REFERENCE);
   auto hip_desc = signed_desc(m, n, k, bound, RNS8_BACKEND_HIP_DIRECT);
-  const uint32_t expected_prefix =
-      rns8::detail::required_prefix_for_range(boost::multiprecision::cpp_int(2) * boost::multiprecision::cpp_int(bound));
+  const uint32_t expected_prefix = rns8::detail::required_prefix_for_range(
+      boost::multiprecision::cpp_int(2) * boost::multiprecision::cpp_int(bound));
 
   rns8::detail::hip_direct_allocation_counters_reset();
   rns8_plan* plan = nullptr;
@@ -334,7 +348,8 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   fill_inputs(0);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -364,7 +379,8 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   fill_inputs(1);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(hip, a_matrix, A.data(), lda, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_i64(hip, b_matrix, B.data(), ldb, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -398,7 +414,8 @@ TEST_CASE("direct HIP persistent bounded i64 K-split reuses resident storage wit
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block boundary with padded layouts") {
+TEST_CASE(
+    "direct HIP persistent bounded u64 prefix-9 covers exact K-block boundary with padded layouts") {
   if (!hip_available()) {
     SKIP("no HIP device available for persistent direct HIP bounded u64 K-boundary smoke");
   }
@@ -480,7 +497,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   fill_inputs(0);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -488,10 +506,11 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   compare_outputs();
   const uint64_t first_output_version = c_matrix->source_version;
   CHECK(first_output_version != 0);
-  CHECK(first_output_version != a_matrix->source_version);
-  CHECK(first_output_version != b_matrix->source_version);
+  CHECK(first_output_version == c_matrix->content_generation);
+  CHECK_FALSE(c_matrix->imported_source);
 
-  const auto warmed_snapshot = capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
+  const auto warmed_snapshot =
+      capture_bounded_resident_snapshot(a_matrix, b_matrix, c_matrix, workspace);
   REQUIRE(warmed_snapshot.a_upload != nullptr);
   REQUIRE(warmed_snapshot.b_upload != nullptr);
   CHECK(warmed_snapshot.c_upload == nullptr);
@@ -505,7 +524,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   fill_inputs(1);
   std::fill(cpu_c.begin(), cpu_c.end(), sentinel);
   std::fill(hip_c.begin(), hip_c.end(), sentinel);
-  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(cpu, &cpu_desc, A.data(), lda, B.data(), ldb, cpu_c.data(), ldc) ==
+          RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, a_matrix, A.data(), lda, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_u64(hip, b_matrix, B.data(), ldb, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_gemm_rns(hip, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
@@ -514,7 +534,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   CHECK(c_matrix->source_version != 0);
   CHECK(c_matrix->source_version != first_output_version);
 
-  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix,
+                                            workspace);
   CHECK(a_matrix->hip_residues == a_device_residues);
   CHECK(b_matrix->hip_residues == b_device_residues);
   CHECK(c_matrix->hip_residues == c_device_residues);
@@ -527,7 +548,8 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   std::vector<uint64_t> rejected(static_cast<std::size_t>(m * ldc), sentinel);
   CHECK(rns8_export_u64(hip, tight_plan, c_matrix, rejected.data(), ldc) == RNS8_RANGE_ERROR);
   CHECK(rejected == std::vector<uint64_t>(static_cast<std::size_t>(m * ldc), sentinel));
-  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix, workspace);
+  check_bounded_resident_snapshot_unchanged(warmed_snapshot, a_matrix, b_matrix, c_matrix,
+                                            workspace);
   rns8_destroy_plan(tight_plan);
 
   rns8_destroy_matrix(c_matrix);
@@ -538,4 +560,3 @@ TEST_CASE("direct HIP persistent bounded u64 prefix-9 covers exact K-block bound
   rns8_destroy_context(hip);
   rns8_destroy_context(cpu);
 }
-

@@ -2,17 +2,21 @@
 """Install reviewed RNS8 autotune cache entries into a destination cache."""
 
 from __future__ import annotations
+from ck_kernel_contract import ck_kernel_family, ck_kernel_matches
 
 import argparse
 import hashlib
 import json
-import os
 import tempfile
 from pathlib import Path
+
+from autotune_paths import default_autotune_cache_path
 from typing import Any
 
 from check_dependencies_lib.config import LINUX_CDNA_TARGETS
 from metadata_registry_constants import BOUNDED_SEMANTICS, EXACT_WIDE_SEMANTICS, FINITE_U8_SEMANTICS
+from json_evidence import load_evidence_json, same_evidence_value
+from cache_promotion import CANDIDATE_SCHEMA, entry_digest, unique_entries, validate_receipt
 
 
 REVIEWED_RELEASE_PREFIX = "reviewed_release_"
@@ -40,27 +44,6 @@ ROCWMMA_FINITE_SPECIALIZED_KERNELS = {
 
 class AutotuneCacheInstallError(ValueError):
     pass
-
-
-def default_autotune_cache_path() -> Path:
-    override = os.environ.get("RNS8_AUTOTUNE_CACHE_PATH")
-    if override:
-        return Path(override)
-    if os.name == "nt":
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            return Path(local_app_data) / "rns8-gemm" / "autotune.json"
-        user_profile = os.environ.get("USERPROFILE")
-        if user_profile:
-            return Path(user_profile) / "AppData" / "Local" / "rns8-gemm" / "autotune.json"
-    else:
-        xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
-        if xdg_cache_home:
-            return Path(xdg_cache_home) / "rns8-gemm" / "autotune.json"
-        home = os.environ.get("HOME")
-        if home:
-            return Path(home) / ".cache" / "rns8-gemm" / "autotune.json"
-    return Path("rns8-gemm") / "autotune.json"
 
 
 def key_fields(key: str) -> dict[str, str]:
@@ -156,7 +139,9 @@ def optional_key_int(fields: dict[str, str], name: str, expected: int) -> None:
     require_key_int(fields, name, expected)
 
 
-def reviewed_backend_supports_semantic_contract(selected_backend: str, semantic_contract: str) -> bool:
+def reviewed_backend_supports_semantic_contract(
+    selected_backend: str, semantic_contract: str
+) -> bool:
     if selected_backend == NATIVE_VECTOR_AUTOTUNE_BACKEND:
         return semantic_contract in BOUNDED_SEMANTICS
     return (
@@ -201,12 +186,23 @@ def reviewed_kernel_supported_for_contract(
     if selected_backend == "hipblaslt":
         return selected_kernel == "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2"
     if selected_backend == "ck":
+        if ck_kernel_family(selected_kernel):
+            if semantic_contract in FINITE_U8_SEMANTICS:
+                return ck_kernel_matches(selected_kernel, finite_modulus)
+            if semantic_contract in EXACT_WIDE_SEMANTICS | BOUNDED_SEMANTICS:
+                return ck_kernel_matches(
+                    selected_kernel, allow_tiled=semantic_contract in BOUNDED_SEMANTICS
+                )
+            return False
         if semantic_contract in FINITE_U8_SEMANTICS:
             return selected_kernel == CK_FINITE_SPECIALIZED_KERNELS.get(
                 finite_modulus, "ck_wmma_cshuffle_finite_u8_static_modulus_centered_epilogue_v2"
             )
         if semantic_contract in EXACT_WIDE_SEMANTICS:
-            return selected_kernel == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
+            return (
+                selected_kernel
+                == "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3"
+            )
         if semantic_contract in BOUNDED_SEMANTICS:
             return selected_kernel in {
                 "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
@@ -328,7 +324,9 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             raise AutotuneCacheInstallError("export_variant must be a nonempty string")
         if not isinstance(reconstruction_variant, str) or not reconstruction_variant:
             raise AutotuneCacheInstallError("reconstruction_variant must be a nonempty string")
-        default_export_contract = export_variant == "default" and reconstruction_variant == "default_garner"
+        default_export_contract = (
+            export_variant == "default" and reconstruction_variant == "default_garner"
+        )
         cache_scope = entry.get("cache_scope", "runtime_exact_autotune")
         if not isinstance(cache_scope, str) or not cache_scope:
             raise AutotuneCacheInstallError("cache_scope must be a nonempty string")
@@ -371,14 +369,18 @@ def validate_entry(entry: Any, *, source: Path, index: int) -> dict[str, Any]:
             selected_backend, semantic_contract, selected_kernel, finite_modulus, m, n, k
         ):
             raise AutotuneCacheInstallError("unsupported_autotune_kernel_for_contract")
-        if not reviewed_epilogue_supported_for_contract(selected_backend, semantic_contract, epilogue):
+        if not reviewed_epilogue_supported_for_contract(
+            selected_backend, semantic_contract, epilogue
+        ):
             raise AutotuneCacheInstallError("unsupported_autotune_epilogue_for_contract")
     except AutotuneCacheInstallError as exc:
         raise AutotuneCacheInstallError(f"{source}: entry {index}: {exc}") from exc
     return entry
 
 
-def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any]]:
+def read_cache(
+    path: Path, *, allow_missing: bool = False, allow_candidates: bool = False
+) -> list[dict[str, Any]]:
     if allow_missing and not path.exists():
         return []
     try:
@@ -389,7 +391,9 @@ def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any
         raise
     if not isinstance(root, dict):
         raise AutotuneCacheInstallError(f"{path}: root must be an object")
-    if root.get("schema_version") != 1:
+    if root.get("schema_version") != 1 and not (
+        allow_candidates and root.get("schema") == CANDIDATE_SCHEMA and "schema_version" not in root
+    ):
         raise AutotuneCacheInstallError(f"{path}: schema_version must be 1")
     entries = root.get("entries")
     if not isinstance(entries, list):
@@ -399,8 +403,8 @@ def read_cache(path: Path, *, allow_missing: bool = False) -> list[dict[str, Any
 
 def read_promotion_ledger(path: Path) -> dict[str, dict[str, Any]]:
     try:
-        root = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        root = load_evidence_json(path)
+    except (OSError, ValueError) as exc:
         raise AutotuneCacheInstallError(f"{path}: failed to read promotion ledger: {exc}") from exc
     if not isinstance(root, dict):
         raise AutotuneCacheInstallError(f"{path}: promotion ledger root must be an object")
@@ -410,12 +414,18 @@ def read_promotion_ledger(path: Path) -> dict[str, dict[str, Any]]:
     by_key: dict[str, dict[str, Any]] = {}
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
-            raise AutotuneCacheInstallError(f"{path}: promotion ledger entry {index} must be an object")
+            raise AutotuneCacheInstallError(
+                f"{path}: promotion ledger entry {index} must be an object"
+            )
         key = entry.get("autotune_key")
         if not isinstance(key, str) or not key:
-            raise AutotuneCacheInstallError(f"{path}: promotion ledger entry {index} missing autotune_key")
+            raise AutotuneCacheInstallError(
+                f"{path}: promotion ledger entry {index} missing autotune_key"
+            )
         if key in by_key:
-            raise AutotuneCacheInstallError(f"{path}: duplicate promotion ledger autotune_key {key}")
+            raise AutotuneCacheInstallError(
+                f"{path}: duplicate promotion ledger autotune_key {key}"
+            )
         by_key[key] = entry
     return by_key
 
@@ -431,10 +441,14 @@ def validate_promotion_ledger_gate(
     for path in ledger_paths:
         for key, entry in read_promotion_ledger(path).items():
             if key in ledgers and ledgers[key] != entry:
-                raise AutotuneCacheInstallError(f"{path}: conflicting promotion ledger entry for {key}")
+                raise AutotuneCacheInstallError(
+                    f"{path}: conflicting promotion ledger entry for {key}"
+                )
             ledgers[key] = entry
     if require_variance_gate and not ledger_paths:
-        raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
+        raise AutotuneCacheInstallError(
+            "--require-variance-gate requires at least one --promotion-ledger"
+        )
     for entry in source_entries:
         key = entry["key"]
         ledger_entry = ledgers.get(key)
@@ -453,21 +467,66 @@ def validate_promotion_ledger_gate(
                 raise AutotuneCacheInstallError(f"promotion_ledger_missing_variance_gate:{key}")
             if ledger_entry.get("variance_gate_ready") is not True:
                 raise AutotuneCacheInstallError(f"promotion_ledger_variance_gate_not_ready:{key}")
+        try:
+            validate_receipt(entry, ledger_entry.get("cache_promotion_receipt"))
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            raise AutotuneCacheInstallError(
+                f"promotion_ledger_payload_or_evidence_changed:{key}:{error}"
+            ) from error
         target_id = str(entry.get("target_id") or "").lower()
         target_gate_required = require_target_validation_gate or target_id in LINUX_CDNA_TARGETS
         if target_gate_required:
             if ledger_entry.get("target_validation_gate_available") is not True:
-                raise AutotuneCacheInstallError(f"promotion_ledger_missing_target_validation_gate:{key}")
+                raise AutotuneCacheInstallError(
+                    f"promotion_ledger_missing_target_validation_gate:{key}"
+                )
             if ledger_entry.get("target_validation_gate_ready") is not True:
-                raise AutotuneCacheInstallError(f"promotion_ledger_target_validation_gate_not_ready:{key}")
+                raise AutotuneCacheInstallError(
+                    f"promotion_ledger_target_validation_gate_not_ready:{key}"
+                )
             if ledger_entry.get("target_cache_eligible") is not True:
                 raise AutotuneCacheInstallError(f"promotion_ledger_target_cache_not_eligible:{key}")
+            try:
+                from benchmark_schema import load_capture, validate_capture
+                from target_qualification import validate_bound_verdict
+                from target_validation_report import capture_target
+
+                capture_path = Path(require_string(ledger_entry, "path"))
+                capture = load_capture(capture_path)
+                validate_capture(capture, capture_path)
+                row = capture_target(capture_path)
+                validate_bound_verdict(
+                    ledger_entry.get("target_qualification"), capture_path, capture, row
+                )
+                facts = dict(
+                    selected_backend=capture.get("backend_selected"),
+                    selected_kernel=capture.get("selected_kernel"),
+                    semantic_contract=capture.get("semantics"),
+                    target_id=row.get("target_id"),
+                    shape={name: capture.get(name) for name in ("m", "n", "k")},
+                )
+                if any(
+                    not same_evidence_value(entry.get(name), value) for name, value in facts.items()
+                ):
+                    raise ValueError("cache entry does not match the qualified candidate")
+                if (capture.get("backend_metadata") or {}).get("autotune_key") != key:
+                    raise ValueError("cache key does not match the qualified candidate")
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                raise AutotuneCacheInstallError(
+                    f"promotion_ledger_candidate_target_receipt_invalid:{key}:{error}"
+                ) from error
 
 
 def write_cache(path: Path, entries: list[dict[str, Any]]) -> None:
+    write_cache_document(path, {"schema_version": 1, "entries": entries})
+
+
+def write_cache_document(path: Path, document: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({"schema_version": 1, "entries": entries}, indent=2, sort_keys=True) + "\n"
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+    payload = json.dumps(document, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as handle:
         temp_path = Path(handle.name)
         handle.write(payload)
     temp_path.replace(path)
@@ -502,14 +561,19 @@ def cache_coverage_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]
             "reconstruction_variant": reconstruction_variant,
             "entry_count": count,
         }
-        for (semantic, shape_family, backend, target_class, export_variant, reconstruction_variant), count in sorted(
-            groups.items()
-        )
+        for (
+            semantic,
+            shape_family,
+            backend,
+            target_class,
+            export_variant,
+            reconstruction_variant,
+        ), count in sorted(groups.items())
     ]
 
 
-def install_cache(
-    sources: list[Path],
+def install_reviewed_entries(
+    entries: list[dict[str, Any]],
     destination: Path,
     *,
     dry_run: bool = False,
@@ -518,7 +582,16 @@ def install_cache(
     require_variance_gate: bool = False,
     require_target_validation_gate: bool = False,
     allow_selector_review_cache: bool = False,
+    sources: list[Path] | None = None,
+    source_by_key: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    sources = sources or []
+    source_by_key = source_by_key or {}
+    reviewed_source_entries = [
+        validate_entry(entry, source=Path("<reviewed-candidates>"), index=index)
+        for index, entry in enumerate(entries)
+    ]
+    source_entries = len(reviewed_source_entries)
     if replace_existing:
         existing_entries: list[dict[str, Any]] = []
     else:
@@ -529,23 +602,22 @@ def install_cache(
                 f"{destination}: existing cache failed reviewed-cache validation; "
                 f"rerun with --replace-existing to discard existing entries: {exc}"
             ) from exc
-    existing_by_key = {entry["key"]: entry for entry in existing_entries}
+    try:
+        existing_by_key = unique_entries(existing_entries)
+    except (ValueError, TypeError) as error:
+        raise AutotuneCacheInstallError(str(error)) from error
     merged = dict(existing_by_key)
     initial_keys = set(merged)
-    source_entries = 0
-    reviewed_source_entries: list[dict[str, Any]] = []
-    source_by_key: dict[str, str] = {}
-    for source in sources:
-        entries = read_cache(source)
-        source_entries += len(entries)
-        reviewed_source_entries.extend(entries)
-        for entry in entries:
-            source_by_key[entry["key"]] = str(source)
+    try:
+        reviewed_source_entries = list(unique_entries(reviewed_source_entries).values())
+    except (ValueError, TypeError) as error:
+        raise AutotuneCacheInstallError(str(error)) from error
     if not allow_selector_review_cache:
         for entry in reviewed_source_entries:
             if entry.get("cache_scope", "runtime_exact_autotune") != "runtime_exact_autotune":
                 raise AutotuneCacheInstallError(
-                    "selector_review_only_cache_entry_not_runtime_installable:" + str(entry.get("key") or "<missing>")
+                    "selector_review_only_cache_entry_not_runtime_installable:"
+                    + str(entry.get("key") or "<missing>")
                 )
     effective_require_variance_gate = require_variance_gate or bool(promotion_ledgers)
     if not dry_run and not promotion_ledgers:
@@ -558,12 +630,18 @@ def install_cache(
             require_target_validation_gate=require_target_validation_gate,
         )
     elif effective_require_variance_gate:
-        raise AutotuneCacheInstallError("--require-variance-gate requires at least one --promotion-ledger")
+        raise AutotuneCacheInstallError(
+            "--require-variance-gate requires at least one --promotion-ledger"
+        )
     elif require_target_validation_gate:
-        raise AutotuneCacheInstallError("--require-target-validation-gate requires at least one --promotion-ledger")
+        raise AutotuneCacheInstallError(
+            "--require-target-validation-gate requires at least one --promotion-ledger"
+        )
     replacement_history: list[dict[str, Any]] = []
     for entry in reviewed_source_entries:
         old_entry = merged.get(entry["key"])
+        if old_entry is not None and entry_digest(old_entry) == entry_digest(entry):
+            continue
         if old_entry != entry:
             replacement_history.append(
                 {
@@ -613,11 +691,50 @@ def install_cache(
     }
 
 
+def install_cache(
+    sources: list[Path],
+    destination: Path,
+    *,
+    dry_run: bool = False,
+    replace_existing: bool = False,
+    promotion_ledgers: list[Path] | None = None,
+    require_variance_gate: bool = False,
+    require_target_validation_gate: bool = False,
+    allow_selector_review_cache: bool = False,
+) -> dict[str, Any]:
+    entries, source_by_key = [], {}
+    for source in sources:
+        rows = read_cache(source, allow_candidates=True)
+        entries.extend(rows)
+        for entry in rows:
+            source_by_key[entry["key"]] = str(source)
+    return install_reviewed_entries(
+        entries,
+        destination,
+        dry_run=dry_run,
+        replace_existing=replace_existing,
+        promotion_ledgers=promotion_ledgers,
+        require_variance_gate=require_variance_gate,
+        require_target_validation_gate=require_target_validation_gate,
+        allow_selector_review_cache=allow_selector_review_cache,
+        sources=sources,
+        source_by_key=source_by_key,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=Path, action="append", required=True, help="reviewed cache JSON to install")
-    parser.add_argument("--destination", type=Path, help="destination cache path; defaults to RNS8 autotune cache path")
-    parser.add_argument("--dry-run", action="store_true", help="validate and report without writing the destination")
+    parser.add_argument(
+        "--source", type=Path, action="append", required=True, help="reviewed cache JSON to install"
+    )
+    parser.add_argument(
+        "--destination",
+        type=Path,
+        help="destination cache path; defaults to RNS8 autotune cache path",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="validate and report without writing the destination"
+    )
     parser.add_argument(
         "--replace-existing",
         action="store_true",

@@ -11,7 +11,7 @@
 namespace {
 #include "test_bounded_gemm_support.inc"
 
-}  // namespace
+} // namespace
 
 #include "test_bounded_gemm_basic_cases.inc"
 #include "test_bounded_gemm_schedule_cases.inc"

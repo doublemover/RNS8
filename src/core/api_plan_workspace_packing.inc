@@ -1,4 +1,13 @@
 uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
+  if (plan.backend == RNS8_BACKEND_CPU_AMX) {
+    uint64_t bytes = 0;
+    return rns8::detail::cpu_amx_workspace_bytes(
+               plan.desc.m, plan.desc.n, plan.desc.k,
+               uses_finite_storage(plan.desc.semantics) ? 1 : rns_storage_prefix_for_plan(plan),
+               plan.cpu_amx_prepared_threads, bytes)
+               ? bytes
+               : UINT64_MAX;
+  }
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     std::size_t scratch_bytes = 0;
     std::size_t workspace_bytes = 0;
@@ -26,8 +35,8 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     std::size_t b_pack_bytes = 0;
     std::size_t temp_c_bytes = 0;
     std::size_t total_bytes = 0;
-    if (!rns8::detail::ck_workspace_requirements(
-            max_m, max_n, plan.desc.k, a_pack_bytes, b_pack_bytes, temp_c_bytes, total_bytes)) {
+    if (!rns8::detail::ck_workspace_requirements(max_m, max_n, plan.desc.k, a_pack_bytes,
+                                                 b_pack_bytes, temp_c_bytes, total_bytes)) {
       return 0;
     }
     return static_cast<uint64_t>(total_bytes);
@@ -46,8 +55,8 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     std::size_t a_pack_bytes = 0;
     std::size_t b_pack_bytes = 0;
     std::size_t total_bytes = 0;
-    if (!rns8::detail::rocwmma_workspace_requirements(
-            max_m, max_n, plan.desc.k, a_pack_bytes, b_pack_bytes, total_bytes)) {
+    if (!rns8::detail::rocwmma_workspace_requirements(max_m, max_n, plan.desc.k, a_pack_bytes,
+                                                      b_pack_bytes, total_bytes)) {
       return 0;
     }
     return static_cast<uint64_t>(total_bytes);
@@ -65,13 +74,15 @@ uint64_t workspace_required_bytes_for_plan(const rns8_plan& plan) {
     }
     active_entry_count += entry.selected_prefix;
   }
-  const uint64_t schedule_entries =
-      hip_direct_gemm_requires_device_tile_schedule(plan) ? static_cast<uint64_t>(plan.tile_schedule.size()) : 0;
+  const uint64_t schedule_entries = hip_direct_gemm_requires_device_tile_schedule(plan)
+                                        ? static_cast<uint64_t>(plan.tile_schedule.size())
+                                        : 0;
   if (schedule_entries > std::numeric_limits<uint64_t>::max() - active_entry_count) {
     return std::numeric_limits<uint64_t>::max();
   }
   const uint64_t total_entries = schedule_entries + active_entry_count;
-  if (total_entries > std::numeric_limits<uint64_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
+  if (total_entries >
+      std::numeric_limits<uint64_t>::max() / sizeof(rns8_plan_tile_schedule_entry)) {
     return std::numeric_limits<uint64_t>::max();
   }
   return total_entries * sizeof(rns8_plan_tile_schedule_entry);
@@ -125,13 +136,9 @@ bool accelerator_workspace_shape_for_plan(const rns8_plan& plan, int64_t& max_m,
   return max_m > 0 && max_n > 0 && plan.desc.k > 0;
 }
 
-bool hipblaslt_pack_workspace_breakdown(
-    const rns8_plan& plan,
-    uint64_t& a_pack_bytes,
-    uint64_t& b_pack_bytes,
-    uint64_t& accumulator_bytes,
-    uint64_t& library_workspace_bytes,
-    uint64_t& total_bytes) {
+bool hipblaslt_pack_workspace_breakdown(const rns8_plan& plan, uint64_t& a_pack_bytes,
+                                        uint64_t& b_pack_bytes, uint64_t& accumulator_bytes,
+                                        uint64_t& library_workspace_bytes, uint64_t& total_bytes) {
   a_pack_bytes = 0;
   b_pack_bytes = 0;
   accumulator_bytes = 0;
@@ -162,19 +169,17 @@ bool hipblaslt_pack_workspace_breakdown(
   }
   accumulator_bytes = static_cast<uint64_t>(scratch_bytes);
   library_workspace_bytes = static_cast<uint64_t>(workspace_bytes) - a_pack_bytes - b_pack_bytes;
-  if (accumulator_bytes > std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(workspace_bytes)) {
+  if (accumulator_bytes >
+      std::numeric_limits<uint64_t>::max() - static_cast<uint64_t>(workspace_bytes)) {
     return false;
   }
   total_bytes = accumulator_bytes + static_cast<uint64_t>(workspace_bytes);
   return total_bytes == plan.backend_workspace_required_bytes;
 }
 
-bool ck_pack_workspace_breakdown(
-    const rns8_plan& plan,
-    uint64_t& a_pack_bytes,
-    uint64_t& b_pack_bytes,
-    uint64_t& accumulator_bytes,
-    uint64_t& total_bytes) {
+bool ck_pack_workspace_breakdown(const rns8_plan& plan, uint64_t& a_pack_bytes,
+                                 uint64_t& b_pack_bytes, uint64_t& accumulator_bytes,
+                                 uint64_t& total_bytes) {
   a_pack_bytes = 0;
   b_pack_bytes = 0;
   accumulator_bytes = 0;
@@ -188,8 +193,8 @@ bool ck_pack_workspace_breakdown(
   std::size_t b_bytes = 0;
   std::size_t temp_bytes = 0;
   std::size_t total_workspace = 0;
-  if (!rns8::detail::ck_workspace_requirements(
-          max_m, max_n, plan.desc.k, a_bytes, b_bytes, temp_bytes, total_workspace)) {
+  if (!rns8::detail::ck_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes,
+                                               temp_bytes, total_workspace)) {
     return false;
   }
   a_pack_bytes = static_cast<uint64_t>(a_bytes);
@@ -199,11 +204,8 @@ bool ck_pack_workspace_breakdown(
   return total_bytes == plan.backend_workspace_required_bytes;
 }
 
-bool rocwmma_pack_workspace_breakdown(
-    const rns8_plan& plan,
-    uint64_t& a_pack_bytes,
-    uint64_t& b_pack_bytes,
-    uint64_t& total_bytes) {
+bool rocwmma_pack_workspace_breakdown(const rns8_plan& plan, uint64_t& a_pack_bytes,
+                                      uint64_t& b_pack_bytes, uint64_t& total_bytes) {
   a_pack_bytes = 0;
   b_pack_bytes = 0;
   total_bytes = 0;
@@ -215,7 +217,8 @@ bool rocwmma_pack_workspace_breakdown(
   std::size_t a_bytes = 0;
   std::size_t b_bytes = 0;
   std::size_t total_workspace = 0;
-  if (!rns8::detail::rocwmma_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes, total_workspace)) {
+  if (!rns8::detail::rocwmma_workspace_requirements(max_m, max_n, plan.desc.k, a_bytes, b_bytes,
+                                                    total_workspace)) {
     return false;
   }
   a_pack_bytes = static_cast<uint64_t>(a_bytes);
@@ -245,8 +248,9 @@ const char* native_layout_version_for_semantics(rns8_semantics semantics) {
 }
 
 const char* persistent_layout_version_for_plan(const rns8_plan& plan) {
-  return native_vector_backend(plan.backend) ? native_layout_version_for_semantics(plan.desc.semantics)
-                                             : persistent_layout_version_for_semantics(plan.desc.semantics);
+  return native_vector_backend(plan.backend)
+             ? native_layout_version_for_semantics(plan.desc.semantics)
+             : persistent_layout_version_for_semantics(plan.desc.semantics);
 }
 
 const char* storage_scope_for_matrix(const rns8_matrix& matrix) {
@@ -254,9 +258,11 @@ const char* storage_scope_for_matrix(const rns8_matrix& matrix) {
     return "native_device_storage";
   }
   if (matrix.desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-    return matrix.backend == RNS8_BACKEND_HIP_DIRECT ? "device_byte_limb_storage" : "host_byte_limb_storage";
+    return matrix.backend == RNS8_BACKEND_HIP_DIRECT ? "device_byte_limb_storage"
+                                                     : "host_byte_limb_storage";
   }
-  return hip_resident_rns_backend(matrix.backend) ? "device_resident_storage" : "host_resident_storage";
+  return hip_resident_rns_backend(matrix.backend) ? "device_resident_storage"
+                                                  : "host_resident_storage";
 }
 
 const char* storage_detail_for_matrix(const rns8_matrix& matrix) {
@@ -294,14 +300,18 @@ bool hipblaslt_workspace_bytes_for_plan(const rns8_plan& plan, std::size_t& byte
     return false;
   }
   std::size_t scratch_bytes = 0;
-  return rns8::detail::hipblaslt_baseline_workspace_requirements(
-      plan.desc.m, plan.desc.n, plan.desc.k, scratch_bytes, bytes);
+  return rns8::detail::hipblaslt_baseline_workspace_requirements(plan.desc.m, plan.desc.n,
+                                                                 plan.desc.k, scratch_bytes, bytes);
 }
 
 std::string build_autotune_key(const rns8_plan& plan) {
   std::string key = "backend=";
   key += backend_name(plan.backend);
-  key += ";implementation_revision=4";
+  key += ";implementation_revision=8";
+  if (plan.desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)
+    key += ";range_admission=current_value_fixed_basis_v1";
+  if ((plan.desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0)
+    key += ";exact_proof=scalar_first_v1";
   key += ";target_id=";
   key += target_id_for_plan_key(plan);
   key += ";semantics=";
@@ -354,10 +364,13 @@ std::string build_autotune_key(const rns8_plan& plan) {
   key += ";k_block_cap=" + std::to_string(plan.backend_accumulator_k_block_cap);
   key += ";kernel=" + plan.backend_selected_kernel;
   key += ";epilogue=" + plan.backend_epilogue_mode;
+  key += ";arithmetic_certificate=" +
+         (plan.arithmetic_guard ? plan.arithmetic_guard->checked.sha256 : "missing");
   return key;
 }
 
-bool backend_library_version_matches_plan(const rns8_plan& plan, const rns8_backend_capability_info& capability) {
+bool backend_library_version_matches_plan(const rns8_plan& plan,
+                                          const rns8_backend_capability_info& capability) {
   if (plan.backend == RNS8_BACKEND_HIPBLASLT) {
     return plan.backend_library_version.rfind("hipBLASLt ", 0) == 0 ||
            plan.backend_library_version == capability.library_version;
@@ -369,13 +382,13 @@ bool backend_library_version_matches_plan(const rns8_plan& plan, const rns8_back
   return plan.backend_library_version == capability.library_version;
 }
 
-rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity_for_plan(
-    const rns8_context& ctx,
-    const rns8_plan& plan) {
+rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity_for_plan(const rns8_context& ctx,
+                                                                         const rns8_plan& plan) {
   rns8::detail::AutotuneRuntimeIdentity runtime{};
   if (!plan.backend_target_id.empty()) {
     runtime.target_id = plan.backend_target_id;
-  } else if (hip_device_backend(plan.backend) && concrete_device_target_id(ctx.device_info.gcn_arch)) {
+  } else if (hip_device_backend(plan.backend) &&
+             concrete_device_target_id(ctx.device_info.gcn_arch)) {
     runtime.target_id = ctx.device_info.gcn_arch;
   } else if (!hip_device_backend(plan.backend) || !ctx.device_info.hip_available) {
     runtime.target_id = "cpu";
@@ -385,4 +398,3 @@ rns8::detail::AutotuneRuntimeIdentity autotune_runtime_identity_for_plan(
   runtime.hip_sdk_or_library_version = plan.backend_library_version;
   return runtime;
 }
-

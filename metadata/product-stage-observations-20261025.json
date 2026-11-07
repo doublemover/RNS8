@@ -1,0 +1,465 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "recorded_utc": "2026-10-25T17:55:39.351072+00:00",
+  "compiled_source_commit": "31aa6910382e9a02222c3b0a390e544d0e9e0a9c",
+  "host": {
+    "os": "Windows",
+    "gpu": "AMD Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "hip": "7.1",
+    "condition": "shared_host_NuLARRY_measurements_explicitly_authorized"
+  },
+  "campaign_resumed": false,
+  "all_captures_exact": true,
+  "training_captures": 20,
+  "measurement_captures": 140,
+  "artifacts": [
+    {
+      "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-lift-recipe-calibrate.exe",
+      "sha256": "89eeafe173486ac8f32b0c7c8ddf0b1b224e3902dbadb4f30680052338f0292f",
+      "compiled_source_commit": "31aa691"
+    },
+    {
+      "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\build\\validation-20261025-gpu\\rns8-product-stage-calibrate.exe",
+      "sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+      "compiled_source_commit": "31aa691"
+    }
+  ],
+  "build_manifests": {
+    "f779334feb4b613d3e947514cd314a28330f1bfb9664a516d271cb390e1f6495": {
+      "configuration": {
+        "archived_json_pointer": "/build_manifests/f779334feb4b613d3e947514cd314a28330f1bfb9664a516d271cb390e1f6495/configuration"
+      },
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "external_dependencies": {
+        "archived_json_pointer": "/build_manifests/f779334feb4b613d3e947514cd314a28330f1bfb9664a516d271cb390e1f6495/external_dependencies",
+        "entries": 9
+      },
+      "identity_scope": "source-config-and-external-headers",
+      "linkage": "static-rns8",
+      "source_commit": "31aa6910382e9a02222c3b0a390e544d0e9e0a9c",
+      "source_digest": "aa2dff63d68ca3ca6be2565118963d1394c9202bdf49f69420b6815a10e5b94c",
+      "source_dirty": false,
+      "version": 2
+    }
+  },
+  "aggregation": "sum durations / sum calls per process; median/min/max across five independent processes",
+  "review": {
+    "schema": "reviewed_product_stage_qualification_v1",
+    "weighted_burst_aggregation": "sum durations / sum calls per process; median/min/max across five independent processes",
+    "cohorts": [
+      {
+        "archived_json_pointer": "/review/cohorts/0",
+        "entries": 4
+      },
+      {
+        "archived_json_pointer": "/review/cohorts/1",
+        "entries": 4
+      },
+      {
+        "archived_json_pointer": "/review/cohorts/2",
+        "entries": 4
+      },
+      {
+        "archived_json_pointer": "/review/cohorts/3",
+        "entries": 4
+      }
+    ],
+    "held_out": [
+      {
+        "archived_json_pointer": "/review/held_out/0",
+        "entries": 2
+      },
+      {
+        "archived_json_pointer": "/review/held_out/1",
+        "entries": 2
+      },
+      {
+        "archived_json_pointer": "/review/held_out/2",
+        "entries": 2
+      },
+      {
+        "archived_json_pointer": "/review/held_out/3",
+        "entries": 2
+      }
+    ],
+    "promotion_eligible": false
+  },
+  "beneficial_comparisons": [
+    {
+      "cohort": "128-chain-3-i",
+      "addition": "explicit_scalar_first_exact_proof_policy",
+      "baseline": "manual-full_eager_axis",
+      "candidate": "manual-scalar-first",
+      "baseline_us": {
+        "median": 38330.26666666666,
+        "minimum": 31269.83125,
+        "maximum": 47578.79583333334
+      },
+      "candidate_us": {
+        "median": 5021.9431372549025,
+        "minimum": 1558.5190082644626,
+        "maximum": 6010.436220472441
+      },
+      "speedup": 7.632556884668108,
+      "range_separated": true
+    },
+    {
+      "cohort": "256-chain-3-i",
+      "addition": "explicit_scalar_first_exact_proof_policy",
+      "baseline": "manual-full_eager_axis",
+      "candidate": "manual-scalar-first",
+      "baseline_us": {
+        "median": 113176.47499999999,
+        "minimum": 100100.28541666667,
+        "maximum": 122066.79791666666
+      },
+      "candidate_us": {
+        "median": 8063.847916666667,
+        "minimum": 2620.599651567944,
+        "maximum": 10393.019178082192
+      },
+      "speedup": 14.035045820504942,
+      "range_separated": true
+    }
+  ],
+  "frozen_prices_and_training_reports": {
+    "128-chain-3-i-report": {
+      "schema": "rns8_product_stage_training_report_v1",
+      "cohort": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/128-chain-3-i-report/cohort",
+        "entries": 11
+      },
+      "intervals": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/128-chain-3-i-report/intervals",
+        "entries": 61
+      },
+      "charged_training_us": 3453155.0999999996,
+      "training_cost_scope": "context_setup_warmups_samples_fixture_transfers_and_oracles_excluding_process_start_and_output_serialization",
+      "resolution_scope": "nominal_clock_tick_only_not_empirically_qualified",
+      "actual_hardware_traffic_bytes": null,
+      "isa_qualified": false,
+      "promotion_eligible": false
+    },
+    "128-chain-3-i": {
+      "schema": "rns8_product_stage_prices_v1",
+      "cost_schema_version": 2,
+      "identity": {
+        "build_sha256": "28d7de90de0a7355e127af81ce6381464c354900fbe73e773602fb56a60e25c2",
+        "graph_sha256": "bdb70638a99282c102c8f5ff837da0953b1eedaf9edd2303e5aed832a5d747a2",
+        "minimum_prefixes": {
+          "archived_json_pointer": "/frozen_prices_and_training_reports/128-chain-3-i/identity/minimum_prefixes",
+          "entries": 3
+        },
+        "node_count": 3,
+        "target": "gfx1100"
+      },
+      "training_run_ids": [
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-a8b017efbc61-0",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-a8b017efbc61-1",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-a8b017efbc61-2",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-a8b017efbc61-3",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-a8b017efbc61-4"
+      ],
+      "training_execution_ids": [
+        "9b5efa35-d20b-43b8-9def-52787dc2f8ed",
+        "8889bd67-1453-4076-91c4-f242ad6b2a82",
+        "3717fa98-fa89-42f2-abcf-088c4efbc38d",
+        "70635d3a-e569-4611-9858-9543c924aa9b",
+        "86c968ab-f4b9-4997-8f39-3b8bfec2bfd4"
+      ],
+      "source_artifacts": [
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "45fd1859ffc38002c22f287f04d207b771afd53d33213c1a9c41398e79ad2c10"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "9bedee08e850086e015e088363df517714cebe67381da58dbb85e700665e2223"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "3c56ba8a432ab4e71712570738783a14515fcc2a293cd3b4c8f58726733a6616"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "e558322cb2a2e7966c21c804b476cf71e5bd24f480a7de6f5ea5da90bf3c6ca9"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "38070912919ee9deff994aeedb65a5fc9d68eae21f7d6e2a17a66738bb9c4848"
+        }
+      ],
+      "dataset": "all_one_inputs_exact_integer_dag_v1",
+      "cache_state": "hot_repeated_stage",
+      "timing_source": "host_monotonic_completed_backend_call",
+      "device": "AMD Radeon RX 7900 XTX",
+      "runtime_version": 71260602,
+      "training_charge_ns": 3453155100,
+      "cells": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/128-chain-3-i/cells",
+        "entries": 61
+      },
+      "qualified": false,
+      "promotion_eligible": false
+    },
+    "17-chain-3-i-report": {
+      "schema": "rns8_product_stage_training_report_v1",
+      "cohort": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/17-chain-3-i-report/cohort",
+        "entries": 11
+      },
+      "intervals": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/17-chain-3-i-report/intervals",
+        "entries": 55
+      },
+      "charged_training_us": 2931490.7,
+      "training_cost_scope": "context_setup_warmups_samples_fixture_transfers_and_oracles_excluding_process_start_and_output_serialization",
+      "resolution_scope": "nominal_clock_tick_only_not_empirically_qualified",
+      "actual_hardware_traffic_bytes": null,
+      "isa_qualified": false,
+      "promotion_eligible": false
+    },
+    "17-chain-3-i": {
+      "schema": "rns8_product_stage_prices_v1",
+      "cost_schema_version": 2,
+      "identity": {
+        "build_sha256": "28d7de90de0a7355e127af81ce6381464c354900fbe73e773602fb56a60e25c2",
+        "graph_sha256": "d89c52c01964961495badd7f2b7d4e7a54d26d76034befa6e4e284d590e033a7",
+        "minimum_prefixes": {
+          "archived_json_pointer": "/frozen_prices_and_training_reports/17-chain-3-i/identity/minimum_prefixes",
+          "entries": 3
+        },
+        "node_count": 3,
+        "target": "gfx1100"
+      },
+      "training_run_ids": [
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-83fff6236092-0",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-83fff6236092-1",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-83fff6236092-2",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-83fff6236092-3",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-83fff6236092-4"
+      ],
+      "training_execution_ids": [
+        "20d12630-502d-46d6-a140-861c51b59f87",
+        "97915393-93a7-493d-b225-15d53166b796",
+        "3feb4c4a-53bd-4daf-bc24-34ae6f76279f",
+        "5eaaae48-d6fa-4924-a7ac-c377da4f3f63",
+        "80e43c71-4b0a-49cf-b915-647b65400c21"
+      ],
+      "source_artifacts": [
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "d067d54f6f855ccf134f5ef2b0356dacc0243d2adc859fcf35a5dd1fe848453a"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "a7cf238b06ef0b7eebbc2824bff6b11c11e8079bc65fefbcb11384dfd90a20ff"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "f0bcc4516f04ac525cc5465d3b5aec73c4b511af2418c3c460ce01839662c5aa"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "213d1bf653ca9453c71be906d30316f6622f8e2ae820ae514853a8f83accf6aa"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "7e6ec02249d775766356af6880c34264641c8e71171fc9633d4581c3b9820832"
+        }
+      ],
+      "dataset": "all_one_inputs_exact_integer_dag_v1",
+      "cache_state": "hot_repeated_stage",
+      "timing_source": "host_monotonic_completed_backend_call",
+      "device": "AMD Radeon RX 7900 XTX",
+      "runtime_version": 71260602,
+      "training_charge_ns": 2931490700,
+      "cells": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/17-chain-3-i/cells",
+        "entries": 55
+      },
+      "qualified": false,
+      "promotion_eligible": false
+    },
+    "256-chain-3-i-report": {
+      "schema": "rns8_product_stage_training_report_v1",
+      "cohort": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/256-chain-3-i-report/cohort",
+        "entries": 11
+      },
+      "intervals": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/256-chain-3-i-report/intervals",
+        "entries": 99
+      },
+      "charged_training_us": 5702084.9,
+      "training_cost_scope": "context_setup_warmups_samples_fixture_transfers_and_oracles_excluding_process_start_and_output_serialization",
+      "resolution_scope": "nominal_clock_tick_only_not_empirically_qualified",
+      "actual_hardware_traffic_bytes": null,
+      "isa_qualified": false,
+      "promotion_eligible": false
+    },
+    "256-chain-3-i": {
+      "schema": "rns8_product_stage_prices_v1",
+      "cost_schema_version": 2,
+      "identity": {
+        "build_sha256": "28d7de90de0a7355e127af81ce6381464c354900fbe73e773602fb56a60e25c2",
+        "graph_sha256": "4d2b009de4fbaf59c8ccd646e4d4f7bc8152c905c6e86b158385b9402bc42503",
+        "minimum_prefixes": {
+          "archived_json_pointer": "/frozen_prices_and_training_reports/256-chain-3-i/identity/minimum_prefixes",
+          "entries": 3
+        },
+        "node_count": 3,
+        "target": "gfx1100"
+      },
+      "training_run_ids": [
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-ba90a88a859a-0",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-ba90a88a859a-1",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-ba90a88a859a-2",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-ba90a88a859a-3",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-ba90a88a859a-4"
+      ],
+      "training_execution_ids": [
+        "523c4d1d-4457-4ad2-8382-a10f40e951b3",
+        "7acdc642-1fae-4d7a-908c-64afb52f8628",
+        "72d36c56-dcbb-4a91-9914-91593329576d",
+        "bf48d935-b45b-4bdf-957b-3d542e04f655",
+        "2afb9467-24b3-425f-bfa9-f8749acd75e5"
+      ],
+      "source_artifacts": [
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "1b6ff982c917f28733e951c55624924dbafe2cd2a73e59a63af265bb2c437a25"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "1e68a42db1ddb6b62496fd0d21a06fda0bed4e0de100b31904164917da939bf2"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "471e551363167b17b4fc7917d04e4e75a69bd83990dd69162e65c664bcaa21dd"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "eac5cfe2d2c4ebb55aa10b574667792d9e6abd6032589b69baf0b531fa5cea7c"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "e816fe3d8ca94c75eabf707638eed789f61652302062fbf8c552ee45335ce689"
+        }
+      ],
+      "dataset": "all_one_inputs_exact_integer_dag_v1",
+      "cache_state": "hot_repeated_stage",
+      "timing_source": "host_monotonic_completed_backend_call",
+      "device": "AMD Radeon RX 7900 XTX",
+      "runtime_version": 71260602,
+      "training_charge_ns": 5702084900,
+      "cells": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/256-chain-3-i/cells",
+        "entries": 99
+      },
+      "qualified": false,
+      "promotion_eligible": false
+    },
+    "32-diamond-4-u-report": {
+      "schema": "rns8_product_stage_training_report_v1",
+      "cohort": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/32-diamond-4-u-report/cohort",
+        "entries": 11
+      },
+      "intervals": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/32-diamond-4-u-report/intervals",
+        "entries": 131
+      },
+      "charged_training_us": 4252080.0,
+      "training_cost_scope": "context_setup_warmups_samples_fixture_transfers_and_oracles_excluding_process_start_and_output_serialization",
+      "resolution_scope": "nominal_clock_tick_only_not_empirically_qualified",
+      "actual_hardware_traffic_bytes": null,
+      "isa_qualified": false,
+      "promotion_eligible": false
+    },
+    "32-diamond-4-u": {
+      "schema": "rns8_product_stage_prices_v1",
+      "cost_schema_version": 2,
+      "identity": {
+        "build_sha256": "28d7de90de0a7355e127af81ce6381464c354900fbe73e773602fb56a60e25c2",
+        "graph_sha256": "81be85320a0e35f05c810da2ea8151eea60d1efbb00ac091a38a179e74410bce",
+        "minimum_prefixes": {
+          "archived_json_pointer": "/frozen_prices_and_training_reports/32-diamond-4-u/identity/minimum_prefixes",
+          "entries": 4
+        },
+        "node_count": 4,
+        "target": "gfx1100"
+      },
+      "training_run_ids": [
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-f376461881cb-0",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-f376461881cb-1",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-f376461881cb-2",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-f376461881cb-3",
+        "34debf70-328a-4072-a5aa-4de8c9cc9b63-f376461881cb-4"
+      ],
+      "training_execution_ids": [
+        "2f534b27-4acb-4031-9ad4-0c322a5b527e",
+        "77821080-a299-4a13-82bc-37ed4a8f9791",
+        "3996d3c3-4a7e-4cc1-aa52-ba23c793f93e",
+        "667917b9-c0bb-48f7-98eb-7dfd3c64aa44",
+        "15ed4b9b-17c8-49ea-b86f-e290e1cf53a4"
+      ],
+      "source_artifacts": [
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "32995f7741fd06412005b047a8690a93444e486100eb8e0212d7fae4e6f2360f"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "89f532cb93a555c39e792be43c3edb637c642ce4e832d0dbeba962c77684e8c3"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "04545225d5b2456a690c3c2b1385030fa9c6bdd5e244e8f88d6bd9c4892fa346"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "b99500ed6d613c7f21433753365197d10e5b3f33cfb6700665a5297fe70d2e4e"
+        },
+        {
+          "executable_sha256": "fe5f58a0d23180a763ed08eebd9185113677d764846c760607aecea7fe38d4c4",
+          "capture_sha256": "8e2577294a6d108c00988a4378346d1693dc919d415531207f1194bd25eaa347"
+        }
+      ],
+      "dataset": "all_one_inputs_exact_integer_dag_v1",
+      "cache_state": "hot_repeated_stage",
+      "timing_source": "host_monotonic_completed_backend_call",
+      "device": "AMD Radeon RX 7900 XTX",
+      "runtime_version": 71260602,
+      "training_charge_ns": 4252080000,
+      "cells": {
+        "archived_json_pointer": "/frozen_prices_and_training_reports/32-diamond-4-u/cells",
+        "entries": 131
+      },
+      "qualified": false,
+      "promotion_eligible": false
+    }
+  },
+  "captures": {
+    "archived_json_pointer": "/captures",
+    "entries": 160
+  },
+  "qualification": {
+    "promotion_eligible": false,
+    "held_out_passed": false,
+    "tolerance": 0.25,
+    "clock_policy_measured": false,
+    "hardware_traffic_measured": false,
+    "allocation_peaks_measured": false,
+    "scope": "Independent processes, same all-one graph/dataset/build; shared-host descriptive evidence. No AUTO routing promotion."
+  },
+  "original_schema": "rns8_reviewed_product_stage_qualification_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/product-stage-observations-20261025.json",
+    "sha256": "d142f2d91a5350f4c97da559d5be836608dd81689974500bcd4eea88a9bfe734",
+    "bytes": 3430901
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

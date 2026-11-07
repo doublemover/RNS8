@@ -1,0 +1,4 @@
+# Exact reviewed build-tool wheels. Use --require-hashes --only-binary=:all: --no-deps.
+# Linux glibc x86_64 and Windows AMD64 only; other platforms require a reviewed lock.
+pip==26.3 --hash=sha256:f3b60b20ffaadd4415ed7957212a38ac63fa4c5fa375bd0f4a797777940fad13
+ninja==1.13.2 --hash=sha256:65a24341b5ac09fcadcc37082660be40a94174e51a937fabf6e2cae26225fa2c --hash=sha256:1293f4078278b70d0ee4b6cc8f3a9e030656c9b2f59909970343c4fe76070118

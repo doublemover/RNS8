@@ -1,0 +1,291 @@
+# Retained Gram computation and reconstruction cohorts
+
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
+The public workload `integer-cross-product --gram` computes `XᵀX`, with K
+observations and M=N integer features. Its explicit batch controls separate
+repeated computation on retained inputs from repeated output materialization.
+The source, collector checks and applicable CPU/HIP fixtures pass the
+[October27 implementation validation](../metadata/implementation-closeout-20261027.json). The calibration campaign has not run; no
+new timing or speedup is claimed.
+
+## Matched application contracts
+
+The source frontload adds explicit `RNS8_GRAM_MFMA_GFX942` and separate-mirror
+methods, with method identities6/7 distinct from scalar/WMMA0..3 and prepared
+five-product4/5. Static operation algorithms12..17 encode
+`12+2*input_policy+separate_mirror`; existing algorithms0..11 retain their meaning.
+The classical kernel uses the shared wave64 `MfmaI8Layout<32>` for
+`v_mfma_i32_16x16x32_i8`, reduces each32-term slab before the next instruction,
+and handles both orientations, residue/native input and tails. Diagonal jobs
+reuse the same loaded/reduced raw bytes for both physical roles. Unsupported
+compiled targets return unsupported before output writes; this is not a WMMA
+fallback or a five-product mapping.
+
+On gfx942, the workload adds distinctly named `mfma_gfx942` ordinary/prepared,
+retained-native, retained-transpose, reconstruction-once and separate-mirror
+controls. Reports require a new explicit matrix-method cohort, physical method
+and actual target identity; native diagnostics use separate MFMA event labels.
+The public/Boost differential source covers finite prime/composite and signed
+full-width values, odd edges, long K, mirrored outputs, refreshed generations,
+retained payload and unsupported targets. This new route has no executed
+correctness, instruction/resource or performance qualification yet.
+
+`--gram-reuse R` accepts1..256 complete recomputations per application call.
+R is a computation count, not a result-cache hit count: each product overwrites
+the same output with the same mathematical result. `--gram-export each` exports
+after every product; `--gram-export once` exports after the final product only.
+The default export policy for an explicit batch is `once`. Without
+`--gram-reuse`, the existing single-product workload keeps its existing scope.
+Both controls require `--gram`; other workload families reject them.
+
+Explicit `--size large --gram --gram-reuse R` batches admit output orders up to
+2048 and K up to65537, including65535/65536/65537 boundaries. Their declared
+aggregate host/device allowance may be up to131072MiB; the ordinary workload
+limit remains4096MiB. The larger opt-in accommodates conservative simultaneous
+Boost/native/GMP/FLINT comparator models at N2048/K4096 and feasible long-K
+cohorts. It does not reserve128GiB, report actual allocation, establish available
+host/GPU capacity, or demonstrate oversubscription.
+The default independent-reference cap is134,217,728 mathematical products
+per source generation (`N*N*K`). Repeated products reuse the complete reference;
+they do not multiply reference construction work. For larger explicit cohorts,
+`--reference-max-products` raises that cap up to the checked shape maximum
+274,882,101,248. Both original and changed inputs still receive a full independent
+Boost reference and collector replay, and every exported output is compared outside
+production timing. Reports bind this budget and both generations separately from
+GPU work; the collector rejects an unsolicited larger budget before replay.
+This opt-in can make reference construction and replay expensive. It does not
+skip exact verification or raise pre-allocation aggregate memory admission.
+The larger memory declaration pays for
+simultaneously retained controls and conservative host/reference allowances;
+it is not a request to allocate the declared allowance on the device or evidence of a measured peak.
+
+Useful bounded cohort points include the following. Each still needs its own
+memory admission and runtime qualification; this table is not an executed campaign.
+
+| Output order N | K | Reuse counts admitted by the default reference work cap |
+|---:|---:|---|
+| 32 | 65535 /65536 /65537 | 1..256 |
+| 128 | 4096 | 1..256 |
+| 512 | 32 /256 | 1..256 |
+| 1024 | 32 | 1..256 |
+| 2048 | 32 | 1..256 |
+
+Awkward neighbors such as31/33,127/129 and511/513 use the same checked rules.
+Larger combinations reject before dataset allocation or independent reference
+work, rather than silently dropping controls. Source-only admission controls
+enumerate the campaign bounds without allocating these matrices. For example,
+N1024/K4096 uses `--reference-max-products 4294967296`; memory admission remains
+an independent requirement, including every simultaneously retained comparator.
+No new large-cohort execution or performance qualification is claimed.
+
+`--gram-five-product` adds the experimental compact prime-channel recipe to an
+explicit Gram batch. It compares prepared scalar subproducts and, on direct HIP,
+the actual compiled AMDGPU matrix provider against the same dense and triangular
+controls. It keeps resident input, complete dense output, the selected each/once
+export policy, generation refresh/rebuild, and the independent full Boost oracle.
+It does not attach native-input adapters or reconstruction-once to the algebraic
+recipe. A basis with no certified prime channel and an unavailable matrix
+provider receive individually named unsupported outcomes; neither uses a scalar
+substitute under a matrix name.
+
+The `gram_five_product_cohort=2` report records queried prime/classical channel
+counts, operand/product/staging requests, host/device jobs and total retained
+payload against a pre-admitted all-plane envelope. The collector recomputes the
+compact extents from the ordered default basis and padded half-dimensions. Five
+algebraic products per eligible channel describe the recipe, not observed matrix
+instruction or physical multiply counts. Dispatch-bound ISA/resource evidence
+and same-contract profitability remain separate qualification work. The new
+workload integration and CPU/HIP each/once and malformed-report controls are
+authored; runtime execution is deferred with the current source pass.
+
+The classical composite bucket selects the maintained RDNA3 WMMA or gfx942
+MFMA producer for a matrix recipe when that physical mapping exists; RDNA4
+currently keeps its explicitly reported scalar classical bucket. Scalar recipes
+stay independent controls. `rns8_get_gram_classical_info` queries the planned
+method, classical-plane count and actual completed compiled-probe observation,
+without GPU work. First execution reuses the not-yet-uploaded tile directory's
+first word for the probe, then uploads the complete directory before ordered
+execution. This adds no overlapping device payload. A failed probe publishes no
+observation; an observed unsupported body rejects before transforms or writes.
+Changed input values do not invalidate immutable compiled-provider observations.
+
+Version2 metadata records the queried classical method. Each completed-call
+receipt queries observed/supported flags outside the production interval;
+unchanged, changed-input and sustained receipts must agree with the actual
+target/method. Zero classical planes mean no classical work or probe. These
+logical observations do not replace dispatch-bound instruction qualification.
+
+The project-only `rns8-workload-gram-calibrate` target uses the same workload
+implementation and controls, linked to the exact static library whose private
+hooks it observes. Build it with examples and benchmarks enabled. It requires
+direct HIP and an explicit Gram batch. After all samples and sustained intervals,
+it executes one separate batch per RNS8 candidate with phase timing disabled on
+the host and native HIP events enabled, then checks every exact output word.
+`native_diagnostics_cohort=1` binds the separate receipts and event denominators
+across independent processes. The installed standalone examples keep the public
+consumer path and do not need these private hooks.
+
+Separate receipts include per-label microseconds and counts for the compact
+transforms, five product batches, classical triangular bucket, recombination and
+ordered commit. Matrix recipes additionally require the actual indexed AMDGPU
+provider events from the generated registry. A bucket event may cover several
+launches, and nested event durations can overlap: these are measured boundaries,
+not additive end-to-end time or physical instruction counts. Allocation/free
+deltas observe library-owned device requests; copy deltas cover the tracked
+completed synchronous HIP wrappers. Async commit traffic is represented by its
+native event and queried staging extent, not misreported as synchronous copy
+bytes. The collector requires warm algebraic replay to avoid allocation/free
+and uploads. Event collection, separate-batch correctness and each/once HIP
+registrations are registered.
+
+```powershell
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-five.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-gram-calibrate.exe --output temp/workloads/gram-five-diagnostic.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size modest --m 33 --k 65 --wide --bits 40 --gram --gram-reuse 8 --gram-five-product --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
+```
+
+| Candidate | Retained preparation | Work inside each batch |
+|---|---|---|
+| `rns8_prepared_dense_gram_control` | Public `rns8_prepare_gemm` for packed `Xᵀ` and X | R synchronous `rns8_execute_prepared` calls, then the selected export policy |
+| `rns8_single_source_gram_scalar` | Packed X and output storage | R public `rns8_gram_residues` calls with scalar triangular computation and mirrored output |
+| `rns8_single_source_gram_wmma` | Packed X and output storage | R public Gram calls with explicit WMMA method, when supported |
+| `rns8_prepared_single_source_gram_scalar` | Public `rns8_prepare_gram`, retained host jobs and output | R synchronous `rns8_execute_prepared_gram` calls, then the selected export policy |
+| `rns8_prepared_single_source_gram_wmma` | Public prepared Gram owner with retained device jobs | R prepared WMMA calls with the same export policy, when supported |
+| Native and Boost CPU controls | Native inputs and comparator buffers | R full products, each serialized into the common output word format |
+
+The ordinary single-source control uses the synchronous Gram API. Its triangular job-list
+allocation remains inside each call, and the WMMA capability probe remains
+charged there. Metadata states these costs explicitly. The dense control does
+use a prepared owner; it does not rebuild that owner inside unchanged-input
+samples. CPU native serialization happens R times under both export policies;
+it is recorded separately from RNS reconstruction/downloads. These boundaries
+must be considered when interpreting application costs.
+
+The separate prepared Gram candidates build the host job list and allocate its
+device storage once per owner during setup. The first execution uploads jobs
+and, for WMMA, probes capability; the cold application call includes that
+first-use work. Later calls retain both jobs and the capability result. They
+have their own names and `prepared_gram_api=true`; the ordinary control keeps
+its original costs and identity. Reports with these additional candidates
+carry `gram_prepared_owner_cohort=1`, included in comparison identity. This
+marker does not relabel an earlier observation.
+
+The workload explicitly requests CPU reference or direct HIP. It rejects
+other backends for this batch mode and never falls back. The WMMA route is
+offered only for its implemented RDNA3 target family, with runtime admission
+still authoritative. No prepared-group queue, asynchronous overlap, hardware
+qualification or dispatch promotion follows from running this experiment.
+
+## Exactness, generations and measured work
+
+Admission uses `K * max_abs(X including changed X[0])²`, with no cancellation
+assumption. Bounded mode requires this full-expression bound to fit signed64;
+`--wide` requires the selected odd-modulus range to represent it uniquely and
+exports three u64 limbs representing a signed192-bit value per cell. The original versioned recipe and
+full output checksum remain unchanged by R or export policy.
+
+Setup packs each input once at generation1 and prepares the dense owner.
+Unchanged cold-call, warmup, steady and sustained samples reuse those packed
+matrices. A real change to X[0] creates generation2, repacks both dense inputs
+or the single Gram input, refreshes the prepared dense owner's input bindings,
+and recomputes a complete independent Boost reference. The changed-input call
+charges repacking/refresh in its own named phase. It is not included in the
+unchanged-input steady median.
+
+A prepared Gram owner binds the actual packed input's magnitude, not the
+workload's larger future-input admission bound. Generation2 first attempts
+public `rns8_refresh_prepared_gram`. If the new magnitude expands that original
+envelope, refresh returns RANGE_ERROR; the workload explicitly destroys and
+recreates the Gram owner under the same method. It frees the old job payload
+before creating the new one, charging all this work plus new first-use
+initialization to the changed-input call. Other refresh failures remain errors.
+All-zero input followed by X[0]=1 is an explicit small recreation control.
+
+Each prepared sample records the actual refresh/recreate action, packed source
+version, first-execution flag, owner build count and successful refresh count.
+The evidence callback runs after timing, never between sustained calls. The
+collector predicts refresh versus recreation from independently replayed
+original/changed X magnitudes and rejects contradictory lifecycle evidence.
+These are wrapper actions and API initialization contracts, not hardware
+allocation counters or a trace of every device instruction.
+
+Every instrumented application call verifies the complete final native output
+after timing. Intermediate identical products are not individually audited.
+Sustained intervals disable diagnostic phase clocks and perform complete final
+verification after the interval. They run until the requested elapsed time or
+4096 application batches, recording whether the duration was reached. Each
+batch still performs R computations and its declared RNS export count.
+
+`calls_per_second` counts complete application batches. A separate
+`gram_products_per_second` divides by the R products actually performed;
+`median_gram_product_ns` is the batch median divided by R, not an isolated
+kernel latency. Mathematical work fields count R times the dense-equivalent
+`M*N*K` products and, for triangular candidates, R times
+`N*(N+1)/2*K` independent products. Per-plane RNS operations are reported separately as representation work.
+
+The existing aggregate memory envelope retains all comparator buffers,
+references, matrices and workspace simultaneously, plus a bounded preparation
+metadata allowance. Reuse adds no per-product retained output arrays. Prepared
+candidates also reserve the conservative current-layout job payload model
+`16*Q*(Q+1)/2+4` bytes, Q=ceil(N/16), covering host/device jobs and the capability
+word even for CPU/scalar controls. This is a model, not a public layout ABI or
+measured peak. The
+additional batch work bound is `M*N*K*R <= 134217728`; the full independent
+reference remains a real CPU cost. The optional timed naive-comparator limit
+also counts all R products; blocked comparators remain present. See the
+[workload resource limits](../examples/workloads/README.md#range-comparators-and-resource-limits).
+
+## Reproducible commands
+
+Use an already configured build with workload targets enabled. These commands
+describe pending runs; they are not recorded evidence. On Linux omit `.exe`.
+The installed workload source uses the same public headers and exported target.
+
+```powershell
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --repeats 2 --warmups 1 --json
+build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --reference-only --size tiny --gram --gram-reuse 3 --gram-export once --pattern zero --repeats 2 --warmups 1 --json
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-each.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size large --m 128 --n 128 --k 128 --bits 8 --seed 3135 --gram --gram-reuse 8 --gram-export each --repeats 9 --warmups 3 --sustained-ms 250
+python tools/collect_workload_examples.py --exe build/issues-all/examples/workloads/rns8-workload-integer-cross-product.exe --output temp/workloads/gram-once.json --runs 5 --timeout 600 -- --backend hip-direct --device 0 --size large --m 128 --n 128 --k 128 --bits 8 --seed 3135 --gram --gram-reuse 8 --gram-export once --repeats 9 --warmups 3 --sustained-ms 250
+```
+
+The collector binds requested R/export policy to every capture, keeps them in
+comparison identity, and retains mismatches as failures. It independently
+replays all original and changed integer outputs, including serialization and
+range admission; checks preparation, work/rate and export/verification counts;
+and requires the prepared dense, ordinary/prepared triangular scalar, blocked Boost and admitted
+blocked native64 controls. Existing executable, build/source, command, process,
+clock and device provenance remains attached. Raw captures remain ineligible
+for performance promotion. The fixtures and CTest smoke registrations cover
+both export policies. Applicable registered correctness/collector checks pass;
+the benchmark input corpus remains distinct from an executed measurement campaign.
+
+## Native/orientation/mirror/reconstruction ablations
+
+Reports with `gram_ablation_cohort=1` add independently named prepared
+variants for each admitted scalar/WMMA family: `_native_` where supported, `_transpose_`,
+`_separate_mirror_` and `_reconstruct_once_`. They change one mechanism relative
+to the resident prepared control. Native loads use retained original signed64
+panels; transpose retains a generation-bound residue adapter; separate mirror
+uses a second tiled transpose-store launch; reconstruct-once exports each
+independent integer once and mirrors its complete signed limbs. Ordinary dense
+residue output is retained by every variant. Reconstruct-once is distinct from
+`--gram-export once`, which controls how many batch products are exported.
+
+The cohort contract records input, mirror and reconstruction policies, exact
+adapter/export payload, actual total owned capacity, independent/dense cells and
+native retention. A shared aggregate budget reserves a checked envelope before
+owner allocation; actual capacities must fit it. Old job-only envelope metadata
+is retained as a separate conservative component, not mislabeled as the new
+total. Adapter creation is first-execute work and rebuild is charged after source
+refresh. The benchmark's complete Boost validation remains outside timed calls.
+The collector requires every applicable scalar ablation and matching WMMA ablation,
+recomputes payload/alignment lower bounds, rejects incomplete cohorts and keeps
+the cohort version in comparison identity. These receipts establish declared
+source paths and owned allocations, not measured peak memory or physical ISA.
+
+Retained native i64 input follows `RNS8_MATRIX_RETAIN_NATIVE_INPUT`: it is
+available for direct-HIP exact-wide signed matrices. CPU and bounded-i64
+workloads record this variant as unsupported while exercising the resident,
+transpose, mirror and reconstruction controls. The collector requires the
+applicable controls for the selected backend and semantic contract.

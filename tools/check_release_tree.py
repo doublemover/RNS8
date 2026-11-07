@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path, PurePosixPath
 
 
@@ -43,7 +42,7 @@ FORBIDDEN_SUFFIXES = {
     ".so",
     ".spv",
 }
-STALE_FIRST_PARTY_LICENSE_MARKERS = ("Apa" "che License", "Apa" "che-2.0")
+STALE_FIRST_PARTY_LICENSE_MARKERS = ("Apache License", "Apache-2.0")
 
 
 def repo_root() -> Path:

@@ -1,31 +1,32 @@
-#!/usr/bin/env python3
-"""Self-test benchmark schema validation fixtures."""
+"""Aggregate independently runnable schema contract tests."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from test_benchmark_schema_support import *  # noqa: F401,F403 - compatibility re-export
-
-_CASE_FRAGMENTS = [
-    "test_benchmark_schema_case_vector_grouped.py",
-    "test_benchmark_schema_case_reuse_chain.py",
-    "test_benchmark_schema_case_oneshot_accelerators.py",
-    "test_benchmark_schema_case_events_schedule.py",
-]
+import unittest
+import test_benchmark_schema_case_vector_grouped
+import test_benchmark_schema_case_reuse_chain
+import test_benchmark_schema_case_oneshot_accelerators
+import test_benchmark_schema_case_events_schedule
 
 
-def _run_case_fragment(name: str, state: dict) -> None:
-    source = (Path(__file__).resolve().with_name(name)).read_text(encoding="utf-8")
-    exec(compile(source, name, "exec"), state, state)
+def load_tests(loader, tests, pattern):
+    suite = unittest.TestSuite([tests])
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_vector_grouped))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_reuse_chain))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_oneshot_accelerators))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_events_schedule))
+    if suite.countTestCases() < 4:
+        raise RuntimeError("aggregate contract test inventory changed or became empty")
+    return suite
 
 
 def main() -> int:
-    state = dict(globals())
-    for fragment in _CASE_FRAGMENTS:
-        _run_case_fragment(fragment, state)
-    print("benchmark schema self-test: PASS")
-    return 0
+    if not __debug__:
+        raise RuntimeError("contract assertions require non-optimized Python")
+    result = unittest.TextTestRunner(verbosity=2).run(
+        unittest.defaultTestLoader.loadTestsFromName(__name__)
+    )
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":

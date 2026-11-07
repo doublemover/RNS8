@@ -76,6 +76,8 @@ def assert_candidate_capture(capture: dict, *, m: int, n: int, k: int) -> None:
     assert capture["backend_metadata"]["performance_validated"] is False
     assert capture["timing_metadata"]["gpu_event_timing"] is True
     assert "wrap64_rocwmma_candidate_gemm36_kernel_group" in capture["gpu_event_timings_us"]
+    for label in ("pack_kernel", "wrap64_export_kernel"):
+        assert capture["gpu_event_timings_us"][label] == [0.0] * capture["repeats"]
 
 
 def assert_wrap64_release_baselines(captures: list[dict]) -> None:
@@ -93,7 +95,9 @@ def assert_release_shape_checksums_match(captures: list[dict]) -> None:
     checksums = {capture["backend_requested"]: capture["checksum_u64"] for capture in captures}
     expected = checksums["wrap64-byte-limb"]
     for backend, checksum in checksums.items():
-        assert checksum == expected, f"{backend} checksum {checksum} did not match CPU wrap64 {expected}"
+        assert checksum == expected, (
+            f"{backend} checksum {checksum} did not match CPU wrap64 {expected}"
+        )
 
 
 def main() -> int:

@@ -7,6 +7,8 @@
 
 #include "backend_common/finite_u8_reducer.hpp"
 #include "core/internal.hpp"
+#include "backend_common/garner_constants.hpp"
+#define RNS8_EXPERIMENTAL_GARNER_TABLE 1
 
 // Host execution of scalar arithmetic only. This does not validate HIP code
 // generation, GPU memory behavior, wave operations, synchronization, or timing.
@@ -17,7 +19,11 @@ namespace host_arithmetic {
 #define __global__
 #define __builtin_nontemporal_load(pointer) (*(pointer))
 constexpr int kRns8DefaultModulusCount = 28;
-struct Index { int x = 0; int y = 0; int z = 0; };
+struct Index {
+  int x = 0;
+  int y = 0;
+  int z = 0;
+};
 Index blockIdx, blockDim, threadIdx;
 #include "backend_hip_direct/hip_direct_device_common.cuh"
 #include "backend_hip_direct/hip_direct_pack_kernels.cuh"
@@ -25,9 +31,10 @@ Index blockIdx, blockDim, threadIdx;
 #undef __global__
 #undef __constant__
 #undef __device__
-}
+} // namespace host_arithmetic
 
-TEST_CASE("host-only HIP wide CRT arithmetic matches the multiprecision oracle", "[qualification][cpu]") {
+TEST_CASE("host-only HIP wide CRT arithmetic matches the multiprecision oracle",
+          "[qualification][cpu]") {
   using boost::multiprecision::cpp_int;
   for (uint32_t prefix = 1; prefix <= RNS8_MAX_SUPPORTED_PREFIX; ++prefix) {
     const cpp_int product = rns8::detail::modulus_product(prefix);
@@ -53,15 +60,24 @@ TEST_CASE("host-only HIP wide CRT arithmetic matches the multiprecision oracle",
   }
 }
 
-TEST_CASE("host-only HIP four-cell pack does not skip unaligned plane starts", "[qualification][cpu]") {
-  const int64_t boundaries[] = {0, 1, -1, 127, 128, -128, -129,
-      std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::max()};
+TEST_CASE("host-only HIP four-cell pack does not skip unaligned plane starts",
+          "[qualification][cpu]") {
+  const int64_t boundaries[] = {0,
+                                1,
+                                -1,
+                                127,
+                                128,
+                                -128,
+                                -129,
+                                std::numeric_limits<int64_t>::min(),
+                                std::numeric_limits<int64_t>::max()};
   for (const int cells : {255, 256, 257, 258, 259, 4095, 4096}) {
     for (const int prefix : {1, 8, 9, 20}) {
       INFO("cells=" << cells << " prefix=" << prefix);
       std::vector<int64_t> input(cells);
       std::vector<int8_t> actual(cells * prefix, 99), expected(actual.size());
-      for (int c = 0; c < cells; ++c) input[c] = boundaries[c % 9];
+      for (int c = 0; c < cells; ++c)
+        input[c] = boundaries[c % 9];
       for (int p = 0; p < prefix; ++p)
         for (int c = 0; c < cells; ++c)
           expected[p * cells + c] = rns8::detail::centered_residue(
@@ -70,7 +86,8 @@ TEST_CASE("host-only HIP four-cell pack does not skip unaligned plane starts", "
       for (int group = 0; group < (cells * prefix + 3) / 4; ++group) {
         host_arithmetic::blockIdx.x = group / 256;
         host_arithmetic::threadIdx.x = group % 256;
-        host_arithmetic::rns8_pack_i64_4wide_coalesced_kernel(input.data(), actual.data(), 1, cells, prefix);
+        host_arithmetic::rns8_pack_i64_4wide_coalesced_kernel(input.data(), actual.data(), 1, cells,
+                                                              prefix);
       }
       CHECK(actual == expected);
     }

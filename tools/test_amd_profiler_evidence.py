@@ -1,0 +1,349 @@
+"""Authored native-format joins and rejection controls, without profiling."""
+
+from __future__ import annotations
+
+import copy
+import tempfile
+from pathlib import Path
+import unittest
+
+from amd_profiler_evidence import validate_dispatch_receipt, code_object_digest
+from target_qualification import EvidenceStore
+from test_target_qualification_support import QualificationFixture, reference, write
+from timing_eligibility import phase_blockers
+from diagnostic_companion import production_evidence
+from compiled_binary_identity import canonical_digest
+
+
+class NativeProfilerEvidence(unittest.TestCase):
+    def test_native_PCI_binding_uses_observed_device_and_distinct_agent_ordinal_namespaces(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            store = EvidenceStore()
+            facts = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
+            store.finish()
+            (physical,) = facts["physical_device_associations"]
+            expected = fixture.capture["device_identity_witness"]["before"]
+            self.assertEqual(physical["pci_bdf"], expected["pci_bdf"])
+            self.assertEqual(physical["runtime_ordinal"], expected["runtime_ordinal"])
+            self.assertEqual(physical["native_agent_id"], 3)
+            self.assertFalse(physical["ordinal_namespaces_equated"])
+            self.assertFalse(physical["native_uuid_inferred_from_device_id"])
+
+    def test_architecture_UUID_labels_or_ordinals_cannot_replace_unique_native_PCI_observations(
+        self,
+    ):
+        for mode in ("different", "missing", "boolean", "ambiguous", "nested_alias", "ordinal"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                fixture = QualificationFixture(Path(directory))
+                native = copy.deepcopy(fixture.native)
+                agents = native["rocprofiler-sdk-tool"][0]["agents"]
+                agent = agents[0]
+                if mode == "different":
+                    agent["domain"] = (agent["domain"] + 1) & 0xFFFF
+                elif mode == "missing":
+                    agent.pop("location_id")
+                    agent["uuid"] = fixture.capture["device_identity_witness"]["before"]["uuid"]
+                elif mode == "boolean":
+                    agent["domain"] = False
+                elif mode == "ambiguous":
+                    agents.append(dict(agent, id=dict(handle=7)))
+                elif mode == "nested_alias":
+                    agent["native_agent_metadata"] = dict(agent)
+                    agent.pop("domain")
+                else:
+                    agent["location_id"] = fixture.capture["device_identity_witness"]["before"][
+                        "runtime_ordinal"
+                    ]
+                write(fixture.native_path, native)
+                receipt = copy.deepcopy(fixture.dispatch)
+                receipt["native_trace"] = reference(fixture.native_path)
+                write(fixture.dispatch_path, receipt)
+                with self.assertRaises(ValueError):
+                    validate_dispatch_receipt(
+                        reference(fixture.dispatch_path),
+                        capture=fixture.capture,
+                        store=EvidenceStore(),
+                        parent=fixture.root,
+                    )
+
+    def test_only_native_observed_and_declared_profiler_injection_can_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            profiled = copy.deepcopy(fixture.profiled)
+            request = profiled["request_identity"]
+            injection = {"ROCP_TOOL_LIBRARIES": "/authored/native-tool.so"}
+            request["environment"].update(injection)
+            request["identity_sha256"] = canonical_digest(
+                {key: value for key, value in request.items() if key != "identity_sha256"}
+            )
+            witness = profiled["execution_environment_witness"]
+            witness["before"] = copy.deepcopy(request["environment"])
+            witness["after"] = copy.deepcopy(request["environment"])
+            write(fixture.profiled_path, profiled)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            receipt["profiler_environment"] = injection
+            write(fixture.dispatch_path, receipt)
+            store = EvidenceStore()
+            result = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
+            store.finish()
+            self.assertTrue(result["qualified_selected_dispatches"])
+            # Caller labels cannot supply an injection the native process did
+            # not observe, even if the request and file hashes are resealed.
+            witness["after"] = {}
+            write(fixture.profiled_path, profiled)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+
+    def test_unsupported_code_object_agent_field_cannot_qualify(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            native = copy.deepcopy(fixture.native)
+            code = native["rocprofiler-sdk-tool"][0]["code_objects"][0]
+            code["rocp_agent"] = code.pop("agent_id")
+            write(fixture.native_path, native)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["native_trace"] = reference(fixture.native_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+
+    def test_native_file_output_is_an_explicit_raw_bound_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            native = copy.deepcopy(fixture.profiled)
+            for key in (
+                "execution_id",
+                "request_identity",
+                "artifact_capture",
+                "external_instrumentation",
+            ):
+                native.pop(key)
+            native_path = write(fixture.root / "native-benchmark.json", native)
+            profiled = copy.deepcopy(fixture.profiled)
+            request = profiled["request_identity"]
+            request["arguments"].extend(["--json-output", str(native_path)])
+            request["identity_sha256"] = canonical_digest(
+                {key: value for key, value in request.items() if key != "identity_sha256"}
+            )
+            profiled["execution_environment_witness"]["arguments"] = copy.deepcopy(
+                request["arguments"]
+            )
+            native["execution_environment_witness"] = copy.deepcopy(
+                profiled["execution_environment_witness"]
+            )
+            write(native_path, native)
+            write(fixture.profiled_path, profiled)
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["profiled_capture"] = reference(fixture.profiled_path)
+            receipt["native_benchmark_output"] = reference(native_path)
+            receipt["acquisition_command"].extend(["--json-output", str(native_path)])
+            write(fixture.dispatch_path, receipt)
+            store = EvidenceStore()
+            result = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
+            store.finish()
+            self.assertTrue(result["qualified_selected_dispatches"])
+            # Rehashing a substituted native file cannot change the bound
+            # capture's math or runtime observations.
+            native["seed"] += 1
+            write(native_path, native)
+            receipt["native_benchmark_output"] = reference(native_path)
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+
+    def test_requested_or_active_ranges_cannot_enter_production_latency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            for state in ("active", "requested_provider_unavailable", "unknown"):
+                candidate = copy.deepcopy(fixture.capture)
+                candidate["profiler_ranges"] = dict(
+                    schema="rns8_profiler_ranges_v1", provider_status=state
+                )
+                self.assertIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    phase_blockers(candidate),
+                )
+                self.assertIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    production_evidence(candidate)["blockers"],
+                )
+            for state in ("disabled_at_build", "disabled_at_runtime"):
+                candidate = copy.deepcopy(fixture.capture)
+                candidate["profiler_ranges"] = dict(
+                    schema="rns8_profiler_ranges_v1", provider_status=state
+                )
+                self.assertNotIn(
+                    "profile_range_instrumentation_not_production_evidence",
+                    phase_blockers(candidate),
+                )
+
+    def test_selected_native_dispatch_retains_identity_without_claiming_production_latency(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            store = EvidenceStore()
+            result = validate_dispatch_receipt(
+                reference(fixture.dispatch_path),
+                capture=fixture.capture,
+                store=store,
+                parent=fixture.root,
+            )
+            store.finish()
+            self.assertTrue(result["qualified_selected_dispatches"])
+            self.assertFalse(result["complete_run_coverage"])
+            self.assertFalse(result["performance_promotion_allowed"])
+            observed = result["observations"][0]
+            self.assertEqual(
+                (
+                    observed["process_id"],
+                    observed["agent_id"],
+                    observed["queue_id"],
+                    observed["dispatch_id"],
+                    observed["correlation_id"],
+                ),
+                (222, 3, 5, 11, 17),
+            )
+            self.assertEqual(observed["mangled_symbol"], "synthetic_selected_symbol")
+            self.assertIn(
+                "externally_profiled_host_time_not_production_evidence",
+                phase_blockers(fixture.profiled),
+            )
+            self.assertIn(
+                "externally_profiled_host_time_not_production_evidence",
+                production_evidence(fixture.profiled)["blockers"],
+            )
+
+    def test_wrong_process_agent_symbol_geometry_and_duplicate_dispatch_cannot_join(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            original = copy.deepcopy(fixture.native)
+            for mutate in (
+                "process",
+                "agent",
+                "symbol",
+                "code_object",
+                "duplicate",
+                "missing_geometry",
+                "timestamp",
+            ):
+                native = copy.deepcopy(original)
+                process = native["rocprofiler-sdk-tool"][0]
+                dispatch = process["buffer_records"]["kernel_dispatch"][0]
+                if mutate == "process":
+                    process["metadata"]["pid"] = 333
+                elif mutate == "agent":
+                    process["agents"][0]["name"] = "gfx1100"
+                elif mutate == "symbol":
+                    process["kernel_symbols"][0]["kernel_name"] = "unrelated_helper"
+                elif mutate == "code_object":
+                    process["code_objects"][0]["uri"] = "memory://222#offset=1&size=4"
+                elif mutate == "duplicate":
+                    process["buffer_records"]["kernel_dispatch"].append(copy.deepcopy(dispatch))
+                elif mutate == "missing_geometry":
+                    dispatch["dispatch_info"]["grid_size"]["x"] = 0
+                else:
+                    dispatch["end_timestamp"] = dispatch["start_timestamp"]
+                write(fixture.native_path, native)
+                receipt = copy.deepcopy(fixture.dispatch)
+                receipt["native_trace"] = reference(fixture.native_path)
+                write(fixture.dispatch_path, receipt)
+                with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                    validate_dispatch_receipt(
+                        reference(fixture.dispatch_path),
+                        capture=fixture.capture,
+                        store=EvidenceStore(),
+                        parent=fixture.root,
+                    )
+
+    def test_missing_or_changed_raw_artifacts_and_unknown_adapters_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            receipt = copy.deepcopy(fixture.dispatch)
+            receipt["adapter"] = "raw-rgp-guessed-column-names"
+            write(fixture.dispatch_path, receipt)
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+            write(fixture.dispatch_path, fixture.dispatch)
+            fixture.native_path.write_text("{}", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                validate_dispatch_receipt(
+                    reference(fixture.dispatch_path),
+                    capture=fixture.capture,
+                    store=EvidenceStore(),
+                    parent=fixture.root,
+                )
+
+    def test_code_object_uri_uses_actual_bytes_and_checks_ranges(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = QualificationFixture(Path(directory))
+            executable = fixture.binaries["rns8-bench"]
+            sha = fixture.capture["artifact_capture"]["executable_sha256"]
+            prefix = "file://" + executable.as_posix()
+            first = code_object_digest(
+                prefix + "#offset=6&size=" + str(len(fixture.code)),
+                executable,
+                sha,
+                EvidenceStore(),
+            )
+            second = code_object_digest(
+                prefix + "?offset=0x6&size=" + oct(len(fixture.code))[2:].rjust(4, "0"),
+                executable,
+                sha,
+                EvidenceStore(),
+            )
+            self.assertEqual(first, second)
+            for suffix in (
+                "#offset=-1&size=4",
+                "#offset=0&offset=1&size=4",
+                "#offset=999999&size=1",
+                "#offset=0&size=0",
+                "#offset=0&size=1&unknown=3",
+            ):
+                with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                    code_object_digest(prefix + suffix, executable, sha, EvidenceStore())
+
+
+if __name__ == "__main__":
+    unittest.main()

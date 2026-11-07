@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
+import math
+import re
 
 from metadata_registry_constants import (
     FUSION_MODES,
@@ -17,7 +21,15 @@ from metadata_registry_constants import (
     TARGET_NAMESPACES,
 )
 
-from .core_shared import GENERATED_REDUCER_RE
+from .core_shared import (
+    GENERATED_REDUCER_RE,
+)
+
+SELECTOR_LEGACY_REJECTION_REASONS = SELECTOR_REJECTION_REASONS - {
+    "unsupported modulus",
+    "tied with selected",
+    "arithmetic proof rejected",
+}
 
 
 def _is_int(value: Any) -> bool:
@@ -25,7 +37,12 @@ def _is_int(value: Any) -> bool:
 
 
 def _has_concrete_gpu_target_id(value: Any) -> bool:
-    return isinstance(value, str) and value and not value.startswith("unknown") and value != "not_recorded"
+    return (
+        isinstance(value, str)
+        and value
+        and not value.startswith("unknown")
+        and value != "not_recorded"
+    )
 
 
 def output_destination_layout(padding: Any) -> str:
@@ -36,28 +53,38 @@ def validate_helper_lane_metadata(self: Any) -> None:
     metadata = self.data.get("timing_metadata")
     if isinstance(metadata, dict):
         pack_layout = metadata.get("pack_layout")
-        if pack_layout is not None and pack_layout not in PACK_LAYOUTS:
+        if pack_layout is not None and not text_choice(pack_layout, PACK_LAYOUTS):
             self._error(f"timing_metadata.pack_layout must be one of {sorted(PACK_LAYOUTS)}")
         fusion_mode = metadata.get("fusion_mode")
-        if fusion_mode is not None and fusion_mode not in FUSION_MODES:
+        if fusion_mode is not None and not text_choice(fusion_mode, FUSION_MODES):
             self._error(f"timing_metadata.fusion_mode must be one of {sorted(FUSION_MODES)}")
         residue_width = metadata.get("residue_group_width")
         if residue_width is not None and (not _is_int(residue_width) or residue_width <= 0):
             self._error("timing_metadata.residue_group_width must be a positive integer")
         residue_layout = metadata.get("residue_group_layout")
-        if residue_layout is not None and residue_layout not in RESIDUE_GROUP_LAYOUTS:
-            self._error(f"timing_metadata.residue_group_layout must be one of {sorted(RESIDUE_GROUP_LAYOUTS)}")
+        if residue_layout is not None and not text_choice(residue_layout, RESIDUE_GROUP_LAYOUTS):
+            self._error(
+                f"timing_metadata.residue_group_layout must be one of {sorted(RESIDUE_GROUP_LAYOUTS)}"
+            )
         reducer = metadata.get("generated_reducer_identity")
         if reducer is not None:
             if not isinstance(reducer, str) or GENERATED_REDUCER_RE.match(reducer) is None:
-                self._error("timing_metadata.generated_reducer_identity must be a declared reducer identity")
+                self._error(
+                    "timing_metadata.generated_reducer_identity must be a declared reducer identity"
+                )
             if reducer == "generic" or reducer == "direct_hip_generic_reducer":
-                self._error("timing_metadata.generated_reducer_identity must not use stale generic identities")
+                self._error(
+                    "timing_metadata.generated_reducer_identity must not use stale generic identities"
+                )
         if fusion_mode == "residue_channel_width3_experimental_benchmark_only":
             if self._benchmark_execution_mode() != "residue_channel_fusion_native_inputs":
-                self._error("residue-channel fusion metadata requires benchmark_execution_mode=residue_channel_fusion_native_inputs")
+                self._error(
+                    "residue-channel fusion metadata requires benchmark_execution_mode=residue_channel_fusion_native_inputs"
+                )
             if pack_layout != "native_i8_row_major_residue_channel_width3":
-                self._error("residue-channel fusion captures must use pack_layout=native_i8_row_major_residue_channel_width3")
+                self._error(
+                    "residue-channel fusion captures must use pack_layout=native_i8_row_major_residue_channel_width3"
+                )
             if residue_width != 3:
                 self._error("residue-channel fusion captures must use residue_group_width=3")
 
@@ -68,7 +95,9 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if batch_size is not None and (not _is_int(batch_size) or batch_size <= 0):
             self._error("timing_metadata.host_api_batch_size must be a positive integer")
         grouped_strategy = metadata.get("grouped_dispatch_execution_strategy")
-        if grouped_strategy is not None and grouped_strategy not in GROUPED_DISPATCH_EXECUTION_STRATEGIES:
+        if grouped_strategy is not None and not text_choice(
+            grouped_strategy, GROUPED_DISPATCH_EXECUTION_STRATEGIES
+        ):
             self._error(
                 "timing_metadata.grouped_dispatch_execution_strategy must be a known grouped strategy"
             )
@@ -76,15 +105,26 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if grouped_batched_export is not None and not isinstance(grouped_batched_export, bool):
             self._error("timing_metadata.grouped_dispatch_batched_export_enabled must be a boolean")
         grouped_slab_bytes = metadata.get("grouped_dispatch_device_output_slab_bytes")
-        if grouped_slab_bytes is not None and (not _is_int(grouped_slab_bytes) or grouped_slab_bytes < 0):
-            self._error("timing_metadata.grouped_dispatch_device_output_slab_bytes must be a nonnegative integer")
+        if grouped_slab_bytes is not None and (
+            not _is_int(grouped_slab_bytes) or grouped_slab_bytes < 0
+        ):
+            self._error(
+                "timing_metadata.grouped_dispatch_device_output_slab_bytes must be a nonnegative integer"
+            )
 
     plan_packing = self.data.get("plan_packing")
     if plan_packing is not None:
         if not isinstance(plan_packing, dict):
             self._error("plan_packing must be an object or null")
         else:
-            for key in ["source", "backend", "semantics", "input_domain_name", "output_domain_name", "next_op_hint"]:
+            for key in [
+                "source",
+                "backend",
+                "semantics",
+                "input_domain_name",
+                "output_domain_name",
+                "next_op_hint",
+            ]:
                 if not isinstance(plan_packing.get(key), str):
                     self._error(f"plan_packing.{key} must be a string")
             for key in [
@@ -149,11 +189,13 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(requested_next_op, dict):
             self._error("requested_next_op must be an object")
         else:
-            if requested_next_op.get("requested") not in NEXT_OP_HINTS:
+            if not text_choice(requested_next_op.get("requested"), NEXT_OP_HINTS):
                 self._error(f"requested_next_op.requested must be one of {sorted(NEXT_OP_HINTS)}")
             if requested_next_op.get("resolved") not in NEXT_OP_HINTS - {"auto"}:
-                self._error(f"requested_next_op.resolved must be one of {sorted(NEXT_OP_HINTS - {'auto'})}")
-            if requested_next_op.get("source") not in {"cli", "benchmark_default"}:
+                self._error(
+                    f"requested_next_op.resolved must be one of {sorted(NEXT_OP_HINTS - {'auto'})}"
+                )
+            if not text_choice(requested_next_op.get("source"), {"cli", "benchmark_default"}):
                 self._error("requested_next_op.source must be cli or benchmark_default")
 
     output_policy = self.data.get("output_policy")
@@ -161,20 +203,28 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(output_policy, dict):
             self._error("output_policy must be an object")
         else:
-            if output_policy.get("destination_layout") not in OUTPUT_DESTINATION_LAYOUTS:
-                self._error(f"output_policy.destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}")
-            if output_policy.get("destination_layout") != output_destination_layout(self.data.get("output_ld_padding", 0)):
+            if not text_choice(output_policy.get("destination_layout"), OUTPUT_DESTINATION_LAYOUTS):
+                self._error(
+                    f"output_policy.destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}"
+                )
+            if output_policy.get("destination_layout") != output_destination_layout(
+                self.data.get("output_ld_padding", 0)
+            ):
                 self._error("output_policy.destination_layout must match output_ld_padding")
             for key in ["logical_ld", "ld_padding"]:
                 value = output_policy.get(key)
                 if not _is_int(value) or value < 0:
                     self._error(f"output_policy.{key} must be a nonnegative integer")
-            if _is_int(self.data.get("output_logical_ld")) and output_policy.get("logical_ld") != self.data.get("output_logical_ld"):
+            if _is_int(self.data.get("output_logical_ld")) and output_policy.get(
+                "logical_ld"
+            ) != self.data.get("output_logical_ld"):
                 self._error("output_policy.logical_ld must match output_logical_ld")
             if output_policy.get("ld_padding") != self.data.get("output_ld_padding"):
                 self._error("output_policy.ld_padding must match output_ld_padding")
-            if output_policy.get("status_handling") not in STATUS_HANDLING:
-                self._error(f"output_policy.status_handling must be one of {sorted(STATUS_HANDLING)}")
+            if not text_choice(output_policy.get("status_handling"), STATUS_HANDLING):
+                self._error(
+                    f"output_policy.status_handling must be one of {sorted(STATUS_HANDLING)}"
+                )
             if not isinstance(output_policy.get("status_event_policy"), str):
                 self._error("output_policy.status_event_policy must be a string")
 
@@ -182,12 +232,16 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(requested_next_op, dict):
             self._error("residue-current chain captures must declare requested_next_op")
         elif requested_next_op.get("resolved") != "rns-gemm":
-            self._error("residue-current chain captures must declare requested_next_op.resolved=rns-gemm")
+            self._error(
+                "residue-current chain captures must declare requested_next_op.resolved=rns-gemm"
+            )
         if not isinstance(output_policy, dict):
             self._error("residue-current chain captures must declare output_policy")
         else:
             if output_policy.get("per_repeat_logical_export") is not False:
-                self._error("residue-current chain captures must declare output_policy.per_repeat_logical_export=false")
+                self._error(
+                    "residue-current chain captures must declare output_policy.per_repeat_logical_export=false"
+                )
             if output_policy.get("final_checksum_export_after_repeats") is not True:
                 self._error(
                     "residue-current chain captures must declare "
@@ -202,7 +256,9 @@ def validate_helper_lane_metadata(self: Any) -> None:
         if not isinstance(requested_next_op, dict):
             self._error("residue-chain final-export captures must declare requested_next_op")
         elif requested_next_op.get("resolved") != "final-export":
-            self._error("residue-chain final-export captures must declare requested_next_op.resolved=final-export")
+            self._error(
+                "residue-chain final-export captures must declare requested_next_op.resolved=final-export"
+            )
         if not isinstance(output_policy, dict):
             self._error("residue-chain final-export captures must declare output_policy")
         else:
@@ -251,7 +307,7 @@ def validate_helper_lane_metadata(self: Any) -> None:
     if (
         target_variant is None
         and helper_lane_surface_present
-        and self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS
+        and text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS)
     ):
         self._error("HIP helper-lane captures must include target_variant")
     if target_variant is not None:
@@ -262,13 +318,19 @@ def validate_helper_lane_metadata(self: Any) -> None:
             namespace = target_variant.get("target_namespace")
             if not isinstance(target_id, str):
                 self._error("target_variant.target_id must be a string")
-            if namespace not in TARGET_NAMESPACES:
-                self._error(f"target_variant.target_namespace must be one of {sorted(TARGET_NAMESPACES)}")
-            if self.data.get("backend_selected") in HIP_RESIDENT_BACKENDS:
+            if not text_choice(namespace, TARGET_NAMESPACES):
+                self._error(
+                    f"target_variant.target_namespace must be one of {sorted(TARGET_NAMESPACES)}"
+                )
+            if text_choice(self.data.get("backend_selected"), HIP_RESIDENT_BACKENDS):
                 if not _has_concrete_gpu_target_id(target_id):
-                    self._error("HIP captures with target_variant must include concrete target_variant.target_id")
+                    self._error(
+                        "HIP captures with target_variant must include concrete target_variant.target_id"
+                    )
                 if namespace == "unknown":
-                    self._error("HIP captures with target_variant must use a concrete target_namespace")
+                    self._error(
+                        "HIP captures with target_variant must use a concrete target_namespace"
+                    )
             for key in ["review_group_key", "configured_amdgpu_targets"]:
                 if not isinstance(target_variant.get(key), str):
                     self._error(f"target_variant.{key} must be a string")
@@ -291,8 +353,13 @@ def validate_helper_lane_metadata(self: Any) -> None:
             if selected_key is not None and not isinstance(selected_key, str):
                 self._error("auto_selector.selected_key must be a string or null")
             vocabulary = auto_selector.get("rejection_reason_vocabulary")
-            if not isinstance(vocabulary, list) or set(vocabulary) != SELECTOR_REJECTION_REASONS:
-                self._error("auto_selector.rejection_reason_vocabulary must match fixed rejection reasons")
+            if not isinstance(vocabulary, list) or set(vocabulary) not in (
+                SELECTOR_REJECTION_REASONS,
+                SELECTOR_LEGACY_REJECTION_REASONS,
+            ):
+                self._error(
+                    "auto_selector.rejection_reason_vocabulary must match fixed rejection reasons"
+                )
             rejected = auto_selector.get("rejected_candidates")
             if rejected is not None:
                 if not isinstance(rejected, list):
@@ -300,12 +367,155 @@ def validate_helper_lane_metadata(self: Any) -> None:
                 else:
                     for index, item in enumerate(rejected):
                         if not isinstance(item, dict):
-                            self._error(f"auto_selector.rejected_candidates[{index}] must be an object")
+                            self._error(
+                                f"auto_selector.rejected_candidates[{index}] must be an object"
+                            )
                             continue
-                        if item.get("reason") not in SELECTOR_REJECTION_REASONS:
+                        if not text_choice(item.get("reason"), SELECTOR_REJECTION_REASONS):
                             self._error(
                                 f"auto_selector.rejected_candidates[{index}].reason must be a fixed rejection reason"
                             )
+
+            if auto_selector.get("source") == "immutable_plan_selection_trace_v1":
+                for flag in (
+                    "trace_recorded",
+                    "selection_performed",
+                    "cache_exists",
+                    "cache_loaded",
+                    "exact_hit",
+                    "validated_hit",
+                ):
+                    if type(auto_selector.get(flag)) is not bool:
+                        self._error(f"auto_selector.{flag} must be boolean")
+                decisions = auto_selector.get("candidate_decisions")
+                if type(decisions) is not list or len(decisions) > 6:
+                    self._error("auto_selector candidate_decisions must be bounded actual trace")
+                else:
+                    reasons = {
+                        0: "baseline policy",
+                        1: "unsupported semantics",
+                        2: "unsupported modulus",
+                        3: "per-tile unsupported",
+                        4: "backend not compiled",
+                        5: "probe failed",
+                        6: "no exact entry",
+                        7: "unvalidated entry",
+                        8: "identity/runtime mismatch",
+                        9: "workspace mismatch",
+                        10: "slower than selected",
+                        11: "reviewed exact entry selected",
+                        12: "arithmetic proof rejected",
+                        13: "tied with selected",
+                        14: "not evaluated: no plausible reviewed cache entry",
+                    }
+                    backends = set()
+                    selected = 0
+                    projected = []
+                    for d in decisions:
+                        if type(d) is not dict:
+                            self._error("auto_selector invalid decision")
+                            continue
+                        code = d.get("reason_code")
+                        backend = d.get("backend")
+                        if (
+                            type(code) is not int
+                            or code not in reasons
+                            or d.get("reason") != reasons.get(code)
+                        ):
+                            self._error("auto_selector decision reason/code mismatch")
+                        if type(backend) is not str or backend in backends:
+                            self._error("auto_selector duplicate/invalid decision backend")
+                        elif backend:
+                            backends.add(backend)
+                        disposition = d.get("disposition")
+                        if type(disposition) is not int or disposition != (
+                            2 if code == 0 else 1 if code == 11 else 3 if code == 14 else 0
+                        ):
+                            self._error("auto_selector decision disposition mismatch")
+                        if disposition == 1:
+                            selected += 1
+                            if backend != auto_selector.get("selected_backend"):
+                                self._error("auto_selector selected trace backend mismatch")
+                        if disposition == 0:
+                            projected.append({"backend": backend, "reason": d.get("reason")})
+                        for flag in ("exact_entry_present", "validated_entry_present"):
+                            if type(d.get(flag)) is not bool:
+                                self._error("auto_selector decision hit flag must be boolean")
+                        if (
+                            code in (7, 8, 9, 10, 11, 13)
+                            and d.get("exact_entry_present") is not True
+                        ):
+                            self._error("auto_selector exact entry falsely absent")
+                        if code in (9, 10, 11, 13) and d.get("validated_entry_present") is not True:
+                            self._error("auto_selector validated entry falsely absent")
+                        if code == 6 and d.get("exact_entry_present") is not False:
+                            self._error("auto_selector no-exact reason contradicts hit")
+                        median = d.get("reviewed_median_us")
+                        if code in (10, 11, 13):
+                            if (
+                                type(median) not in (int, float)
+                                or not math.isfinite(median)
+                                or median <= 0
+                            ):
+                                self._error("auto_selector invalid admitted median")
+                        elif median is not None:
+                            self._error("auto_selector unevaluated cost must be unknown")
+                        if (
+                            not _is_int(d.get("required_workspace_bytes"))
+                            or d["required_workspace_bytes"] < 0
+                        ):
+                            self._error("auto_selector invalid workspace")
+                        digest = d.get("key_sha256")
+                        if type(digest) is not str or (
+                            digest and not re.fullmatch(r"[0-9a-f]{64}", digest)
+                        ):
+                            self._error("auto_selector invalid candidate key identity")
+                        if code == 14 and (
+                            d.get("exact_entry_present") is not False
+                            or d.get("validated_entry_present") is not False
+                            or digest != ""
+                            or d.get("required_workspace_bytes") != 0
+                        ):
+                            self._error(
+                                "auto_selector skipped candidate invents key/resource observations"
+                            )
+                    winners = [
+                        d for d in decisions if type(d) is dict and d.get("reason_code") == 11
+                    ]
+                    if len(winners) == 1 and type(winners[0].get("reviewed_median_us")) in (
+                        int,
+                        float,
+                    ):
+                        best = winners[0]["reviewed_median_us"]
+                        for d in decisions:
+                            if type(d) is not dict or type(d.get("reviewed_median_us")) not in (
+                                int,
+                                float,
+                            ):
+                                continue
+                            if d.get("reason_code") == 10 and not d["reviewed_median_us"] > best:
+                                self._error(
+                                    "auto_selector slower reason contradicts measured ordering"
+                                )
+                            if d.get("reason_code") == 13 and d["reviewed_median_us"] != best:
+                                self._error(
+                                    "auto_selector tie reason contradicts measured ordering"
+                                )
+                    if projected != auto_selector.get("rejected_candidates"):
+                        self._error("auto_selector rejection projection differs from actual trace")
+                    if selected > 1 or bool(selected) != auto_selector.get("validated_hit"):
+                        self._error("auto_selector selected validation mismatch")
+                    if auto_selector.get("trace_recorded") is False and decisions:
+                        self._error("auto_selector unrecorded trace has invented decisions")
+                    if auto_selector.get("selection_performed") is True and backends != {
+                        "hip-direct",
+                        "hip-vector-alu-int64",
+                        "hipblaslt",
+                        "ck",
+                        "rocwmma",
+                        "amdgpu-builtins",
+                    }:
+                        self._error("auto_selector actual candidate set incomplete")
 
     device_allocation = self.data.get("device_allocation")
     if device_allocation is not None:
@@ -314,14 +524,29 @@ def validate_helper_lane_metadata(self: Any) -> None:
         else:
             if not isinstance(device_allocation.get("tracking_available"), bool):
                 self._error("device_allocation.tracking_available must be a boolean")
+            if (
+                device_allocation.get("transfer_scope")
+                != "direct_backend_successful_synchronous_api_payload"
+            ):
+                self._error(
+                    "device_allocation.transfer_scope must identify direct backend synchronous API payload"
+                )
             for key in ["source", "setup_scope", "source_version_inputs"]:
                 if not isinstance(device_allocation.get(key), str):
                     self._error(f"device_allocation.{key} must be a string")
-            self._validate_counter_snapshot("device_allocation.before", device_allocation.get("before"))
+            self._validate_counter_snapshot(
+                "device_allocation.before", device_allocation.get("before")
+            )
             if device_allocation.get("after_warmups") is not None:
-                self._validate_counter_snapshot("device_allocation.after_warmups", device_allocation.get("after_warmups"))
-            self._validate_counter_snapshot("device_allocation.after_repeats", device_allocation.get("after_repeats"))
-            self._validate_counter_snapshot("device_allocation.setup_delta", device_allocation.get("setup_delta"))
+                self._validate_counter_snapshot(
+                    "device_allocation.after_warmups", device_allocation.get("after_warmups")
+                )
+            self._validate_counter_snapshot(
+                "device_allocation.after_repeats", device_allocation.get("after_repeats")
+            )
+            self._validate_counter_snapshot(
+                "device_allocation.setup_delta", device_allocation.get("setup_delta")
+            )
             if device_allocation.get("measured_repeat_delta") is not None:
                 self._validate_counter_snapshot(
                     "device_allocation.measured_repeat_delta",

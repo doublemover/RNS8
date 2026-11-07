@@ -1,6 +1,12 @@
 # Strict Wraparound Backend
 
-Reserved for strict `mod 2^64` byte-limb GEMM.
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
+Implemented strict `mod 2^64` byte-limb GEMM with CPU and direct-HIP routes.
 
 This path must use unsigned byte-limb semantics. It must not reuse odd-modulus
 CRT as a wraparound substitute unless an explicit exact bound is supplied by a
@@ -29,6 +35,14 @@ Current status:
   when unsigned byte products are computed through signed INT8 hardware
   instructions: signed byte product plus explicit high-bit correction terms,
   not a shortcut through odd-modulus CRT or a separate unsigned product.
+- Ordinary HIP host imports/exports transfer logical rows directly between
+  native uint64 storage and canonical compact byte limbs when their object bytes
+  match. The GPU code object compile-checks eight-byte little-endian uint64;
+  other host byte orders use explicit host byte conversion. Public boundaries
+  allocate no device upload/export staging and launch no identity-conversion
+  kernels. Existing reusable staging is released through
+  `rns8_trim_matrix_staging` after its readers retire. Export metadata identifies
+  this path as `wrap64_canonical_host_transfer_v2`.
 - `wrap64_hip_kernels.hip` contains direct-HIP pack, tiled byte-limb
   correctness, and export kernels. The GEMM kernel stages 16x16 output tiles
   through K tiles, sums only the low eight Comba product diagonals, and uses the
@@ -69,7 +83,7 @@ Current status:
   calls. They may use odd-modulus CRT only when the exact mathematical output is
   recoverable inside the caller-supplied bound.
 
-Acceptance bar for enabling this backend:
+Arithmetic requirements for this backend and additional accelerators:
 
 - Pack inputs as unsigned base-256 limbs.
 - Compute the 36 low-64-relevant byte-product pairs across the low eight

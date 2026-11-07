@@ -9,7 +9,11 @@ import io
 from pathlib import Path
 from unittest.mock import patch
 
-import check_dependencies as deps
+import check_dependencies_lib.accelerators as dependency_accelerators
+import check_dependencies_lib.config as dependency_config
+import check_dependencies_lib.discovery as dependency_discovery
+import check_dependencies_lib.human as dependency_human
+import check_dependencies_lib.system as dependency_system
 import check_dependencies_lib.discovery as discovery_mod
 import check_dependencies_lib.report as report_mod
 
@@ -20,52 +24,107 @@ def expect(condition: bool, message: str) -> None:
 
 
 def main() -> int:
-    root = deps.repo_root()
-    expect((root / "CMakePresets.json").exists(), "dependency checker repo_root must resolve to the repository root")
-    expect((root / "vcpkg.json").exists(), "dependency checker repo_root must find the repository vcpkg manifest")
-
-    expect(deps.vcpkg_required_for_host("Windows") is True, "Windows vcpkg requirement policy changed")
-    expect(deps.vcpkg_required_for_host("Linux") is False, "Linux must not require Windows vcpkg")
-    expect(deps.command_required_for_host("vcpkg", "Windows") is True, "vcpkg should be Windows-required")
-    expect(deps.command_required_for_host("vcpkg", "Linux") is False, "vcpkg should not be Linux-required")
-    expect(deps.command_required_for_host("hipcc", "Linux") is True, "hipcc should be Linux ROCm-required")
-    expect(deps.command_required_for_host("rocminfo", "Linux") is True, "rocminfo should be Linux ROCm-required")
-    expect(deps.command_required_for_host("hipconfig", "Linux") is False, "hipconfig should be Linux diagnostic-only")
+    root = dependency_system.repo_root()
     expect(
-        deps.command_version_ok("cmake", "cmake version 3.21.7")[0] is False,
+        (root / "CMakePresets.json").exists(),
+        "dependency checker repo_root must resolve to the repository root",
+    )
+    expect(
+        (root / "vcpkg.json").exists(),
+        "dependency checker repo_root must find the repository vcpkg manifest",
+    )
+
+    expect(
+        dependency_system.vcpkg_required_for_host("Windows") is True,
+        "Windows vcpkg requirement policy changed",
+    )
+    expect(
+        dependency_system.vcpkg_required_for_host("Linux") is False,
+        "Linux must not require Windows vcpkg",
+    )
+    expect(
+        dependency_system.command_required_for_host("vcpkg", "Windows") is True,
+        "vcpkg should be Windows-required",
+    )
+    expect(
+        dependency_system.command_required_for_host("vcpkg", "Linux") is False,
+        "vcpkg should not be Linux-required",
+    )
+    expect(
+        dependency_system.command_required_for_host("hipcc", "Linux") is True,
+        "hipcc should be Linux ROCm-required",
+    )
+    expect(
+        dependency_system.command_required_for_host("rocminfo", "Linux") is True,
+        "rocminfo should be Linux ROCm-required",
+    )
+    expect(
+        dependency_system.command_required_for_host("hipconfig", "Linux") is False,
+        "hipconfig should be Linux diagnostic-only",
+    )
+    expect(
+        dependency_discovery.command_version_ok("cmake", "cmake version 3.21.7")[0] is False,
         "CMake below the project minimum must fail dependency readiness",
     )
     expect(
-        deps.command_version_ok("cmake", "cmake version 3.22.1")[0] is True,
+        dependency_discovery.command_version_ok("cmake", "cmake version 3.22.1")[0] is True,
         "CMake at the project minimum should satisfy dependency readiness",
     )
-    with patch("check_dependencies_lib.system.shutil.which", side_effect=lambda name: "/usr/bin/python3" if name == "python3" else None):
-        expect(deps.find_command("python") == "/usr/bin/python3", "Linux python command slot must accept python3")
-    linux_commands = deps.command_names_for_host("Linux")
+    with patch(
+        "check_dependencies_lib.system.shutil.which",
+        side_effect=lambda name: "/usr/bin/python3" if name == "python3" else None,
+    ):
+        expect(
+            dependency_system.find_command("python") == "/usr/bin/python3",
+            "Linux python command slot must accept python3",
+        )
+    linux_commands = dependency_system.command_names_for_host("Linux")
     expect("vcpkg" in linux_commands, "Linux report should still show vcpkg if present")
     expect("hipInfo" not in linux_commands, "Linux report should not require Windows HIP SDK tools")
-    expect("hipconfig" in linux_commands, "Linux report should still include hipconfig as diagnostic evidence")
+    expect(
+        "hipconfig" in linux_commands,
+        "Linux report should still include hipconfig as diagnostic evidence",
+    )
     expect("rocprofv3" in linux_commands, "Linux profiler readiness command missing")
     expect("rocprofv3-avail" in linux_commands, "Linux rocprof counter-list command missing")
-    expect("numactl" in linux_commands and "lstopo" in linux_commands, "Linux topology commands missing")
+    expect(
+        "numactl" in linux_commands and "lstopo" in linux_commands,
+        "Linux topology commands missing",
+    )
     expect("all_reduce_perf" in linux_commands, "rccl-tests discovery command missing")
-    expect(deps.rccl_discovery_report()["required_for_single_device_smoke"] is False, "RCCL must not block CDNA smoke")
+    expect(
+        dependency_discovery.rccl_discovery_report()["required_for_single_device_smoke"] is False,
+        "RCCL must not block CDNA smoke",
+    )
     rocminfo_output = """
 Agent 2:
   Name:                    gfx942:sramecc+:xnack-
   Marketing Name:          AMD Instinct MI300X
 """
-    rocminfo_details = deps.parse_rocminfo_details(rocminfo_output)
-    expect(rocminfo_details["target"] == "gfx942", "rocminfo parser must normalize target feature suffixes")
-    expect(rocminfo_details["gcn_arch"] == "gfx942:sramecc+:xnack-", "rocminfo parser must retain full arch detail")
+    rocminfo_details = dependency_discovery.parse_rocminfo_details(rocminfo_output)
+    expect(
+        rocminfo_details["target"] == "gfx942",
+        "rocminfo parser must normalize target feature suffixes",
+    )
+    expect(
+        rocminfo_details["gcn_arch"] == "gfx942:sramecc+:xnack-",
+        "rocminfo parser must retain full arch detail",
+    )
     with (
         patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"),
-        patch("check_dependencies_lib.discovery.find_command", return_value="/opt/rocm/bin/rocminfo"),
+        patch(
+            "check_dependencies_lib.discovery.find_command", return_value="/opt/rocm/bin/rocminfo"
+        ),
         patch("check_dependencies_lib.discovery.run", return_value=(0, rocminfo_output)),
     ):
-        hip_info = deps.hip_info_report(None)
-    expect(hip_info["ok"] is True, "Linux GPU architecture detection must fall back to rocminfo when hipInfo is absent")
-    expect(hip_info["target"] == "gfx942", "rocminfo fallback must produce a supported base target id")
+        hip_info = dependency_discovery.hip_info_report(None)
+    expect(
+        hip_info["ok"] is True,
+        "Linux GPU architecture detection must fall back to rocminfo when hipInfo is absent",
+    )
+    expect(
+        hip_info["target"] == "gfx942", "rocminfo fallback must produce a supported base target id"
+    )
     with (
         patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"),
         patch(
@@ -80,13 +139,28 @@ Agent 2:
             ],
         ),
     ):
-        hip_info = deps.hip_info_report("/opt/rocm/bin/hipInfo")
-    expect(hip_info["ok"] is True, "Linux GPU architecture detection must fall back to rocminfo when hipInfo is unusable")
-    expect(hip_info["source"] == "rocminfo", "Linux unusable hipInfo fallback must report rocminfo as the source")
-    expect(hip_info["target"] == "gfx942", "Linux unusable hipInfo fallback must produce a supported base target id")
+        hip_info = dependency_discovery.hip_info_report("/opt/rocm/bin/hipInfo")
+    expect(
+        hip_info["ok"] is True,
+        "Linux GPU architecture detection must fall back to rocminfo when hipInfo is unusable",
+    )
+    expect(
+        hip_info["source"] == "rocminfo",
+        "Linux unusable hipInfo fallback must report rocminfo as the source",
+    )
+    expect(
+        hip_info["target"] == "gfx942",
+        "Linux unusable hipInfo fallback must produce a supported base target id",
+    )
     with patch("check_dependencies_lib.discovery.platform.system", return_value="Linux"):
-        linux_ck_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("ck")]
-        linux_rocwmma_roots = [str(path).replace("\\", "/") for path in deps.repo_local_accelerator_roots("rocwmma")]
+        linux_ck_roots = [
+            str(path).replace("\\", "/")
+            for path in dependency_discovery.repo_local_accelerator_roots("ck")
+        ]
+        linux_rocwmma_roots = [
+            str(path).replace("\\", "/")
+            for path in dependency_discovery.repo_local_accelerator_roots("rocwmma")
+        ]
     expect(
         all("windows-gfx1100" not in path for path in linux_ck_roots + linux_rocwmma_roots),
         "Linux dependency discovery must not inspect Windows-gfx1100 generated accelerator roots",
@@ -96,73 +170,136 @@ Agent 2:
         placeholder = temp_root / "third_party" / "rocm" / "composable_kernel"
         placeholder.mkdir(parents=True)
         (temp_root / ".gitmodules").write_text(
-            "[submodule \"third_party/rocm/composable_kernel\"]\n"
+            '[submodule "third_party/rocm/composable_kernel"]\n'
             "\tpath = third_party/rocm/composable_kernel\n"
             "\turl = https://github.com/ROCm/composable_kernel.git\n"
             "\tbranch = release/rocm-rel-7.1\n",
             encoding="utf-8",
         )
         with patch.object(discovery_mod, "repo_root", return_value=temp_root):
-            placeholder_ck = deps.repo_local_dependency_report("ck")
-        expect(placeholder_ck["status"] == "missing", "uninitialized CK submodule placeholder must be missing")
-        expect(placeholder_ck["actual_sha"] == "", "uninitialized CK submodule must not inherit superproject SHA")
+            placeholder_ck = dependency_discovery.repo_local_dependency_report("ck")
+        expect(
+            placeholder_ck["status"] == "missing",
+            "uninitialized CK submodule placeholder must be missing",
+        )
+        expect(
+            placeholder_ck["actual_sha"] == "",
+            "uninitialized CK submodule must not inherit superproject SHA",
+        )
 
-    ck = deps.repo_local_dependency_report("ck")
+    ck = dependency_discovery.repo_local_dependency_report("ck")
     expect(ck["relative_path"] == "third_party/rocm/composable_kernel", "CK submodule path changed")
     expect(ck["expected_branch"] == "release/rocm-rel-7.1", "CK branch changed")
-    expect(ck["expected_sha"] == deps.EXPECTED_ROCM_SUBMODULES["ck"]["sha"], "CK expected SHA changed")
+    expect(
+        ck["expected_sha"] == dependency_config.EXPECTED_ROCM_SUBMODULES["ck"]["sha"],
+        "CK expected SHA changed",
+    )
     if ck["status"] == "present":
         expect(bool(ck["sha_matches"]), "initialized CK submodule is not at the pinned release SHA")
-    expect("ck" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES, "CK primitive probe source missing")
     expect(
-        "DeviceGemm_Xdl_CShuffle" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"] and
-        "DeviceGemmWmma_CShuffle" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
+        "ck" in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES,
+        "CK primitive probe source missing",
+    )
+    expect(
+        "DeviceGemm_Xdl_CShuffle" in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"]
+        and "DeviceGemmWmma_CShuffle"
+        in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
         "CK primitive probe must cover both XDL and WMMA CShuffle GEMM primitives",
     )
     expect(
-        "CenteredModulo" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
+        "CenteredModulo" in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["ck"],
         "CK primitive probe must instantiate the real centered-residue epilogue",
     )
 
-    rocwmma = deps.repo_local_dependency_report("rocwmma")
+    rocwmma = dependency_discovery.repo_local_dependency_report("rocwmma")
     expect(rocwmma["relative_path"] == "third_party/rocm/rocWMMA", "rocWMMA submodule path changed")
     expect(rocwmma["expected_branch"] == "release/rocm-rel-7.1", "rocWMMA branch changed")
     expect(
-        rocwmma["expected_sha"] == deps.EXPECTED_ROCM_SUBMODULES["rocwmma"]["sha"],
+        rocwmma["expected_sha"] == dependency_config.EXPECTED_ROCM_SUBMODULES["rocwmma"]["sha"],
         "rocWMMA expected SHA changed",
     )
     if rocwmma["status"] == "present":
-        expect(bool(rocwmma["sha_matches"]), "initialized rocWMMA submodule is not at the pinned release SHA")
-    expect("rocwmma" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES, "rocWMMA primitive probe source missing")
+        expect(
+            bool(rocwmma["sha_matches"]),
+            "initialized rocWMMA submodule is not at the pinned release SHA",
+        )
     expect(
-        "mma_sync" in deps.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["rocwmma"],
+        "rocwmma" in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES,
+        "rocWMMA primitive probe source missing",
+    )
+    expect(
+        "mma_sync" in dependency_config.ACCELERATOR_PRIMITIVE_PROBE_SOURCES["rocwmma"],
         "rocWMMA primitive probe no longer instantiates an int8 mma_sync path",
     )
 
-    roc_header = root / "third_party" / "rocm" / "rocWMMA" / "library" / "include" / "rocwmma" / "rocwmma.hpp"
+    roc_header = (
+        root
+        / "third_party"
+        / "rocm"
+        / "rocWMMA"
+        / "library"
+        / "include"
+        / "rocwmma"
+        / "rocwmma.hpp"
+    )
     expect(
-        deps.include_root_for_header(str(roc_header)).replace("\\", "/").endswith("rocWMMA/library/include"),
+        dependency_accelerators.include_root_for_header(str(roc_header))
+        .replace("\\", "/")
+        .endswith("rocWMMA/library/include"),
         "rocWMMA raw-source include root was not derived from library/include",
     )
 
     with tempfile.TemporaryDirectory() as temp:
         temp_path = Path(temp)
-        generated = deps.write_ck_generated_headers(temp_path, "abc123")
+        ck_source = temp_path / "selected CK"
+        (ck_source / "include/ck").mkdir(parents=True)
+        (ck_source / "include/ck/ck.hpp").write_text("// fixture header\n", encoding="utf-8")
+        (ck_source / "CMakeLists.txt").write_text("set(version 1.3.0)\n", encoding="utf-8")
+        generated = dependency_accelerators.write_ck_generated_headers(
+            temp_path, "abc123", ck_source
+        )
         expect((generated / "ck" / "config.h").exists(), "CK generated config.h missing")
         expect((generated / "ck" / "version.h").exists(), "CK generated version.h missing")
-        roots = deps.include_roots_for_component(
+        expect(
+            "#define CK_VERSION 1.3.0" in (generated / "ck/version.h").read_text(),
+            "CK source version was falsely hardcoded",
+        )
+        roots = dependency_accelerators.include_roots_for_component(
             "ck",
             {
-                "header": str(root / "third_party" / "rocm" / "composable_kernel" / "include" / "ck" / "ck.hpp"),
-                "repo_local_dependency": {"actual_sha": "abc123"},
+                "header": str(ck_source / "include/ck/ck.hpp"),
+                "repo_local_dependency": {"path": str(ck_source), "actual_sha": "abc123"},
             },
             temp_path,
         )
-        expect(roots[0] == str(temp_path / "generated" / "ck" / "include"), "CK generated include root not first")
+        expect(
+            roots[0] == str(temp_path / "generated" / "ck" / "include"),
+            "CK generated include root not first",
+        )
+        installed_version = "// installed exact header\n#define CK_VERSION 9.8.7\n"
+        (ck_source / "include/ck/version.h").write_text(installed_version, encoding="utf-8")
+        dependency_accelerators.write_ck_generated_headers(temp_path, "abc123", ck_source)
+        expect(
+            (generated / "ck/version.h").read_text() == installed_version,
+            "installed CK version header must be copied exactly",
+        )
+        (ck_source / "include/ck/version.h").unlink()
+        (ck_source / "CMakeLists.txt").write_text("# missing version", encoding="utf-8")
+        try:
+            dependency_accelerators.write_ck_generated_headers(temp_path, "abc123", ck_source)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unknown CK source version must fail rather than invent metadata")
 
-        probes = deps.accelerator_compile_probes({}, False, temp_path / "probes", None)
+        probes = dependency_accelerators.accelerator_compile_probes(
+            {}, False, temp_path / "probes", None
+        )
         expect(probes["requested"] is False, "not-requested probe report changed")
-        expect(probes["items"]["ck"]["status"] == "NOT_REQUESTED", "CK not-requested probe status changed")
+        expect(
+            probes["items"]["ck"]["status"] == "NOT_REQUESTED",
+            "CK not-requested probe status changed",
+        )
         expect(
             probes["items"]["ck"]["primitive_probe_status"] == "NOT_REQUESTED",
             "CK not-requested primitive probe status changed",
@@ -183,18 +320,22 @@ Agent 2:
         patch.object(report_mod, "find_msvc", return_value=None),
         patch.object(report_mod, "installed_vcpkg_packages", return_value={}),
         patch.object(discovery_mod, "find_command", return_value=None),
-        patch.object(report_mod, "command_version", side_effect=AssertionError("unexpected tool probe")),
+        patch.object(
+            report_mod, "command_version", side_effect=AssertionError("unexpected tool probe")
+        ),
     ):
         report, ready = report_mod.build_report()
     expect(not ready, "missing-tool fixture must not report host readiness")
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
-        deps.print_human(report)
+        dependency_human.print_human(report)
     rendered = output.getvalue()
     for package in report["vcpkg_manifest"]["packages"]:
         role = report["vcpkg_package_roles"][package]
-        expect(f"[MISSING] {package} ({role}): not installed" in rendered,
-               "human renderer must preserve manifest package role and missing status")
+        expect(
+            f"[MISSING] {package} ({role}): not installed" in rendered,
+            "human renderer must preserve manifest package role and missing status",
+        )
     expect("Project tools" in rendered, "human report must render through its final section")
     print("dependency checker self-test: PASS")
     return 0

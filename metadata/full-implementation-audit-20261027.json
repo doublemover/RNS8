@@ -1,0 +1,830 @@
+{
+  "schema": "rns8_full_implementation_audit_v1",
+  "date": "2026-10-27",
+  "review_base_commit": "8c41ee3fc647c654beab9d89e11732824947e26a",
+  "scope": "All 40 currently open GitHub issues and their available comments; current implementation references, public reserved entrypoints and conditional instruction/OS gates.",
+  "open_issue_count": 40,
+  "discovered_implementation_gap": {
+    "issue": 45,
+    "old": "Reserved pointer-to-pointer Ozaki decomposition had no defined component storage/ownership and always returned unsupported.",
+    "resolution": "Delete the old declaration/definition and replace with explicit exact integer radix128 query/split/merge, caller-owned spans and strict C17 installed consumer."
+  },
+  "source_complete": true,
+  "remaining_implementation": [],
+  "test_status": "Applicable full configured local CPU-ASan/HIP suites and fresh installed native/DLPack/C17 consumers pass; unavailable targets and explicit stopped lanes retain their recorded boundaries.",
+  "interpretation": "Source completion covers the concrete implemented issue envelopes. Hardware availability, supported numerical/instruction contracts, native OS/link qualification, physical fault/counter evidence and measured payoff remain separate. This is not an all-issues-closed or default-route promotion assertion.",
+  "issues": [
+    {
+      "issue": 18,
+      "title": "[P1] Invalidate or roll back bounded outputs after partial GEMM failure; mixed CRT planes currently export successfully",
+      "url": "https://github.com/doublemover/RNS8/issues/18",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/core/api_export.cpp",
+        "src/core/export_metadata_transaction.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Real device-failure qualification remains; local transaction/cleanup regressions pass."
+      ],
+      "source_reference_count": 2,
+      "requirements_sha256": "b52fb7a29e3c8ca6f847c0eca2c83da94ee467b8c74dc24b76881df6b7f5f48e"
+    },
+    {
+      "issue": 20,
+      "title": "[P2] Compute exact-wide admission once and make expensive moment refinement demand-driven",
+      "url": "https://github.com/doublemover/RNS8/issues/20",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/core/runtime_product_recipe.cpp",
+        "src/core/runtime_product_recipe.hpp",
+        "tests/support/product_recipe_rebind_fixture.hpp",
+        "tests/unit/test_exact_cpu_allocation_faults.cpp",
+        "tools/benchmark_sweep_lib/capture_metadata.py",
+        "tools/measurement_contract.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "The explicit scalar-first public control is implemented. Five independent shared-host processes per cohort show range-separated gains over default eager-axis calls at 128 and 256, while compiled recipes do not beat scalar-first in the larger medians. Proof-cache/refinement phase attribution and broader gfx942 qualification remain."
+      ],
+      "source_reference_count": 9,
+      "requirements_sha256": "f409970aa3e50d094c36aeb08033c707e322d12202628e96b858d51bd828b5c9"
+    },
+    {
+      "issue": 30,
+      "title": "[Research P1] Add a conversion-aware analytical planner before measured kernel promotion",
+      "url": "https://github.com/doublemover/RNS8/issues/30",
+      "reviewed_comments": 3,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/basis_lift_storage.hpp",
+        "src/backend_common/basis_packet.hpp",
+        "src/backend_common/basis_word_arithmetic.hpp",
+        "src/backend_common/ordered_basis_identity.hpp",
+        "src/backend_common/product_prefix_cost.hpp",
+        "src/backend_common/resident_transfer_plan.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Applicable SDK10.1 local Release, HIP Debug, HIP OpenMP-OFF and CPU ASan checks pass. Bounded independent stage/whole-route cohorts are recorded separately before and after restart. Broader held-out shapes/providers, selection regret, physical resource peaks and clocks/counters remain; no default routing or cache promotion."
+      ],
+      "source_reference_count": 52,
+      "requirements_sha256": "71d67096a3a1826f3f83782c1e829378dbdf4914611f9f1a5b900ab3d7ad18b8"
+    },
+    {
+      "issue": 31,
+      "title": "[Research P1] Calibrate exact-GEMM roofs with instruction, conversion and memory microbenchmarks",
+      "url": "https://github.com/doublemover/RNS8/issues/31",
+      "reviewed_comments": 6,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/system_roof_plan.hpp",
+        "benchmarks/cases/conversion-calibration.json",
+        "benchmarks/cases/system-roof.json",
+        "benchmarks/hip_system_roof_kernels.hip",
+        "benchmarks/public_sustained.hpp",
+        "benchmarks/rns8_bench_event_collection.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Bounded gfx1100 instruction, system/LDS/memory, CRT, resident and product-stage measurements are recorded at source72c55c2 with separate original/post-restart cohorts and fixed held-out interval gates. Complete conversion/prefix/signedness/cache/ablation curves, physical clocks/resources/counters, unseen-workload prediction and broader targets remain. Historical failed models are preserved."
+      ],
+      "source_reference_count": 30,
+      "requirements_sha256": "53cdf890f931b7d10479a7111a0395e3583fef49e32b0e2607f1e920fb7f6a93"
+    },
+    {
+      "issue": 32,
+      "title": "[Research P2] Extend offline modulus search into a certified hardware-weighted scheme optimizer",
+      "url": "https://github.com/doublemover/RNS8/issues/32",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+        "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip",
+        "src/backend_ck/ck_backend.cpp",
+        "src/backend_ck/ck_backend_timing_workspace.inc",
+        "src/backend_common/basis_lift_storage.hpp",
+        "src/backend_common/basis_packet.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Independent complete-pipeline custom-basis/form calibration, broader provider/target execution and profitable complete-cost selection remain unqualified. Library/distributed computation and opt-in automatic selection are implemented."
+      ],
+      "source_reference_count": 43,
+      "requirements_sha256": "4e9871db89c68756965e42182b9d319f97c235f91af5f6ce64741701aa4446da"
+    },
+    {
+      "issue": 34,
+      "title": "[Research P1] Build cost-aware device bound discovery and compact adaptive-prefix schedules",
+      "url": "https://github.com/doublemover/RNS8/issues/34",
+      "reviewed_comments": 3,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/native_summary_identity.hpp",
+        "src/backend_hip_direct/hip_backend_bounds.inc",
+        "src/backend_hip_direct/hip_backend_gemm_finite_tiled.inc",
+        "src/backend_hip_direct/hip_direct_bound_wrappers.inc",
+        "src/core/api_adaptive_summary.inc",
+        "src/core/api_exact_epilogue.cpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Summary reuse passes local CPU-ASan/gfx1100 and installed static/shared checks. Forty matched host-output captures have 1.5-8.7% better medians, but none meets both fixed independent-process spread/range-separation gates. Qualify benefit against the best same-contract fixed/global controls and bounded full-width fallback overhead.",
+        "Planner-selected proof policy and held-out measured routing remain separate gates."
+      ],
+      "source_reference_count": 19,
+      "requirements_sha256": "1b3d8217bb939ba518e52cbf00f75b8c202aeb9ac433fd7ca6b24f555f57d56a"
+    },
+    {
+      "issue": 35,
+      "title": "[Research P1] Fuse native conversion and multiple residue channels inside matrix-engine tiles",
+      "url": "https://github.com/doublemover/RNS8/issues/35",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/native_conversion_layout.hpp",
+        "src/backend_common/native_tiled_resources.hpp",
+        "src/backend_hip_direct/hip_backend_native_tiled.inc",
+        "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh",
+        "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+        "src/backend_hip_direct/native_tiled_prepared.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Launched-instruction/resource evidence and matched fused conversion/matrix-engine complete-route measurements remain."
+      ],
+      "source_reference_count": 9,
+      "requirements_sha256": "411e3283e21c9700080c3568d0aa7bec02cecd08ac8817b8e7a5802978df8c18"
+    },
+    {
+      "issue": 36,
+      "title": "[Research P2] Schedule residue and output tiles for measured XCD/cache locality",
+      "url": "https://github.com/doublemover/RNS8/issues/36",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/locality_schedule.hpp",
+        "src/backend_common/native_locality.hpp",
+        "src/backend_hip_direct/hip_backend_native_queue.inc",
+        "src/backend_hip_direct/hip_backend_native_split_k.inc",
+        "src/backend_hip_direct/hip_direct_cache_displace.cuh",
+        "src/core/api_prepared_native_group.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Target-specific cache/XCD placement, counters and independent complete-route profitability remain unqualified."
+      ],
+      "source_reference_count": 13,
+      "requirements_sha256": "c74c3f7f79ff2e9bbf295f1b9005ce7ab97a250f50cd099c489006c5d9234b2d"
+    },
+    {
+      "issue": 37,
+      "title": "[Research P2] Add exact split-K/Stream-K with hierarchical modular partial reduction",
+      "url": "https://github.com/doublemover/RNS8/issues/37",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/split_k_partial.hpp",
+        "src/backend_hip_direct/hip_backend_native_split_k.inc",
+        "src/backend_hip_direct/hip_direct_split_k_kernels.cuh",
+        "benchmarks/cases/native-calibration.json"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Same-contract split-K/Stream-K profitability and profiler evidence remain; broader provider composition remains with its owning issues."
+      ],
+      "source_reference_count": 4,
+      "requirements_sha256": "5871728f1aa92a3aa249698592985bddb9a2ce1f393d9d6990a48e61d9216671"
+    },
+    {
+      "issue": 38,
+      "title": "[Research P2] Build heterogeneous grouped matrix-engine work queues with bounded persistent scheduling",
+      "url": "https://github.com/doublemover/RNS8/issues/38",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/native_wmma_queue_plan.hpp",
+        "src/backend_common/native_wmma_schedule.hpp",
+        "src/backend_hip_direct/hip_backend_native_queue.inc",
+        "src/backend_hip_direct/hip_direct_native_wmma_kernels.cuh",
+        "src/backend_hip_direct/native_wmma_prepared.hpp",
+        "src/core/api_matrix_schedule_contracts.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Completion fairness/resource evidence and independent complete-route persistent-queue qualification remain; optional adaptive/split/locality composition is not presumed."
+      ],
+      "source_reference_count": 23,
+      "requirements_sha256": "0dda39f437152fd646cbdbef1bd8e294a989240493cf8613b20c7e9885064649"
+    },
+    {
+      "issue": 39,
+      "title": "[Research P1] Compare overflow-proven direct CRT and balanced merge trees against current Garner",
+      "url": "https://github.com/doublemover/RNS8/issues/39",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/group_crt.hpp",
+        "src/backend_common/quarter_crt.hpp",
+        "src/backend_common/quarter_crt_certificate.hpp",
+        "src/backend_hip_direct/hip_backend_group_crt.inc",
+        "src/backend_hip_direct/hip_direct_direct_crt_kernels.cuh",
+        "src/backend_hip_direct/hip_direct_group_crt_kernels.cuh"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Applicable prepared CRT/export correctness passes in the SDK10.1 local configuration matrix. Bounded raw CRT, checked host-export, retained complete-GEMM and cold complete-GEMM comparisons retain separate contracts, variance and negative results. Five-policy/full-prefix crossover, fused/distributed consumers, hardware traffic and broader targets remain."
+      ],
+      "source_reference_count": 20,
+      "requirements_sha256": "1f1a57a9a44a4ab1574fca00d69f9800d34cbcbdcc6bae53bf1e355b44fdf3a8"
+    },
+    {
+      "issue": 40,
+      "title": "[Research P2] Co-design residue layouts for packing, matrix tiles and CRT export",
+      "url": "https://github.com/doublemover/RNS8/issues/40",
+      "reviewed_comments": 5,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/binary_layout.hpp",
+        "src/backend_common/fragment_layout.hpp",
+        "src/backend_common/mfma_i8_layout.hpp",
+        "src/backend_common/native_tiled_resources.hpp",
+        "src/backend_hip_direct/hip_backend_ragged.inc",
+        "src/backend_hip_direct/hip_direct_native_tiled_kernels.cuh"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Compiled fragment/instruction/resource evidence and matched full-route layout/reuse measurements remain; no default layout policy is promoted."
+      ],
+      "source_reference_count": 36,
+      "requirements_sha256": "8460824fc697447c979a27e8dcf69703d41a3e8cd4f08ad2c76287937cc6aef5"
+    },
+    {
+      "issue": 41,
+      "title": "[Research P1] Implement value-preserving device exact-wide base extension",
+      "url": "https://github.com/doublemover/RNS8/issues/41",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/basis_lift_storage.hpp",
+        "src/backend_common/basis_packet.hpp",
+        "src/backend_common/basis_word_arithmetic.hpp",
+        "src/backend_common/ordered_basis_identity.hpp",
+        "src/backend_common/product_prefix_cost.hpp",
+        "src/backend_common/resident_transfer_plan.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Independent exact-lift/converted-basis stage and whole-chain measurements, amortization and broader target qualification remain."
+      ],
+      "source_reference_count": 37,
+      "requirements_sha256": "062afa85d1fb4fc83f984bfe0620a588e9cfaa2fcf61fdb0f951906668ea72a9"
+    },
+    {
+      "issue": 42,
+      "title": "[Research P2] Compile resident exact-arithmetic DAGs with precision and lifetime planning",
+      "url": "https://github.com/doublemover/RNS8/issues/42",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/basis_lift_storage.hpp",
+        "src/backend_common/binary_layout.hpp",
+        "src/backend_common/exact_lift_workspace.hpp",
+        "src/backend_common/fragment_layout.hpp",
+        "src/backend_common/native_tiled_resources.hpp",
+        "src/backend_common/ordered_basis_identity.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Native/uniform/ragged/packed materialization selection, real shared-B/lift/arena execution, chain DP and bounded DAG search are implemented. Independent stage prices and same-graph process-held-out observations are recorded with fixed tolerance. Observed long setup/training amortization, unseen graphs/datasets/providers, physical peak/capacity and qualified routing remain. Bounded search is not globally optimal; unsupported families remain ineligible."
+      ],
+      "source_reference_count": 43,
+      "requirements_sha256": "94ebce7d32d75371eda10eb49ea18bee137ad0ed08ec592de421897e63f055da"
+    },
+    {
+      "issue": 43,
+      "title": "[Research P1] Complete public asynchronous execution and graph-safe lifetime contracts",
+      "url": "https://github.com/doublemover/RNS8/issues/43",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/pinned_host_contract.hpp",
+        "src/backend_common/resident_transfer_plan.hpp",
+        "src/backend_common/stream_panel_plan.hpp",
+        "src/backend_hip_direct/hip_backend_lift.inc",
+        "src/backend_hip_direct/hip_backend_native_interop.inc",
+        "src/backend_hip_direct/hip_backend_native_queue.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Native Linux/CDNA adapter and caller-graph execution, real device-fault/failed-drain recovery, physical overlap/traffic and complete-route payoff remain unqualified. Multi-body caller capture, finite/wrap pipelines and distinct-slot in-flight pools are implemented."
+      ],
+      "source_reference_count": 62,
+      "requirements_sha256": "d0deb28410aa594c6ed0bdd30015680318a7d4de78938e42d3c4428042899354"
+    },
+    {
+      "issue": 45,
+      "title": "[Research P3] Prototype certified FP4/FP6/FP8 modular GEMM with fixed-scale exactness gates",
+      "url": "https://github.com/doublemover/RNS8/issues/45",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/fp8_modular.hpp",
+        "src/backend_common/mxfp_modular.hpp",
+        "src/backend_hip_direct/hip_backend.hpp",
+        "src/backend_hip_direct/hip_backend_fp8_modular.inc",
+        "src/backend_hip_direct/hip_direct_fp8_modular.cuh",
+        "src/backend_hip_direct/hip_direct_kernels.hip"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Actual gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 lane, scale-ordering, internal-accumulator and adversarial exactness qualification remains. Strongest complete INT8 controls, resource/counter evidence and profitable routing remain unmeasured."
+      ],
+      "source_reference_count": 27,
+      "requirements_sha256": "b8b5e7d5d7db6a7ffeef7ff50f095fbb7168536ede2b573fb98dd898090cc808"
+    },
+    {
+      "issue": 46,
+      "title": "[Research P3] Qualify packed INT4/IU4 kernels for narrow exact semantic subsets",
+      "url": "https://github.com/doublemover/RNS8/issues/46",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_hip_direct/hip_direct_int4_kernels.cuh",
+        "src/core/api_int4.inc",
+        "benchmarks/rns8_int4_calibrate.cpp",
+        "tools/collect_int4_calibration.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Actual INT4 opcode/fragment/resource evidence and independent complete-route profitability remain; no automatic route promotion."
+      ],
+      "source_reference_count": 4,
+      "requirements_sha256": "fbcbf693ad4b651722100c1f7d1e08599f85731696cd1d641fb82e5d2d05a91c"
+    },
+    {
+      "issue": 47,
+      "title": "[Research P2] Add exact algebraic epilogue composition without intermediate residue round trips",
+      "url": "https://github.com/doublemover/RNS8/issues/47",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/residue_epilogue.hpp",
+        "src/backend_hip_direct/hip_direct_epilogue_kernels.cuh",
+        "src/backend_rocwmma/rocwmma_backend_epilogue_kernel.inc",
+        "src/core/api_exact_epilogue.cpp",
+        "src/core/exact_range.hpp",
+        "benchmarks/rns8_epilogue_calibrate.cpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Compiled epilogue resource evidence and matched fused/unfused complete-route measurements remain; no speedup or promotion is inferred from correctness."
+      ],
+      "source_reference_count": 7,
+      "requirements_sha256": "beb64d43ce15dd0112a38b4fba5f80902c8ad8bbdcf202d3bc99c92e959991b9"
+    },
+    {
+      "issue": 48,
+      "title": "[Research P3] Evaluate certified one-level Strassen and rank-23 modular block GEMM",
+      "url": "https://github.com/doublemover/RNS8/issues/48",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+        "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip",
+        "src/backend_common/bilinear_selection.hpp",
+        "src/backend_common/rank23_october55.hpp",
+        "src/backend_common/rank23_slp_resources.hpp",
+        "src/backend_common/rank48_program.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Strongest-control large-shape bilinear performance, physical ISA/resources and the original speed/memory promotion gates remain. Canonical 204-operation rank48 SLP execution and independent expansion proof are implemented."
+      ],
+      "source_reference_count": 35,
+      "requirements_sha256": "78affc68be60794423d7278efb8b7ff916077eba02c24aded7489240d4575cae"
+    },
+    {
+      "issue": 49,
+      "title": "[Research P3] Add opt-in Freivalds and redundant-residue checks with explicit guarantees",
+      "url": "https://github.com/doublemover/RNS8/issues/49",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/distributed_integrity.hpp",
+        "src/backend_common/distributed_plan.hpp",
+        "src/backend_hip_direct/hip_backend_integrity.inc",
+        "src/backend_hip_direct/hip_direct_distributed.cuh",
+        "src/core/api_matrix_schedule_contracts.inc",
+        "src/core/api_pipeline_planner.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Applicable local registered integrity and publication fixtures pass in the SDK10.1 Release suite. Actual multi-device fault coverage and complete-route integrity overhead remain unqualified."
+      ],
+      "source_reference_count": 18,
+      "requirements_sha256": "3cec2c17019349923e8d15f991a6920406aabd1c9ff7b6488e65a14140848ec0"
+    },
+    {
+      "issue": 50,
+      "title": "[Research P2] Implement true modulus-sharded multi-GPU GEMM with residue-consistency epochs",
+      "url": "https://github.com/doublemover/RNS8/issues/50",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/distributed_device.hpp",
+        "src/backend_common/distributed_inputs.hpp",
+        "src/backend_common/distributed_mock.hpp",
+        "src/backend_common/distributed_plan.hpp",
+        "src/backend_common/distributed_protocol.hpp",
+        "src/backend_hip_direct/hip_direct_distributed.cuh"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Actual linked MPI/RCCL/rocSHMEM multi-GPU/multinode execution, device memory ordering, rank/device-fault cleanup, topology/NUMA/traffic and scaling remain unqualified. Local CPU/mock and single-device gfx1100 coverage does not qualify network or peer transport."
+      ],
+      "source_reference_count": 33,
+      "requirements_sha256": "9c2f6d9061a852e57a7fa287257e028d2c6d0479691842dfb7514f1334d3af9a"
+    },
+    {
+      "issue": 51,
+      "title": "[Research P3] Qualify explicit Sparse-A and proof-preserving hybrid block-sparse execution",
+      "url": "https://github.com/doublemover/RNS8/issues/51",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp",
+        "include/rns8/generated/metadata_registry.hpp",
+        "benchmarks/rns8_bench_event_phase_helpers.inc",
+        "metadata/event_phases.yaml",
+        "tools/benchmark_schema/gpu_events.py",
+        "tools/collect_block_sparse.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Actual structured-sparse target instruction qualification, independent sustained crossover and the >=1.5x gate remain; gfx1100 unsupported cases stay skipped."
+      ],
+      "source_reference_count": 8,
+      "requirements_sha256": "4f8addee5467b7fd3c44f91ae9d4b5228cc585648118134d33787384786e837c"
+    },
+    {
+      "issue": 52,
+      "title": "[Research P3] Prototype CDNA5 TDM and cluster multicast for shared RNS source tiles",
+      "url": "https://github.com/doublemover/RNS8/issues/52",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/native_tdm.hpp",
+        "src/backend_hip_direct/hip_backend_native_tdm.inc",
+        "src/backend_hip_direct/hip_direct_native_tdm.cuh",
+        "benchmarks/rns8_tdm_calibrate.cpp",
+        "docs/cdna5-tdm-research.md"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Core SDK10.1 AMD Clang24 lacks __builtin_amdgcn_s_wait_dscnt, so the guarded TDM path remains unavailable. Qualify a supporting compiler/runtime/device, real transfer/cluster/fragment differentials, wait/barrier stress, emitted instructions, traffic/stalls/occupancy/spills and matched end-to-end costs."
+      ],
+      "source_reference_count": 5,
+      "requirements_sha256": "78323caf22f9cce3890d5c3caad85a3faf0329aa1eb34a5d362e845b7fa252bf"
+    },
+    {
+      "issue": 53,
+      "title": "[Research P2] Add proof-selected native narrow-integer paths for tiny and skinny GEMM",
+      "url": "https://github.com/doublemover/RNS8/issues/53",
+      "reviewed_comments": 4,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/direct_rns_route.hpp",
+        "src/backend_hip_direct/hip_backend_narrow.inc",
+        "src/backend_hip_direct/hip_direct_native_byte_kernels.cuh",
+        "src/backend_vector_alu/vector_alu_kernels.hip",
+        "src/core/api_context.cpp",
+        "src/core/api_matrix_schedule_contracts.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Bounded native-vector/public-backend and resident narrow-input comparisons are recorded with exact checks and fixed variance gates. Launched instruction/resource evidence, broader tiny/skinny shapes and profitable complete-route selection remain."
+      ],
+      "source_reference_count": 17,
+      "requirements_sha256": "79a7376933a8d43765742fae3123ee90aba15aea081504673cafc0341dc3c366"
+    },
+    {
+      "issue": 54,
+      "title": "[Research P3] Add optional CPU matrix-instruction backends while preserving the independent scalar oracle",
+      "url": "https://github.com/doublemover/RNS8/issues/54",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/core/api_gemm.cpp",
+        "src/core/api_operation_provider.inc",
+        "src/cpu/cpu_amx.cpp",
+        "src/cpu/cpu_amx.hpp",
+        "src/cpu/cpu_i8mm_kernel.cpp",
+        "include/rns8/cpu_i8mm.h"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "AMX and optional AArch64 I8MM source/OS admission/packing owners are implemented. Actual supported CPU/OS runtime, independent target differentials, end-to-end performance/energy and cohort adoption remain unqualified."
+      ],
+      "source_reference_count": 11,
+      "requirements_sha256": "d26074830c275ad036ed4a74514ac8189c7bcb1710df6ef94286ef685d81c320"
+    },
+    {
+      "issue": 55,
+      "title": "[Research P2] Generate and prune certified kernel variants with inspectable manifests",
+      "url": "https://github.com/doublemover/RNS8/issues/55",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "tools/check_generated_native_wmma.py",
+        "tools/check_native_wmma_logic.py",
+        "tools/generate_native_wmma.py",
+        "tools/native_wmma_lowering.py",
+        "tools/promotion_ledger.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Logical/mutation regression passes in the SDK10.1 Release suite. Actual compiled lane/resource equivalence, measured pruning and promotion remain target-specific gates."
+      ],
+      "source_reference_count": 5,
+      "requirements_sha256": "2bc3c05e42c432842c08663f58ced4bbecbf7efba187c0f5f3b31c0c4a9c256d"
+    },
+    {
+      "issue": 56,
+      "title": "[Roadmap] Execute the research-derived exact-GEMM architecture backlog",
+      "url": "https://github.com/doublemover/RNS8/issues/56",
+      "reviewed_comments": 3,
+      "source_status": "implementation_infrastructure_present_outcome_pending",
+      "source_references": [
+        "docs/RNS8_RESEARCH_SPEC.md",
+        "docs/roadmap.md"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Umbrella acceptance depends on the remaining child measurement, failure, configuration and hardware gates, plus explicitly unsupported provider/conditional extensions; a local Release pass does not complete the whole roadmap."
+      ],
+      "source_reference_count": 2,
+      "requirements_sha256": "eb2ff45b2c1a84457dee7721601ea72cacd5fb4fdbb24e6da3df94fdcd4effcf"
+    },
+    {
+      "issue": 57,
+      "title": "Autodetect GPU toolchains, vcpkg and dependencies in Windows/Linux presets",
+      "url": "https://github.com/doublemover/RNS8/issues/57",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "tools/build_accelerators.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Automatic Windows Python/SDK/GPU-family/compiler/VS/tool/package selection and loaded-runtime binding pass locally. Actual Linux discovery/setup and applicable GPU preset qualification remain."
+      ],
+      "source_reference_count": 1,
+      "requirements_sha256": "340e412b5df46936ced9a5a69f04a7ac333d288acdf814083188b87a56ca996c"
+    },
+    {
+      "issue": 58,
+      "title": "Prepare reproducible Linux GPU sessions with preflight, locked setup and bounded run plans",
+      "url": "https://github.com/doublemover/RNS8/issues/58",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "tools/gpu_qualification.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Actual bounded Linux GPU session/preflight/lock/resume rehearsal remains unavailable; local runner contract fixtures pass."
+      ],
+      "source_reference_count": 1,
+      "requirements_sha256": "4e0314572817123f58345c200e24a019d0c02d4ef72bdf569225cbdedf633be8"
+    },
+    {
+      "issue": 59,
+      "title": "[Research P2] Add exact complex 3M GEMM as a residue-resident paired-value composition",
+      "url": "https://github.com/doublemover/RNS8/issues/59",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/complex_residue_algebra.hpp",
+        "src/backend_common/complex_residue_plan.hpp",
+        "src/backend_hip_direct/hip_backend_complex.inc",
+        "src/backend_hip_direct/hip_direct_complex_kernels.cuh"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Failure/ownership qualification and independent matched complete-route paired-complex measurements remain; historical timings describe older storage."
+      ],
+      "source_reference_count": 4,
+      "requirements_sha256": "1900191ae9e6d61bc0a6c8940476f5442be5552774139afd221e2666c8bff761"
+    },
+    {
+      "issue": 60,
+      "title": "[Build] Upgrade LLVM/Clang and all dependencies through compatibility-gated locks",
+      "url": "https://github.com/doublemover/RNS8/issues/60",
+      "reviewed_comments": 0,
+      "source_status": "implementation_infrastructure_present_outcome_pending",
+      "source_references": [
+        "tools/check_dependencies.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "SDK10.1 local Windows Release and the follow-up HIP Debug, HIP OpenMP-OFF, CPU LLVM23.1.4 ASan /MD RelWithDebInfo and static/shared installed-consumer checks pass. The initial /MDd Debug-CRT ASan build is unsupported and preserved. Within-new-stack approach comparisons do not establish matched prior/new-stack regression. Linux, broader compiler/ABI/runner compatibility and selected Git upgrade remain; installed Git2.52.0.windows.1 differs from selected2.56.0.windows.3."
+      ],
+      "source_reference_count": 1,
+      "requirements_sha256": "5ffb435300b428db37e8727829976ba637f355b2b7ed4cbd43d0a4ca585a7774"
+    },
+    {
+      "issue": 61,
+      "title": "[Docs] Deslopify the README and consolidate all project documentation",
+      "url": "https://github.com/doublemover/RNS8/issues/61",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "include/rns8/rns8.h",
+        "docs/RNS8_RESEARCH_SPEC.md",
+        "docs/backend-notes.md",
+        "docs/documentation-inventory.json",
+        "docs/research/README.md",
+        "docs/roadmap.md"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Current local documentation inventory/path/anchor/command checks pass. Windows initializer and archive/case materialization commands have been exercised; remaining platform-specific command rehearsals, especially Linux, stay unqualified."
+      ],
+      "source_reference_count": 6,
+      "requirements_sha256": "2b2231ab6902e9930a6c43c8302ff96d1381e83e0227a000d5a1f19d543d3776"
+    },
+    {
+      "issue": 63,
+      "title": "[Research P2] Add symmetry-aware exact Gram/SYRK execution with triangular ownership and single-source packing",
+      "url": "https://github.com/doublemover/RNS8/issues/63",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/gram_five_product.hpp",
+        "src/backend_common/gram_plan.hpp",
+        "src/backend_hip_direct/hip_direct_gram.cuh",
+        "src/backend_hip_direct/hip_direct_gram_five.cuh",
+        "src/core/api_prepared_gram.cpp",
+        "examples/workloads/workload_engine.hpp"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Applicable CPU/Boost and gfx1100 direct/matrix five-product Gram fixtures pass. Physical fragment/ISA/resource evidence, broader targets and strongest-control cold/steady/refresh/export profitability remain open."
+      ],
+      "source_reference_count": 7,
+      "requirements_sha256": "631ed9d2f649d870e4c54a978aaf2340d4b5aef8f1c4098242b7db5e20cf8b7c"
+    },
+    {
+      "issue": 64,
+      "title": "[Research P2] Recode wrap64 into signed radix-256 digits for correction-free matrix-engine convolution",
+      "url": "https://github.com/doublemover/RNS8/issues/64",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/mfma_i8_layout.hpp",
+        "src/backend_hip_direct/hip_backend_wrap_radix.inc",
+        "src/backend_hip_direct/hip_direct_wrap_mfma.cuh",
+        "benchmarks/rns8_wrap64_calibrate.cpp",
+        "tools/arithmetic_certificate.py",
+        "tools/collect_wrap64.py"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Real CDNA4 MFMA mapping/ISA/resource execution and independent sustained signed-radix qualification require appropriate hardware; no profitable cohort is claimed."
+      ],
+      "source_reference_count": 7,
+      "requirements_sha256": "790c990e90a081747825af4d7bbdc1fb0c40e931d4ef9bc6a8ad7afb85cdff26"
+    },
+    {
+      "issue": 65,
+      "title": "[Perf P2] Make resident storage demand-driven and eliminate duplicate native upload materializations",
+      "url": "https://github.com/doublemover/RNS8/issues/65",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_hip_direct/hip_backend_export_finite_grouped.inc",
+        "src/backend_hip_direct/hip_backend_pack.inc",
+        "src/core/api_export_quarter_crt.inc",
+        "src/core/api_internal.hpp",
+        "src/core/api_operation_provider.inc",
+        "src/core/api_pipeline_planner.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Live/peak requested device and pinned-host observations pass CPU/GPU and installed strict C17 ABI checks, including pending-free retention, resets and owner moves. Matched storage/latency before/after, physical-capacity fixtures and broader-platform qualification remain."
+      ],
+      "source_reference_count": 12,
+      "requirements_sha256": "0cd61b71fbc85573bf286a0e178aa64159eb276633b854c0bd878b2c11b4a6ed"
+    },
+    {
+      "issue": 66,
+      "title": "[Research P3] Prototype word-size modular GEMM with certified asymmetric multiword lowering",
+      "url": "https://github.com/doublemover/RNS8/issues/66",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/mfma_f64_layout.hpp",
+        "src/backend_common/word_mod_arithmetic.hpp",
+        "src/backend_common/word_mod_plan.hpp",
+        "src/backend_hip_direct/hip_backend_word_mod.inc",
+        "src/backend_hip_direct/hip_direct_word_mod.cuh",
+        "src/backend_hip_direct/hip_direct_word_mod_mfma.cuh"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Real MFMA target mapping/ISA execution and independent asymmetric/concatenated word-modular cohorts remain; unsupported instructions are explicit skips."
+      ],
+      "source_reference_count": 9,
+      "requirements_sha256": "f487a6b138b51fa003d5726eec3252fbc71284cf4163e98c5effaa8cdc676fae"
+    },
+    {
+      "issue": 67,
+      "title": "[Architecture P2] Add public HIP-native buffer import and export with explicit ownership and stream interoperability",
+      "url": "https://github.com/doublemover/RNS8/issues/67",
+      "reviewed_comments": 0,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_hip_direct/hip_backend_native_interop.inc",
+        "src/backend_hip_direct/hip_backend_native_queue.inc",
+        "src/backend_hip_direct/native_wmma_prepared.hpp",
+        "src/core/api_matrix_schedule_contracts.inc",
+        "src/core/api_native_device.cpp",
+        "src/core/api_pipeline_planner.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Optional DLPack unit and four installed HIP producer/consumer checks pass, including synchronous and graph-backed DLPack paths. Native Linux GPU coverage, real failed-drain recovery and matched DLPack performance remain unqualified. Historical native-interface speedups retain their original source identity."
+      ],
+      "source_reference_count": 24,
+      "requirements_sha256": "2993e94986e4497aff9d76cb5fac96d38a03fb9c6fc9c04abab8b3d019041ebb"
+    },
+    {
+      "issue": 68,
+      "title": "[Research P2] Execute exact GEMM beyond device memory with budgeted single-GPU panel streaming",
+      "url": "https://github.com/doublemover/RNS8/issues/68",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/stream_panel_cost.hpp",
+        "src/backend_common/stream_panel_plan.hpp",
+        "src/backend_hip_direct/hip_backend.hpp",
+        "src/backend_hip_direct/hip_backend_export_bounded.inc",
+        "src/backend_hip_direct/hip_backend_runtime_launch_helpers.inc",
+        "src/backend_hip_direct/hip_backend_stream_panels.inc"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Real >32 GiB capacity and observed requested allocation reconciliation pass on the 24 GiB gfx1100 card. Achieved overlap traces, independent steady crossover and held-out panel calibration remain separate."
+      ],
+      "source_reference_count": 20,
+      "requirements_sha256": "f8bef6bf6fc4c13f82ec2344b07f0b916cb8aade3c7abd3a469ee477df521a6f"
+    },
+    {
+      "issue": 69,
+      "title": "[Research P2] Accelerate RNS conversion and CRT with fixed-matrix transforms and packed dot products",
+      "url": "https://github.com/doublemover/RNS8/issues/69",
+      "reviewed_comments": 2,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/finite_u8_reducer.hpp",
+        "src/backend_common/signed_pack_policy.hpp",
+        "src/backend_hip_direct/hip_backend_pack.inc",
+        "src/backend_hip_direct/hip_direct_kernels.hip",
+        "src/backend_hip_direct/hip_direct_pack_wrappers.inc",
+        "src/backend_hipblaslt/hipblaslt_kernels.hip"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Applicable transform/conversion and prepared-policy correctness passes in the SDK10.1 local configuration matrix. Bounded raw CRT, checked host-export and complete-GEMM comparisons preserve their contracts and variance. Full-prefix crossover, physical traffic and profitable production selection remain; no default promotion."
+      ],
+      "source_reference_count": 18,
+      "requirements_sha256": "3f885033fa07d7fbf043fe210c5ad73aaac5ce4712ce5c7b0293803a33346c84"
+    },
+    {
+      "issue": 71,
+      "title": "[Perf P2] Preserve packed-dot residue GEMM across all modulus planes and grouped/scheduled paths",
+      "url": "https://github.com/doublemover/RNS8/issues/71",
+      "reviewed_comments": 1,
+      "source_status": "implemented",
+      "source_references": [
+        "src/backend_common/residue_dot.hpp",
+        "src/backend_hip_direct/hip_direct_gemm_grouped_scheduled_kernels.cuh",
+        "src/backend_hip_direct/hip_direct_gemm_tiled_kernels.cuh",
+        "benchmarks/residue-dot",
+        "benchmarks/rns8_residue_dot_calibrate.cpp",
+        "cmake/modules/FindRNS8HIP.cmake"
+      ],
+      "remaining_implementation": [],
+      "qualification_or_outcome_gates": [
+        "Local scalar and packed-dot differentials pass. Selected ISA/resource/launch evidence and independent same-scheduler arithmetic comparisons remain; no target-specific promotion."
+      ],
+      "source_reference_count": 11,
+      "requirements_sha256": "a65f2245cc70039feb59541fda95c543eb75306a305fce513049c742b65080f3"
+    }
+  ],
+  "validation_receipt": "metadata/full-implementation-validation-20261027.json",
+  "validated_source_commit": "3b6bc72eaa83e8b2e2041a127caa16389f8dd0f3"
+}

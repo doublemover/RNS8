@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import json
 import tempfile
@@ -10,11 +12,13 @@ from pathlib import Path
 
 import tile_shape_report
 from benchmark_schema import validate_capture
-from test_benchmark_schema_support import (
-    add_helper_lane_fields,
-    apply_int32_accumulator_contract,
+from test_benchmark_schema_support_core import (
     expect_valid,
     summary,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+    apply_int32_accumulator_contract,
     with_accumulator_key_fields,
 )
 
@@ -23,7 +27,15 @@ DIRECT_KERNEL = "direct_hip_prefix9_grouped_rns_gemm_v1"
 CPU_KERNEL = "cpu_reference_scalar_rns_gemm_v1"
 REPEATS = 9
 ONE_TIME_PHASES = {"planning", "scheduling", "matrix_alloc"}
-HOST_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+HOST_PHASES = [
+    "planning",
+    "scheduling",
+    "matrix_alloc",
+    "pack",
+    "rns_gemm",
+    "crt_export",
+    "end_to_end",
+]
 DIRECT_GPU_EVENT_PHASES = [
     "pack_h2d",
     "pack_kernel",
@@ -39,6 +51,7 @@ DIRECT_GPU_EVENT_PHASES = [
 
 
 def write_capture(path: Path, capture: dict) -> None:
+    add_synthetic_full_reference(capture)
     validate_capture(capture, path)
     path.write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
 
@@ -55,7 +68,9 @@ def set_host_timings(capture: dict, medians: dict[str, int]) -> None:
         capture["timing_summary_us"][phase] = summary(values)
         capture[f"avg_{phase}_us"] = float(sum(values) / len(values))
     capture["schedule_query_us"] = int(capture["avg_scheduling_us"])
-    capture["avg_per_modulus_gemm_estimate_us"] = capture["avg_rns_gemm_us"] / float(capture["prefix"])
+    capture["avg_per_modulus_gemm_estimate_us"] = capture["avg_rns_gemm_us"] / float(
+        capture["prefix"]
+    )
 
 
 def set_direct_gpu_events(capture: dict) -> None:
@@ -65,7 +80,9 @@ def set_direct_gpu_events(capture: dict) -> None:
     metadata["gpu_event_timing_status"] = "available"
     metadata["gpu_event_timing_source"] = "hipEventElapsedTime"
     metadata["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-    metadata["gpu_event_timing_caveat"] = "HIP event timings record Direct-HIP operation groups for tests"
+    metadata["gpu_event_timing_caveat"] = (
+        "HIP event timings record Direct-HIP operation groups for tests"
+    )
     metadata["gpu_event_phase_order"] = list(DIRECT_GPU_EVENT_PHASES)
     metadata["phase_availability"]["reduction"]["scope"] = "fused_into_rns_gemm"
     capture["gpu_event_timings_us"] = {phase: [1.0] * REPEATS for phase in DIRECT_GPU_EVENT_PHASES}
@@ -220,7 +237,9 @@ def make_cpu_capture(end_to_end_us: int) -> dict:
         }
     )
     apply_int32_accumulator_contract(capture)
-    set_tile_variant(capture, "cpu-reference-default", capture["tile_m"], capture["tile_n"], CPU_KERNEL)
+    set_tile_variant(
+        capture, "cpu-reference-default", capture["tile_m"], capture["tile_n"], CPU_KERNEL
+    )
     metadata["autotune_key"] = with_accumulator_key_fields(
         "backend=cpu-reference;"
         f"semantics={capture['semantics']};m={capture['m']};n={capture['n']};k={capture['k']};"
@@ -234,6 +253,183 @@ def make_cpu_capture(end_to_end_us: int) -> dict:
     return capture
 
 
+def production_controls() -> None:
+    """Synthetic native-format process/ISA custody controls, never measurements."""
+    from diagnostic_companion import build_binding
+    from report_capture_inputs import load_report_captures
+    from test_capture_identity_support import synthetic_static_isa_report
+    from test_diagnostic_companion import authored_capture_pair
+    from target_qualification import file_digest
+    from unittest.mock import patch
+
+    identity_fixture = make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80)
+    assert tile_shape_report._selected_kernel_has_tile_report_identity(identity_fixture)
+    for before, after in (
+        ("tile_m=64;", "tile_m=640;"),
+        (f"kernel={DIRECT_KERNEL}", f"kernel={DIRECT_KERNEL}_other"),
+    ):
+        stale = copy.deepcopy(identity_fixture)
+        stale["tile_shape_variant"]["resource_report_key"] = stale["tile_shape_variant"][
+            "resource_report_key"
+        ].replace(before, after)
+        assert not tile_shape_report._selected_kernel_has_tile_report_identity(stale)
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+
+        def collect(label, change=None):
+            paths, bindings = [], {}
+            for mode, duration in (("cpu", 200), ("default", 100), ("candidate", 80)):
+                for run in range(2):
+                    fixture = (
+                        make_cpu_capture(duration)
+                        if mode == "cpu"
+                        else make_direct_capture(
+                            64 if mode == "candidate" else 128,
+                            64 if mode == "candidate" else 128,
+                            "direct-hip-bounded-fixture-64x64"
+                            if mode == "candidate"
+                            else "direct-hip-default-128x128",
+                            duration,
+                        )
+                    )
+                    if change is not None:
+                        change(fixture, mode, run)
+                    add_synthetic_full_reference(fixture)
+                    lane = root / f"{label}-{mode}-{run}"
+                    lane.mkdir()
+                    _, _, pair = authored_capture_pair(lane, fixture)
+                    paths.append(pair[0])
+                    if mode != "cpu":
+                        bindings[str(pair[0].resolve())] = build_binding(*pair)
+            return paths, bindings
+
+        paths, bindings = collect("matched")
+        captures = load_report_captures(paths)
+        isa = synthetic_static_isa_report(
+            captures[-1],
+            dict(
+                vgpr_count=40,
+                sgpr_count=36,
+                lds_bytes=0,
+                scratch_bytes=0,
+                occupancy=4,
+            ),
+        )
+        # Unselected metadata cannot inflate selected register pressure.
+        isa["symbols"].append(dict(symbol="unselected", counts=dict(vgpr_count=240)))
+        isa_path = root / "selected-isa.json"
+        isa_path.write_text(json.dumps(isa))
+        manifest_path = root / "resource-manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                dict(
+                    captures=[
+                        dict(
+                            capture="unrelated-name-is-not-an-association-key.json",
+                            isa_summary=dict(path=isa_path.name, sha256=file_digest(isa_path)),
+                        )
+                    ]
+                )
+            )
+        )
+
+        def resources():
+            return tile_shape_report.load_static_resource_manifest(manifest_path)
+
+        def build(values, receipts=bindings, resource_inputs=None):
+            return tile_shape_report.build_report_from_captures(
+                values,
+                resource_inputs or resources(),
+                diagnostic_bindings=receipts,
+            )
+
+        row = build(captures)["rows"][0]
+        assert row["decision"] == "promote locally", row["promotion_blockers"]
+        assert row["speedup_vs_default_direct_hip_tile"] == 1.25
+        assert len(row["resource_observations"]) == 2
+        assert row["resource_status"]["resource_summary"]["vgpr"] == 40
+        assert row["resource_status"]["resource_summary"]["lds_bytes"] == 0
+        assert len(row["comparison"]["candidate_production_observations"]) == 2
+        assert all(capture["timing_metadata"]["gpu_event_timing"] is False for capture in captures)
+        for order in (list(reversed(captures)), captures[2:] + captures[:2]):
+            assert build(order)["rows"][0]["speedup_vs_default_direct_hip_tile"] == 1.25
+        singleton = build(captures[:5] + [copy.deepcopy(captures[4])])["rows"][0]
+        assert singleton["promotion_eligible"] is False
+        assert singleton["speedup_vs_default_direct_hip_tile"] is None
+        incomplete = dict(bindings)
+        incomplete.pop(str(paths[-1].resolve()))
+        assert build(captures, incomplete)["rows"][0]["speedup_vs_default_direct_hip_tile"] is None
+
+        def change_seed(fixture, mode, run):
+            if mode == "candidate":
+                fixture["seed"] += 1
+
+        mismatched_paths, mismatched_bindings = collect("seed-mismatch", change_seed)
+        mismatch = tile_shape_report.build_report(
+            mismatched_paths,
+            resources(),
+            diagnostic_bindings=mismatched_bindings,
+        )["rows"][0]
+        assert mismatch["speedup_vs_default_direct_hip_tile"] is None
+
+        # A raw source/build mismatch is tested directly so synthetic_identity
+        # cannot overwrite the deliberately changed manifest.
+        changed = copy.deepcopy(captures)
+        for capture in changed[-2:]:
+            capture["build_manifest"]["source_digest"] = "9" * 64
+        assert build(changed)["rows"][0]["speedup_vs_default_direct_hip_tile"] is None
+
+        wrong_variant = copy.deepcopy(isa)
+        wrong_variant["capture_binding"]["physical_kernel_configuration"]["tile_m"] = 128
+        wrong_path = root / "wrong-variant.json"
+        wrong_path.write_text(json.dumps(wrong_variant))
+        wrong_manifest = root / "wrong-manifest.json"
+        wrong_manifest.write_text(json.dumps(dict(captures=[dict(isa_summary=str(wrong_path))])))
+        wrong = build(
+            captures,
+            resource_inputs=tile_shape_report.load_static_resource_manifest(wrong_manifest),
+        )["rows"][0]
+        assert wrong["promotion_eligible"] is False
+        assert "missing_selected_static_isa_resource_evidence" in wrong["promotion_blockers"]
+
+        inline_path = root / "inline.json"
+        inline_path.write_text(
+            json.dumps(
+                dict(
+                    captures=[
+                        dict(
+                            resource_summary=dict(vgpr=40, sgpr=36, lds_bytes=0, occupancy=4),
+                            evidence_status=dict(isa_resource_status="present"),
+                        )
+                    ]
+                )
+            )
+        )
+        inline = build(
+            captures, resource_inputs=tile_shape_report.load_static_resource_manifest(inline_path)
+        )
+        assert inline["rows"][0]["promotion_eligible"] is False
+        assert inline["resource_inventory"]
+
+        # Changed sidecars cannot survive the review's exit hash check.
+        owned = resources()
+        original = tile_shape_report.row_for_candidate
+
+        def mutate_after_row(*args):
+            result = original(*args)
+            isa_path.write_text(isa_path.read_text() + " ")
+            return result
+
+        with patch.object(tile_shape_report, "row_for_candidate", side_effect=mutate_after_row):
+            try:
+                build(captures, resource_inputs=owned)
+            except ValueError as error:
+                assert "changed during review" in str(error)
+            else:
+                raise AssertionError("changed ISA input must invalidate the report")
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -242,8 +438,12 @@ def main() -> int:
         candidate_path = tmp / "direct-64x64.json"
         kblock_path = tmp / "direct-kblock.json"
         write_capture(cpu_path, make_cpu_capture(200))
-        write_capture(default_path, make_direct_capture(128, 128, "direct-hip-default-128x128", 100))
-        write_capture(candidate_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80))
+        write_capture(
+            default_path, make_direct_capture(128, 128, "direct-hip-default-128x128", 100)
+        )
+        write_capture(
+            candidate_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80)
+        )
         write_capture(kblock_path, make_k_block_capture("direct-hip-bounded-fixture-kblock", 85))
 
         manifest_path = tmp / "resource-manifest.json"
@@ -287,54 +487,65 @@ def main() -> int:
 
         report = tile_shape_report.build_report(
             [cpu_path, default_path, candidate_path, kblock_path],
-            tile_shape_report.load_resource_manifest(manifest_path),
+            tile_shape_report.load_static_resource_manifest(manifest_path),
         )
-        assert report["schema"] == "rns8_tile_shape_report_v2"
+        assert report["schema"] == "rns8_tile_shape_report_v3"
         assert report["candidate_count"] == 2
         assert report["cpu_anchor_count"] == 1
         assert report["default_direct_hip_anchor_count"] == 1
         rows = {row["variant_name"]: row for row in report["rows"]}
         row = rows["direct-hip-bounded-fixture-64x64"]
-        assert row["decision"] == "promote locally"
-        assert row["promotion_eligible"] is True
-        assert row["speedup_vs_default_direct_hip_tile"] == 1.25
-        assert row["promotion_blockers"] == []
-        assert row["resource_status"]["resource_evidence_present"] is True
-        assert row["resource_status"]["complete_for_promotion"] is True
+        assert row["decision"] == "keep experimental"
+        assert row["promotion_eligible"] is False
+        assert row["speedup_vs_default_direct_hip_tile"] is None
+        assert row["promotion_blockers"]
+        assert row["resource_status"]["resource_evidence_present"] is False
+        assert row["resource_status"]["complete_for_promotion"] is False
         kblock_row = rows["direct-hip-bounded-fixture-kblock"]
-        assert kblock_row["decision"] == "promote locally"
+        assert kblock_row["decision"] == "keep experimental"
         assert kblock_row["k_block_policy"] == "fixed-safe-kblock-cdna-candidate"
         assert kblock_row["split_k_mode"] == "single_gpu_no_split_k"
         assert kblock_row["tile_m"] == 128
         assert kblock_row["tile_n"] == 128
-        assert kblock_row["promotion_blockers"] == []
+        assert kblock_row["promotion_blockers"]
 
-        no_resource = tile_shape_report.build_report([cpu_path, default_path, candidate_path, kblock_path])
+        no_resource = tile_shape_report.build_report(
+            [cpu_path, default_path, candidate_path, kblock_path]
+        )
         no_resource_rows = {row["variant_name"]: row for row in no_resource["rows"]}
         no_resource_row = no_resource_rows["direct-hip-bounded-fixture-64x64"]
         assert no_resource_row["decision"] == "keep experimental"
-        assert "missing_counter_or_isa_resource_evidence" in no_resource_row["promotion_blockers"]
+        assert (
+            "missing_selected_static_isa_resource_evidence" in no_resource_row["promotion_blockers"]
+        )
         no_resource_kblock = no_resource_rows["direct-hip-bounded-fixture-kblock"]
         assert no_resource_kblock["decision"] == "keep experimental"
-        assert "missing_counter_or_isa_resource_evidence" in no_resource_kblock["promotion_blockers"]
+        assert (
+            "missing_selected_static_isa_resource_evidence"
+            in no_resource_kblock["promotion_blockers"]
+        )
 
         losing_path = tmp / "direct-64x64-loser.json"
-        write_capture(losing_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 130))
+        write_capture(
+            losing_path, make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 130)
+        )
         losing_report = tile_shape_report.build_report([cpu_path, default_path, losing_path])
         losing_row = losing_report["rows"][0]
-        assert losing_row["decision"] == "drop/deprioritize"
-        assert losing_row["speedup_vs_default_direct_hip_tile"] < 0.98
+        assert losing_row["decision"] == "keep experimental"
+        assert losing_row["speedup_vs_default_direct_hip_tile"] is None
         assert "missing_occupancy_signal" in losing_row["promotion_blockers"]
 
-        stale_identity = copy.deepcopy(make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80))
-        stale_identity["backend_metadata"]["autotune_key"] = stale_identity["backend_metadata"]["autotune_key"].replace(
-            ";tile_m=64;", ";tile_m=128;"
+        stale_identity = copy.deepcopy(
+            make_direct_capture(64, 64, "direct-hip-bounded-fixture-64x64", 80)
         )
+        stale_identity["backend_metadata"]["autotune_key"] = stale_identity["backend_metadata"][
+            "autotune_key"
+        ].replace(";tile_m=64;", ";tile_m=128;")
         stale_path = tmp / "direct-stale-identity.json"
         write_capture(stale_path, stale_identity)
         stale_report = tile_shape_report.build_report(
             [cpu_path, default_path, stale_path],
-            tile_shape_report.load_resource_manifest(manifest_path),
+            tile_shape_report.load_static_resource_manifest(manifest_path),
         )
         stale_row = stale_report["rows"][0]
         assert stale_row["decision"] == "keep experimental"
@@ -344,6 +555,7 @@ def main() -> int:
         assert Path(output_paths["json"]).exists()
         assert Path(output_paths["markdown"]).exists()
 
+    production_controls()
     print("tile shape report self-test: PASS")
     return 0
 

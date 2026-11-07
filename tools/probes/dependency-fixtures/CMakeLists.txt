@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.22)
+project(RNS8DependencyContracts LANGUAGES NONE)
+get_filename_component(_rns8_source "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+file(STRINGS "${_rns8_source}/.python-version" _rns8_python_version LIMIT_COUNT 1)
+find_package(Python3 ${_rns8_python_version} EXACT COMPONENTS Interpreter REQUIRED)
+enable_testing()
+include("${_rns8_source}/cmake/RNS8DependencyFixtures.cmake")
+rns8_add_dependency_contract_tests("${_rns8_source}" "${Python3_EXECUTABLE}")

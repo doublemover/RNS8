@@ -24,7 +24,9 @@ def _write_capture(path: Path, rank: int, checksum: int = 987654321) -> None:
     capture["checksum_u64"] = checksum
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(capture, indent=2) + "\n", encoding="utf-8")
-    (path.parent / f"benchmark-schema-rank{rank}.log").write_text("schema validation: PASS\n", encoding="utf-8")
+    (path.parent / f"benchmark-schema-rank{rank}.log").write_text(
+        "schema validation: PASS\n", encoding="utf-8"
+    )
 
 
 def _env_summary(path: Path) -> None:
@@ -107,24 +109,76 @@ def main() -> int:
             target_status=[status_path],
             shards_dir=tmp / "shards",
         )
-        assert report["schema"] == "rns8_multigpu_shard_report_v1"
+        assert report["schema"] == "rns8_multigpu_shard_report_v2"
         assert report["env_summary_status"] == "present"
         assert report["capture_count"] == 4
         assert report["missing_ranks"] == []
         assert report["failed_ranks"] == []
         rows = {row["rank"]: row for row in report["rows"]}
         assert rows[0]["physical_device_id"] == 4
-        assert rows[0]["device_bdf"] == "0000:05:00.0"
+        assert rows[0]["device_bdf"] is None
+        assert rows[0]["expected_device_bdf"] == "0000:05:00.0"
         assert rows[3]["physical_device_id"] == 7
-        assert rows[3]["device_bdf"] == "0000:08:00.0"
-        assert multigpu_shard_report.report_has_critical_failures(report) is False
+        assert rows[3]["device_bdf"] is None
+        assert rows[3]["expected_device_bdf"] == "0000:08:00.0"
+        assert report["qualified_observation_count"] == 0
+        assert "capture_observation_unbound" in report["promotion_blockers"]
+        assert "observed_target_mismatch" in report["promotion_blockers"]
+        assert rows[0]["target_arch"] == _base_capture()["device"]["gcn_arch"]
+        assert multigpu_shard_report.report_has_critical_failures(report)
         outputs = multigpu_shard_report.write_outputs(report, tmp / "report")
         assert Path(outputs["json"]).exists()
         assert Path(outputs["markdown"]).exists()
 
+        # An empty or truncated result set cannot shrink launcher intent.
+        empty = multigpu_shard_report.build_report([], env_summary=env_path)
+        assert empty["missing_ranks"] == [0, 1, 2, 3]
+        assert multigpu_shard_report.report_has_critical_failures(empty)
+        unknown = multigpu_shard_report.build_report([])
+        assert "launch_inventory_unknown" in unknown["promotion_blockers"]
+        assert multigpu_shard_report.report_has_critical_failures(unknown)
+        original_status = status_path.read_text(encoding="utf-8")
+        records = json.loads(original_status)["records"]
+        status_path.write_text(json.dumps({"records": records[:1]}), encoding="utf-8")
+        rank0 = tmp / "shards" / "gpu4" / "bounded-i64-hip-direct-smoke-rank0.json"
+        truncated = multigpu_shard_report.build_report(
+            [rank0], env_summary=env_path, target_status=[status_path]
+        )
+        assert truncated["missing_ranks"] == [1, 2, 3]
+        assert "missing_rank_status" in truncated["promotion_blockers"]
+        for change, blocker in [
+            ("duplicate", "duplicate_rank_status"),
+            ("world", "world_size_mismatch"),
+            ("device", "rank_device_mismatch"),
+        ]:
+            mutated = copy.deepcopy(records)
+            if change == "duplicate":
+                mutated.append(mutated[0])
+            elif change == "world":
+                mutated[0]["world_size"] = 3
+            else:
+                mutated[0]["device_index"] = 7
+            status_path.write_text(json.dumps({"records": mutated}), encoding="utf-8")
+            broken = multigpu_shard_report.build_report(
+                [], env_summary=env_path, target_status=[status_path], shards_dir=tmp / "shards"
+            )
+            assert blocker in broken["promotion_blockers"]
+            assert multigpu_shard_report.report_has_critical_failures(broken)
+        status_path.write_text(original_status, encoding="utf-8")
+        extra = rank0.with_name("second-case-rank0.json")
+        _write_capture(extra, 0)
+        incomplete_case = multigpu_shard_report.build_report(
+            [], env_summary=env_path, target_status=[status_path], shards_dir=tmp / "shards"
+        )
+        assert len(incomplete_case["missing_cases"]) == 3
+        assert "missing_cases" in incomplete_case["promotion_blockers"]
+        extra.unlink()
+
         failed = tmp / "shards" / "gpu5" / "bounded-i64-hip-direct-smoke-rank1.json"
         failed.write_text('{"not": "schema valid"}\n', encoding="utf-8")
-        (failed.parent / "benchmark-schema-rank1.log").write_text("ERROR schema validation failed\n", encoding="utf-8")
+        (failed.parent / "benchmark-schema-rank1.log").write_text(
+            "ERROR schema validation failed\n", encoding="utf-8"
+        )
         missing = tmp / "shards" / "gpu6" / "bounded-i64-hip-direct-smoke-rank2.json"
         missing.unlink()
         failed_report = multigpu_shard_report.build_report(
@@ -150,7 +204,8 @@ def main() -> int:
         assert multigpu_shard_report.report_has_critical_failures(missing_env_report) is True
         missing_env_rows = {row["rank"]: row for row in missing_env_report["rows"]}
         assert missing_env_rows[0]["physical_device_id"] == 4
-        assert missing_env_rows[0]["device_bdf"] == "0000:05:00.0"
+        assert missing_env_rows[0]["device_bdf"] is None
+        assert missing_env_rows[0]["expected_device_bdf"] == "0000:05:00.0"
 
     print("multi-GPU shard report self-test: PASS")
     return 0

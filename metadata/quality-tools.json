@@ -1,0 +1,301 @@
+{
+  "schema": "rns8_quality_tools_v1",
+  "owner_issue": 60,
+  "updated_date": "2026-11-05",
+  "qualification": "source_and_artifact_inventory_pending_tool_validation",
+  "requirements": "scripts/requirements-quality-tools.txt",
+  "tools": [
+    {
+      "name": "ruff",
+      "version": "0.17.4",
+      "distribution": "wheel",
+      "license": "MIT",
+      "source": "https://pypi.org/project/ruff/0.17.4/",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "ruff-0.17.4-py3-none-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/bd/15/42af8a72d8946e3c9efd2bbf6641e462b6832783b0d043d63ef5b280ba7f/ruff-0.17.4-py3-none-win_amd64.whl",
+          "sha256": "67c5a894fc054cf41f75f7afa24815de5a74329d97634126c2a1015740ff4e8c"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "ruff-0.17.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/af/1b/62874f14c7873f27c7887d2b1ea41de990e14ba9518801ffe8eacb5d51a6/ruff-0.17.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "2cd025509b2e15721b426fc70fd946d71f43b3db3b08e946dfec2d696d911690"
+        }
+      ]
+    },
+    {
+      "name": "clang-format",
+      "version": "23.1.5",
+      "distribution": "wheel",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "source": "https://pypi.org/project/clang-format/23.1.5/",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "clang_format-23.1.5-py2.py3-none-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/7b/67/b91fb3483ca5cdb468fa5e72d836736de5ec29154cc3f58718de6192bc12/clang_format-23.1.5-py2.py3-none-win_amd64.whl",
+          "sha256": "18a4a1a698dd52ed4e288c97d99e93910f8f9d0128b266f65021ecf39c85d034"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "clang_format-23.1.5-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/0e/cc/06adcfb7dfaea4d2c1929202021d4afcdc26915dc75fc0c72d63855da553/clang_format-23.1.5-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "d97ce49911ba8c89ef3f3c0735a9c7818e4780ab4812c67d1c5fcd829d16ae52"
+        }
+      ]
+    },
+    {
+      "name": "actionlint",
+      "version": "1.7.12",
+      "distribution": "native_archive",
+      "license": "MIT",
+      "source": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "actionlint_1.7.12_windows_amd64.zip",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",
+          "sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+          "member": "actionlint.exe"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "actionlint_1.7.12_linux_amd64.tar.gz",
+          "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+          "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+          "member": "actionlint"
+        }
+      ]
+    },
+    {
+      "name": "shellcheck",
+      "version": "0.11.0",
+      "distribution": "native_archive",
+      "license": "GPL-3.0-or-later",
+      "source": "https://github.com/koalaman/shellcheck/releases/tag/v0.11.0",
+      "artifacts": [
+        {
+          "platform": "windows-amd64",
+          "filename": "shellcheck-v0.11.0.zip",
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip",
+          "sha256": "8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e",
+          "member": "shellcheck.exe"
+        },
+        {
+          "platform": "linux-x86_64",
+          "filename": "shellcheck-v0.11.0.linux.x86_64.tar.gz",
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz",
+          "sha256": "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6",
+          "member": "shellcheck-v0.11.0/shellcheck"
+        }
+      ]
+    }
+  ],
+  "type_checking": {
+    "interpreter_artifacts": "CPython 3.15 Windows AMD64/Linux x86_64",
+    "checker": "mypy",
+    "requirements": "scripts/requirements-type-tools.txt",
+    "wheels": [
+      {
+        "name": "mypy",
+        "version": "2.4.1",
+        "source": "https://pypi.org/project/mypy/2.4.1/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "mypy-2.4.1-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/76/05/0c22b1f0390120a8592d31209cb6b9f932b6a0b426fe643e550de15139e3/mypy-2.4.1-cp315-cp315-win_amd64.whl",
+            "sha256": "080cf64a60b90a73435542feecf4171904cc5710658165b40c6869115d4aa100"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "mypy-2.4.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/c3/c9/3108b38f4c30eabd80194f5d9771a87e27196c5e0ddb5bf4b99c6ed1e97e/mypy-2.4.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "a2d4a51db92059eecc2c33b2a5194b28585ebfd917292c015fe87a77dbff6cd2"
+          }
+        ]
+      },
+      {
+        "name": "typing_extensions",
+        "version": "4.16.0",
+        "source": "https://pypi.org/project/typing_extensions/4.16.0/",
+        "license": "PSF-2.0",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+            "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+            "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        ]
+      },
+      {
+        "name": "mypy_extensions",
+        "version": "1.2.0",
+        "source": "https://pypi.org/project/mypy_extensions/1.2.0/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "mypy_extensions-1.2.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b5/99/7b1adac7e97ce7bbda34792dc6e9b2f5cc5cffd1875883f78a818b2a2687/mypy_extensions-1.2.0-py3-none-any.whl",
+            "sha256": "993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "mypy_extensions-1.2.0-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b5/99/7b1adac7e97ce7bbda34792dc6e9b2f5cc5cffd1875883f78a818b2a2687/mypy_extensions-1.2.0-py3-none-any.whl",
+            "sha256": "993e7a20aa5671eb41a7132cf555af30062da99729601601b9a8382b11cae768"
+          }
+        ]
+      },
+      {
+        "name": "pathspec",
+        "version": "1.1.1",
+        "source": "https://pypi.org/project/pathspec/1.1.1/",
+        "license": "See primary distribution metadata",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "pathspec-1.1.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl",
+            "sha256": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "pathspec-1.1.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl",
+            "sha256": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189"
+          }
+        ]
+      },
+      {
+        "name": "librt",
+        "version": "0.16.0",
+        "source": "https://pypi.org/project/librt/0.16.0/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "librt-0.16.0-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/56/1e/801fe26bc622061b9dfd010e166d94142cb774b733217e6d98d1c0cf2638/librt-0.16.0-cp315-cp315-win_amd64.whl",
+            "sha256": "bc02954b1295de798bbdb0b4e2d8a28c2117de8b5c73dcbeb27dc32572dfb971"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "librt-0.16.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/e1/6f/53762927a32e9dc9eb1d1c1f3528da281290c86d96929a8af652f671266e/librt-0.16.0-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "e56aaf8c167548dc8e5d6f3bd0f48dcdd299a23c73be3f744aab79d99e9c7f5d"
+          }
+        ]
+      },
+      {
+        "name": "ast-serialize",
+        "version": "0.13.1",
+        "source": "https://pypi.org/project/ast-serialize/0.13.1/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "ast_serialize-0.13.1-cp39-abi3-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/9f/6f/bafd6490fe7b355627fabe95f4417e3d02da93102c8552550eb9a0774e1e/ast_serialize-0.13.1-cp39-abi3-win_amd64.whl",
+            "sha256": "ddf7cbc9c8abf70102c4a088efe154bb86bfb825b0a10e556d2b15972cf99bd7"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "ast_serialize-0.13.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/c5/fa/da311559dd3dae9af5825cf21660775a929b970f72e3786af3f2cd667944/ast_serialize-0.13.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+            "sha256": "9f99786e0d62082a5b121b3437f3167562133711df22128de1e9886f57f0b226"
+          }
+        ]
+      }
+    ],
+    "scope": "metadata/python-typecheck-scope.json",
+    "configuration": "mypy.ini"
+  },
+  "analysis": {
+    "checker": "clang-tidy",
+    "requirements": "scripts/requirements-analysis-tools.txt",
+    "wheels": [
+      {
+        "name": "clang-tidy",
+        "version": "23.1.4",
+        "source": "https://pypi.org/project/clang-tidy/23.1.4/",
+        "license": "Apache 2.0",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "clang_tidy-23.1.4-py2.py3-none-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/c0/49/b2adbdedbe430d0cce9b354a679d57e28692ce2fb59a575486784d438125/clang_tidy-23.1.4-py2.py3-none-win_amd64.whl",
+            "sha256": "8107e05930f53dc477dbb5fb8108d7c10464176fc95d3e58f4ee7317887aed59"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "clang_tidy-23.1.4-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/80/85/9b483f300124a9245ec6da8975612f1841e26da13b27ad8d17f2006e13bd/clang_tidy-23.1.4-py2.py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+            "sha256": "6bb31e4f319ecbe14acb75f23c3050d0f1d4b1d92ea1c66091bc76e4eac2c1ac"
+          }
+        ]
+      },
+      {
+        "name": "ruamel.yaml",
+        "version": "0.19.1",
+        "source": "https://pypi.org/project/ruamel.yaml/0.19.1/",
+        "license": "MIT",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "ruamel_yaml-0.19.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b8/0c/51f6841f1d84f404f92463fc2b1ba0da357ca1e3db6b7fbda26956c3b82a/ruamel_yaml-0.19.1-py3-none-any.whl",
+            "sha256": "27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "ruamel_yaml-0.19.1-py3-none-any.whl",
+            "url": "https://files.pythonhosted.org/packages/b8/0c/51f6841f1d84f404f92463fc2b1ba0da357ca1e3db6b7fbda26956c3b82a/ruamel_yaml-0.19.1-py3-none-any.whl",
+            "sha256": "27592957fedf6e0b62f281e96effd28043345e0e66001f97683aa9a40c667c93"
+          }
+        ]
+      }
+    ],
+    "configuration": ".clang-tidy",
+    "qualification": "artifact_inventory_source_pending_analyzer_validation"
+  },
+  "coverage": {
+    "checker": "coverage",
+    "requirements": "scripts/requirements-coverage-tools.txt",
+    "scope": "optional Python branch/subprocess coverage, not production timing",
+    "wheels": [
+      {
+        "name": "coverage",
+        "version": "7.17.2",
+        "license": "Apache-2.0",
+        "source": "https://pypi.org/project/coverage/7.17.2/",
+        "artifacts": [
+          {
+            "platform": "windows-amd64",
+            "filename": "coverage-7.17.2-cp315-cp315-win_amd64.whl",
+            "url": "https://files.pythonhosted.org/packages/86/40/2d4980d3374a023a34c5ea7cd5d2b93c02c5588a324ca7faf8a0a8c7dbac/coverage-7.17.2-cp315-cp315-win_amd64.whl",
+            "sha256": "075566a44289afb634ceaafa7d8d377bb2667a5b4a90fbee2609efdcd015c66e"
+          },
+          {
+            "platform": "linux-x86_64",
+            "filename": "coverage-7.17.2-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "url": "https://files.pythonhosted.org/packages/f5/c6/4f3931c3ff80a6f2608209181adb00527970a4b43b64c3aa323383c37d51/coverage-7.17.2-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "sha256": "3bd065e75c077d6de8cd3fe68699a8b47be3ec595af6b66e3629926839094609"
+          }
+        ]
+      }
+    ]
+  }
+}

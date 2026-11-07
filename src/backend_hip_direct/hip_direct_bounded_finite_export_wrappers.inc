@@ -1,507 +1,258 @@
-extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(
-    const int8_t* d_residues,
-    uint8_t* d_dst,
-    int rows,
-    int cols,
-    int ld,
-    int modulus,
-    void* stream) {
-  if (!d_residues || !d_dst || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 || modulus > 256) {
+extern "C" int rns8_hip_direct_export_u8_modulus_device_on_stream(const int8_t* d_residues,
+                                                                  uint8_t* d_dst, int rows,
+                                                                  int cols, int ld, int modulus,
+                                                                  void* stream) {
+  if (!d_residues || !d_dst || rows <= 0 || cols <= 0 || ld < cols || modulus < 2 ||
+      modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, elements = launch.elements, blocks = launch.blocks,
+            quad_blocks = launch.quad_blocks;
   if (modulus == 256) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<256>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        ld);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<256>),
+                       dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows,
+                       cols, ld);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 255) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<255>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        ld);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<255>),
+                       dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows,
+                       cols, ld);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 251) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<251>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        ld);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_fixed_modulus_quad_kernel<251>),
+                       dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows,
+                       cols, ld);
     return static_cast<int>(hipGetLastError());
   }
-  hipLaunchKernelGGL(
-      rns8_export_u8_modulus_kernel,
-      dim3(blocks),
-      dim3(threads),
-      0,
-      hip_stream,
-      d_residues,
-      d_dst,
-      rows,
-      cols,
-      ld,
-      modulus);
+  hipLaunchKernelGGL(rns8_export_u8_modulus_kernel, dim3(blocks), dim3(threads), 0, hip_stream,
+                     d_residues, d_dst, rows, cols, ld, modulus);
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_u8_modulus_device(
-    const int8_t* d_residues,
-    uint8_t* d_dst,
-    int rows,
-    int cols,
-    int ld,
-    int modulus) {
-  return rns8_hip_direct_export_u8_modulus_device_on_stream(
-      d_residues, d_dst, rows, cols, ld, modulus, nullptr);
+extern "C" int rns8_hip_direct_export_u8_modulus_device(const int8_t* d_residues, uint8_t* d_dst,
+                                                        int rows, int cols, int ld, int modulus) {
+  return rns8_hip_direct_export_u8_modulus_device_on_stream(d_residues, d_dst, rows, cols, ld,
+                                                            modulus, nullptr);
 }
 
-extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(
-    const int8_t* const* d_residue_ptrs,
-    uint8_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int modulus) {
-  if (!d_residue_ptrs || !d_dst || task_count <= 0 || rows <= 0 || cols <= 0 || modulus < 2 || modulus > 256) {
+extern "C" int rns8_hip_direct_export_u8_grouped_modulus_device(const int8_t* const* d_residue_ptrs,
+                                                                uint8_t* d_dst, int task_count,
+                                                                int rows, int cols, int modulus) {
+  if (!d_residue_ptrs || !d_dst || task_count <= 0 || rows <= 0 || cols <= 0 || modulus < 2 ||
+      modulus > 256) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int64_t total = static_cast<int64_t>(rows) * static_cast<int64_t>(cols);
-  const int blocks = static_cast<int>((total + threads - 1) / threads);
-  const int quad_blocks = static_cast<int>(((total + 3) / 4 + threads - 1) / threads);
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch, task_count);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, blocks = launch.blocks, quad_blocks = launch.quad_blocks;
   if (modulus == 256) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<256>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<256>),
+                       dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs,
+                       d_dst, task_count, rows, cols);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 255) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<255>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<255>),
+                       dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs,
+                       d_dst, task_count, rows, cols);
     return static_cast<int>(hipGetLastError());
   }
   if (modulus == 251) {
-    hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<251>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(rns8_export_u8_grouped_fixed_modulus_quad_kernel<251>),
+                       dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs,
+                       d_dst, task_count, rows, cols);
     return static_cast<int>(hipGetLastError());
   }
-  hipLaunchKernelGGL(
-      rns8_export_u8_grouped_modulus_kernel,
-      dim3(blocks, task_count),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residue_ptrs,
-      d_dst,
-      task_count,
-      rows,
-      cols,
-      modulus);
+  hipLaunchKernelGGL(rns8_export_u8_grouped_modulus_kernel, dim3(blocks, task_count), dim3(threads),
+                     0, nullptr, d_residue_ptrs, d_dst, task_count, rows, cols, modulus);
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_i64_device_on_stream(
-    const int8_t* d_residues,
-    int64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status,
-    void* stream) {
+extern "C" int rns8_hip_direct_export_i64_device_on_stream(const int8_t* d_residues, int64_t* d_dst,
+                                                           int rows, int cols, int prefix,
+                                                           uint64_t bound, int* d_status,
+                                                           void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, elements = launch.elements, blocks = launch.blocks,
+            quad_blocks = launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        bound,
+        dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows, cols, bound,
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_i64_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        bound,
+        dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows, cols, bound,
         d_status);
   } else {
-    hipLaunchKernelGGL(
-        rns8_export_i64_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        prefix,
-        bound,
-        d_status);
+    hipLaunchKernelGGL(rns8_export_i64_kernel, dim3(blocks), dim3(threads), 0, hip_stream,
+                       d_residues, d_dst, rows, cols, prefix, bound, d_status);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_i64_device(
-    const int8_t* d_residues,
-    int64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status) {
-  return rns8_hip_direct_export_i64_device_on_stream(
-      d_residues, d_dst, rows, cols, prefix, bound, d_status, nullptr);
+extern "C" int rns8_hip_direct_export_i64_device(const int8_t* d_residues, int64_t* d_dst, int rows,
+                                                 int cols, int prefix, uint64_t bound,
+                                                 int* d_status) {
+  return rns8_hip_direct_export_i64_device_on_stream(d_residues, d_dst, rows, cols, prefix, bound,
+                                                     d_status, nullptr);
 }
 
-extern "C" int rns8_hip_direct_export_i64_grouped_device(
-    const int8_t* const* d_residue_ptrs,
-    int64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status) {
+extern "C" int rns8_hip_direct_export_i64_grouped_device(const int8_t* const* d_residue_ptrs,
+                                                         int64_t* d_dst, int task_count, int rows,
+                                                         int cols, int prefix, uint64_t bound,
+                                                         int* d_status) {
   if (!d_residue_ptrs || !d_dst || !d_status || task_count <= 0 || rows <= 0 || cols <= 0 ||
       prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch, task_count);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, elements = launch.elements, blocks = launch.blocks,
+            quad_blocks = launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        bound,
-        d_status);
+        HIP_KERNEL_NAME(
+            rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs, d_dst, task_count,
+        rows, cols, bound, d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_i64_grouped_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        bound,
-        d_status);
+        dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs, d_dst, task_count,
+        rows, cols, bound, d_status);
   } else {
-    hipLaunchKernelGGL(
-        rns8_export_i64_grouped_kernel,
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        prefix,
-        bound,
-        d_status);
+    hipLaunchKernelGGL(rns8_export_i64_grouped_kernel, dim3(blocks, task_count), dim3(threads), 0,
+                       nullptr, d_residue_ptrs, d_dst, task_count, rows, cols, prefix, bound,
+                       d_status);
   }
   return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_direct_export_i64_scheduled_device(
-    const int8_t* d_residues,
-    int64_t* d_dst,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    const uint64_t* d_bounds,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int entry_count,
-    int max_tile_elements,
-    int rows,
-    int cols,
-    int* d_status) {
+    const int8_t* d_residues, int64_t* d_dst, const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds, const uint8_t* d_zero_a_rows, const uint8_t* d_zero_b_cols,
+    int entry_count, int max_tile_elements, int rows, int cols, int* d_status) {
   if (!d_residues || !d_dst || !d_schedule || !d_bounds || !d_status || entry_count <= 0 ||
       max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int blocks = (max_tile_elements + threads - 1) / threads;
-  if (entry_count > kRns8MaxInt / blocks) {
-    return static_cast<int>(hipErrorInvalidValue);
-  }
-  const int total_blocks = entry_count * blocks;
-  hipLaunchKernelGGL(
-      rns8_export_i64_scheduled_kernel,
-      dim3(total_blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      d_schedule,
-      d_bounds,
-      d_zero_a_rows,
-      d_zero_b_cols,
-      entry_count,
-      max_tile_elements,
-      rows,
-      cols,
-      d_status);
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(1, max_tile_elements, launch);
+  if (geometry != hipSuccess || uint64_t(rows) * uint64_t(cols) > uint64_t(INT32_MAX))
+    return int(hipErrorInvalidValue);
+  const int threads = launch.threads, blocks = launch.blocks;
+  int total_blocks = 0;
+  if (!rns8::detail::checked_export_schedule(entry_count, launch, total_blocks))
+    return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_export_i64_scheduled_kernel, dim3(total_blocks), dim3(threads), 0,
+                     nullptr, d_residues, d_dst, d_schedule, d_bounds, d_zero_a_rows, d_zero_b_cols,
+                     entry_count, max_tile_elements, rows, cols, d_status);
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_u64_device_on_stream(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status,
-    void* stream) {
+extern "C" int rns8_hip_direct_export_u64_device_on_stream(const int8_t* d_residues,
+                                                           uint64_t* d_dst, int rows, int cols,
+                                                           int prefix, uint64_t bound,
+                                                           int* d_status, void* stream) {
   hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, elements = launch.elements, blocks = launch.blocks,
+            quad_blocks = launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        bound,
+        dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows, cols, bound,
         d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u64_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
-        dim3(quad_blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        bound,
+        dim3(quad_blocks), dim3(threads), 0, hip_stream, d_residues, d_dst, rows, cols, bound,
         d_status);
   } else {
-    hipLaunchKernelGGL(
-        rns8_export_u64_kernel,
-        dim3(blocks),
-        dim3(threads),
-        0,
-        hip_stream,
-        d_residues,
-        d_dst,
-        rows,
-        cols,
-        prefix,
-        bound,
-        d_status);
+    hipLaunchKernelGGL(rns8_export_u64_kernel, dim3(blocks), dim3(threads), 0, hip_stream,
+                       d_residues, d_dst, rows, cols, prefix, bound, d_status);
   }
   return static_cast<int>(hipGetLastError());
 }
 
-extern "C" int rns8_hip_direct_export_u64_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status) {
-  return rns8_hip_direct_export_u64_device_on_stream(
-      d_residues, d_dst, rows, cols, prefix, bound, d_status, nullptr);
+extern "C" int rns8_hip_direct_export_u64_device(const int8_t* d_residues, uint64_t* d_dst,
+                                                 int rows, int cols, int prefix, uint64_t bound,
+                                                 int* d_status) {
+  return rns8_hip_direct_export_u64_device_on_stream(d_residues, d_dst, rows, cols, prefix, bound,
+                                                     d_status, nullptr);
 }
 
-extern "C" int rns8_hip_direct_export_u64_grouped_device(
-    const int8_t* const* d_residue_ptrs,
-    uint64_t* d_dst,
-    int task_count,
-    int rows,
-    int cols,
-    int prefix,
-    uint64_t bound,
-    int* d_status) {
+extern "C" int rns8_hip_direct_export_u64_grouped_device(const int8_t* const* d_residue_ptrs,
+                                                         uint64_t* d_dst, int task_count, int rows,
+                                                         int cols, int prefix, uint64_t bound,
+                                                         int* d_status) {
   if (!d_residue_ptrs || !d_dst || !d_status || task_count <= 0 || rows <= 0 || cols <= 0 ||
       prefix <= 0 || prefix > kRns8MaxSupportedPrefix) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int elements = rows * cols;
-  const int blocks = (elements + threads - 1) / threads;
-  const int quad_blocks = ((elements + 3) / 4 + threads - 1) / threads;
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(rows, cols, launch, task_count);
+  if (geometry != hipSuccess)
+    return static_cast<int>(geometry);
+  const int threads = launch.threads, elements = launch.elements, blocks = launch.blocks,
+            quad_blocks = launch.quad_blocks;
   if (prefix == kRns8DefaultBoundedPrefix) {
     hipLaunchKernelGGL(
-        HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        bound,
-        d_status);
+        HIP_KERNEL_NAME(
+            rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8DefaultBoundedPrefix>),
+        dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs, d_dst, task_count,
+        rows, cols, bound, d_status);
   } else if (prefix == kRns8MaxSupportedPrefix) {
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(rns8_export_u64_grouped_fixed_prefix_quad_kernel<kRns8MaxSupportedPrefix>),
-        dim3(quad_blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        bound,
-        d_status);
+        dim3(quad_blocks, task_count), dim3(threads), 0, nullptr, d_residue_ptrs, d_dst, task_count,
+        rows, cols, bound, d_status);
   } else {
-    hipLaunchKernelGGL(
-        rns8_export_u64_grouped_kernel,
-        dim3(blocks, task_count),
-        dim3(threads),
-        0,
-        nullptr,
-        d_residue_ptrs,
-        d_dst,
-        task_count,
-        rows,
-        cols,
-        prefix,
-        bound,
-        d_status);
+    hipLaunchKernelGGL(rns8_export_u64_grouped_kernel, dim3(blocks, task_count), dim3(threads), 0,
+                       nullptr, d_residue_ptrs, d_dst, task_count, rows, cols, prefix, bound,
+                       d_status);
   }
   return static_cast<int>(hipGetLastError());
 }
 
 extern "C" int rns8_hip_direct_export_u64_scheduled_device(
-    const int8_t* d_residues,
-    uint64_t* d_dst,
-    const rns8_plan_tile_schedule_entry* d_schedule,
-    const uint64_t* d_bounds,
-    const uint8_t* d_zero_a_rows,
-    const uint8_t* d_zero_b_cols,
-    int entry_count,
-    int max_tile_elements,
-    int rows,
-    int cols,
-    int* d_status) {
+    const int8_t* d_residues, uint64_t* d_dst, const rns8_plan_tile_schedule_entry* d_schedule,
+    const uint64_t* d_bounds, const uint8_t* d_zero_a_rows, const uint8_t* d_zero_b_cols,
+    int entry_count, int max_tile_elements, int rows, int cols, int* d_status) {
   if (!d_residues || !d_dst || !d_schedule || !d_bounds || !d_status || entry_count <= 0 ||
       max_tile_elements <= 0 || rows <= 0 || cols <= 0) {
     return static_cast<int>(hipErrorInvalidValue);
   }
-  const int threads = 256;
-  const int blocks = (max_tile_elements + threads - 1) / threads;
-  if (entry_count > kRns8MaxInt / blocks) {
-    return static_cast<int>(hipErrorInvalidValue);
-  }
-  const int total_blocks = entry_count * blocks;
-  hipLaunchKernelGGL(
-      rns8_export_u64_scheduled_kernel,
-      dim3(total_blocks),
-      dim3(threads),
-      0,
-      nullptr,
-      d_residues,
-      d_dst,
-      d_schedule,
-      d_bounds,
-      d_zero_a_rows,
-      d_zero_b_cols,
-      entry_count,
-      max_tile_elements,
-      rows,
-      cols,
-      d_status);
+  rns8::detail::ExportLaunch launch;
+  const auto geometry = prepare_export_launch(1, max_tile_elements, launch);
+  if (geometry != hipSuccess || uint64_t(rows) * uint64_t(cols) > uint64_t(INT32_MAX))
+    return int(hipErrorInvalidValue);
+  const int threads = launch.threads, blocks = launch.blocks;
+  int total_blocks = 0;
+  if (!rns8::detail::checked_export_schedule(entry_count, launch, total_blocks))
+    return int(hipErrorInvalidValue);
+  hipLaunchKernelGGL(rns8_export_u64_scheduled_kernel, dim3(total_blocks), dim3(threads), 0,
+                     nullptr, d_residues, d_dst, d_schedule, d_bounds, d_zero_a_rows, d_zero_b_cols,
+                     entry_count, max_tile_elements, rows, cols, d_status);
   return static_cast<int>(hipGetLastError());
 }
-

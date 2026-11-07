@@ -22,7 +22,8 @@ TEST_CASE("bounded CPU K-split edge cases preserve padded output and exact cance
       }
 
       auto desc = i64_desc(m, n, k, static_cast<uint64_t>(k * product));
-      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       const int64_t alternating = k % 2 == 0 ? 0 : product;
       CHECK(C[0] == alternating);
       CHECK(C[1] == -alternating);
@@ -52,7 +53,8 @@ TEST_CASE("bounded CPU K-split edge cases preserve padded output and exact cance
       }
 
       auto desc = u64_desc(m, n, k, static_cast<uint64_t>(k) * 255u * 255u);
-      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       CHECK(C[0] == static_cast<uint64_t>(k) * 255u);
       CHECK(C[1] == static_cast<uint64_t>(k) * 255u * 255u);
       CHECK(C[2] == sentinel);
@@ -96,11 +98,13 @@ TEST_CASE("bounded plan schedule exposes tile grid and minimum proven prefix gro
   REQUIRE(rns8_get_plan_tile_schedule(plan, nullptr, 0, &written) == RNS8_SUCCESS);
   CHECK(written == 9);
   std::vector<rns8_plan_tile_schedule_entry> too_small(8);
-  CHECK(rns8_get_plan_tile_schedule(plan, too_small.data(), too_small.size(), &written) == RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(rns8_get_plan_tile_schedule(plan, too_small.data(), too_small.size(), &written) ==
+        RNS8_WORKSPACE_TOO_SMALL);
   CHECK(written == 9);
 
   std::vector<rns8_plan_tile_schedule_entry> entries(9);
-  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   CHECK(entries.front().tile_row == 0);
   CHECK(entries.front().tile_col == 0);
@@ -125,8 +129,8 @@ TEST_CASE("bounded plan schedule exposes tile grid and minimum proven prefix gro
 
 TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
   rns8_context* ctx = create_cpu();
-  std::vector<uint64_t> bounds = {1, 1000, 1000000, uint64_t{1} << 40u, 5,
-                                  2000, 70000,  uint64_t{1} << 20u, uint64_t{1} << 32u};
+  std::vector<uint64_t> bounds = {
+      1, 1000, 1000000, uint64_t{1} << 40u, 5, 2000, 70000, uint64_t{1} << 20u, uint64_t{1} << 32u};
   auto desc = u64_desc(130, 129, 7, 0);
   desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
   desc.tile_m = 64;
@@ -158,7 +162,8 @@ TEST_CASE("bounded CPU plan schedule uses copied per-tile unsigned bounds") {
 
   uint64_t written = 0;
   std::vector<rns8_plan_tile_schedule_entry> entries(9);
-  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   CHECK(entries[0].required_prefix == 1);
   CHECK(entries[0].selected_prefix == 1);
@@ -205,7 +210,8 @@ TEST_CASE("bounded per-tile zero output skips require proven-zero opt-in") {
 
   std::vector<rns8_plan_tile_schedule_entry> entries(4);
   uint64_t written = 0;
-  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   CHECK(entries[0].range_bit_length == 0);
   CHECK(entries[0].required_prefix == 1);
@@ -232,7 +238,8 @@ TEST_CASE("bounded per-tile zero output skips require proven-zero opt-in") {
 
   entries.assign(4, {});
   written = 0;
-  REQUIRE(rns8_get_plan_tile_schedule(proven_plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(proven_plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   CHECK(entries[0].flags == RNS8_TILE_SCHEDULE_ZERO_OUTPUT);
   CHECK(entries[1].flags == 0);
@@ -291,7 +298,8 @@ TEST_CASE("bounded per-tile zero row and column product skips require explicit p
 
   std::vector<rns8_plan_tile_schedule_entry> entries(4);
   uint64_t written = 0;
-  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   CHECK(entries[0].flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
   CHECK(entries[1].flags == RNS8_TILE_SCHEDULE_ZERO_ROW_COL_PRODUCT);
@@ -320,14 +328,14 @@ TEST_CASE("bounded per-tile zero row and column product skips require explicit p
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile needs the full prefix") {
+TEST_CASE("bounded per-tile schedule retains distinct bounds sharing the full prefix") {
   rns8_context* ctx = create_cpu();
   const auto prefix8_product = rns8::detail::modulus_product(RNS8_DEFAULT_BOUNDED_PREFIX - 1u);
   const uint64_t first_full_signed_bound = (prefix8_product / 2).convert_to<uint64_t>();
   constexpr uint64_t max_signed_bound = uint64_t{1} << 63u;
   const uint32_t first_full_range_bits = rns8::detail::bit_length(prefix8_product);
-  const uint32_t max_signed_range_bits = rns8::detail::bit_length(
-      rns8::detail::cpp_int(2) * rns8::detail::cpp_int(max_signed_bound));
+  const uint32_t max_signed_range_bits =
+      rns8::detail::bit_length(rns8::detail::cpp_int(2) * rns8::detail::cpp_int(max_signed_bound));
   std::vector<uint64_t> bounds = {
       max_signed_bound,
       first_full_signed_bound,
@@ -347,7 +355,7 @@ TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile n
   REQUIRE(plan->tile_bounds.size() == 4);
   CHECK(plan->desc.tile_bounds == nullptr);
   CHECK(plan->desc.tile_bounds_count == 4);
-  CHECK(plan->tile_schedule.empty());
+  CHECK(plan->tile_schedule.size() == 4);
 
   rns8_plan_schedule_info info{};
   info.struct_size = sizeof(info);
@@ -372,7 +380,8 @@ TEST_CASE("bounded per-tile schedule collapses to fixed prefix when every tile n
   CHECK(written == 4);
 
   std::vector<rns8_plan_tile_schedule_entry> entries(4);
-  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(plan, entries.data(), entries.size(), &written) ==
+          RNS8_SUCCESS);
   REQUIRE(written == entries.size());
   for (const auto& entry : entries) {
     CHECK(entry.required_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
@@ -451,10 +460,10 @@ TEST_CASE("phase 2 fixed 9-modulus per-tile schedules preserve signed and unsign
   uint64_t signed_written = 0;
   std::vector<rns8_plan_tile_schedule_entry> unsigned_entries(4);
   std::vector<rns8_plan_tile_schedule_entry> signed_entries(4);
-  REQUIRE(rns8_get_plan_tile_schedule(
-              unsigned_plan, unsigned_entries.data(), unsigned_entries.size(), &unsigned_written) == RNS8_SUCCESS);
-  REQUIRE(rns8_get_plan_tile_schedule(signed_plan, signed_entries.data(), signed_entries.size(), &signed_written) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(unsigned_plan, unsigned_entries.data(),
+                                      unsigned_entries.size(), &unsigned_written) == RNS8_SUCCESS);
+  REQUIRE(rns8_get_plan_tile_schedule(signed_plan, signed_entries.data(), signed_entries.size(),
+                                      &signed_written) == RNS8_SUCCESS);
   REQUIRE(unsigned_written == unsigned_entries.size());
   REQUIRE(signed_written == signed_entries.size());
 
@@ -478,4 +487,3 @@ TEST_CASE("phase 2 fixed 9-modulus per-tile schedules preserve signed and unsign
   rns8_destroy_plan(unsigned_plan);
   rns8_destroy_context(ctx);
 }
-

@@ -7,19 +7,12 @@ import argparse
 import json
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import Any
+from session_environment import ALLOWLIST, safe_value, snapshot
 
 
-RUNTIME_ENV_KEYS = [
-    "HIP_VISIBLE_DEVICES",
-    "ROCR_VISIBLE_DEVICES",
-    "GPU_DEVICE_ORDINAL",
-    "ROCM_PATH",
-    "HIP_PATH",
-    "LD_LIBRARY_PATH",
-]
+RUNTIME_ENV_KEYS = ALLOWLIST
 BDF_RE = re.compile(r"\b[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]\b")
 
 
@@ -51,14 +44,14 @@ def parse_env_log(text: str) -> dict[str, str]:
             continue
         key, value = line.split("=", 1)
         if key in RUNTIME_ENV_KEYS:
-            values[key] = value
+            values[key] = safe_value(value)
     return values
 
 
 def captured_tool_ready(*logs: str, fallback_commands: list[str] | None = None) -> bool:
     present_logs = [log.strip() for log in logs if log.strip()]
     if not present_logs:
-        return all(shutil.which(command) is not None for command in fallback_commands or [])
+        return False
     for text in present_logs:
         lowered = text.lower()
         if lowered.startswith("dry-run:") or "command not found:" in lowered:
@@ -67,15 +60,12 @@ def captured_tool_ready(*logs: str, fallback_commands: list[str] | None = None) 
 
 
 def parse_device_list(values: list[str]) -> list[int]:
-    return [int(value, 10) for value in values if re.fullmatch(r"[0-9]+", value)]
-
-
-def value_for_device(values: list[Any], device_index: int) -> Any:
-    if 0 <= device_index < len(values):
-        return values[device_index]
-    if len(values) == 1:
-        return values[0]
-    return None
+    if any(not re.fullmatch(r"[0-9]+", value) for value in values):
+        raise ValueError("requested devices must be explicit numeric runtime ordinals")
+    result = [int(value, 10) for value in values]
+    if len(set(result)) != len(result):
+        raise ValueError("duplicate requested runtime ordinal")
+    return result
 
 
 def unique_values(values: list[str]) -> list[str]:
@@ -99,7 +89,9 @@ def first_clean_version(value: str | None) -> str | None:
 def rocm_version_from_logs(hipconfig: str, version_files: str, package_versions: str) -> str | None:
     return first_clean_version(
         first_match(hipconfig, [r"ROCm Version:\s*([^\n\r]+)"])
-        or first_match(version_files, [r"^[^=\n\r]*[/\\]\.info[/\\]version(?:-[A-Za-z0-9_-]+)?=([^\n\r]+)"])
+        or first_match(
+            version_files, [r"^[^=\n\r]*[/\\]\.info[/\\]version(?:-[A-Za-z0-9_-]+)?=([^\n\r]+)"]
+        )
         or first_match(package_versions, [r"^rocm-core\s+([^\s]+)"])
     )
 
@@ -108,7 +100,11 @@ def hip_version_from_logs(hipconfig: str, hipcc: str, package_versions: str) -> 
     return first_clean_version(
         first_match(
             hipconfig + "\n" + hipcc,
-            [r"HIP version:\s*([^\n\r]+)", r"HIP_VERSION\s*:\s*([^\n\r]+)", r"HIP version\s+([^\n\r]+)"],
+            [
+                r"HIP version:\s*([^\n\r]+)",
+                r"HIP_VERSION\s*:\s*([^\n\r]+)",
+                r"HIP version\s+([^\n\r]+)",
+            ],
         )
         or first_match(package_versions, [r"^hipcc\s+([^\s]+)", r"^hip-runtime-amd\s+([^\s]+)"])
     )
@@ -135,23 +131,33 @@ def parse_indexed_smi_records(smi_text: str) -> dict[int, dict[str, Any]]:
         r"Device Name:\s*([^\n\r|]+)",
         r"ASIC:\s*([^\n\r|]+)",
     ]
+
+    def assign(record, key, value):
+        if key in record.get("conflicting_fields", []):
+            return
+        if key in record and record[key] != value:
+            record.setdefault("conflicting_fields", []).append(key)
+            record[key] = None
+        else:
+            record[key] = value
+
     for line in smi_text.splitlines():
         device_index = smi_device_index(line)
         if device_index is None:
             continue
         record = records.setdefault(device_index, {"physical_device_id": device_index})
         if match := BDF_RE.search(line):
-            record["bdf"] = match.group(0)
+            assign(record, "bdf", match.group(0))
         for pattern in name_patterns:
             if match := re.search(pattern, line, flags=re.IGNORECASE):
                 value = match.group(1).strip()
                 if value and value.lower() not in {"n/a", "none", "unknown"}:
-                    record["device_name"] = value
+                    assign(record, "device_name", value)
                 break
         if match := re.search(r"\bNUMA(?:\s+Node)?\s*[:=]\s*([0-9]+)\b", line, flags=re.IGNORECASE):
-            record["numa_node"] = int(match.group(1), 10)
+            assign(record, "numa_node", int(match.group(1), 10))
         if match := re.search(r"\bgfx[0-9a-fA-F]+\b", line):
-            record["target_arch"] = match.group(0)
+            assign(record, "target_arch", match.group(0))
     return {key: value for key, value in records.items() if len(value) > 1}
 
 
@@ -174,7 +180,7 @@ def build_summary(
     dry_run: bool = False,
     environment: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
-    environment = environment or dict(os.environ)
+    environment = dict(os.environ) if environment is None else environment
     rocminfo = read_log(log_dir, "rocminfo")
     hipconfig = read_log(log_dir, "hipconfig_full")
     hipcc = read_log(log_dir, "hipcc_version")
@@ -195,7 +201,7 @@ def build_summary(
     rocprofv3_agents = read_log(log_dir, "rocprofv3_avail_agents")
     rocprofv3_pmcs = read_log(log_dir, "rocprofv3_avail_pmcs")
     captured_environment = parse_env_log(env_log)
-    runtime_environment = {key: captured_environment.get(key, environment.get(key)) for key in RUNTIME_ENV_KEYS}
+    runtime_environment = {**snapshot(environment), **captured_environment}
 
     gfx_targets = sorted(set(re.findall(r"\bgfx[0-9a-fA-F]+\b", rocminfo)))
     device_names = unindexed_device_names(smi_text)
@@ -206,39 +212,22 @@ def build_summary(
     if match := re.search(r"available:\s*([0-9]+)\s+nodes?", numactl, flags=re.IGNORECASE):
         numa_nodes = list(range(int(match.group(1))))
 
-    visible_values = split_visible(devices_option)
-    if not visible_values:
-        for key in ["HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "GPU_DEVICE_ORDINAL"]:
-            visible_values = split_visible(runtime_environment.get(key))
-            if visible_values:
-                break
-
-    requested_device_ids = parse_device_list(visible_values)
-    if indexed_records:
-        node_gpu_count = max(max(indexed_records) + 1, len(indexed_records), len(requested_device_ids) or 0)
-    else:
-        node_gpu_count = len(device_names) or len(bdfs) or len(gfx_targets) or len(visible_values) or None
-    visible_gpu_count = len(visible_values) if visible_values else node_gpu_count
-
-    inventory_ids = set(range(node_gpu_count or 0))
-    inventory_ids.update(indexed_records)
-    inventory_ids.update(requested_device_ids)
+    if devices_option and not re.fullmatch(r"[0-9]+(?:,[0-9]+)*", devices_option):
+        raise ValueError("requested devices must be explicit comma-separated runtime ordinals")
+    requested_device_ids = parse_device_list(split_visible(devices_option))
     physical_devices: list[dict[str, Any]] = []
-    for device_index in sorted(inventory_ids):
-        record = indexed_records.get(device_index, {})
-        source = "per_device_smi" if record else "heuristic_index_order"
+    for device_index, record in sorted(indexed_records.items()):
         physical_devices.append(
             {
                 "physical_device_id": device_index,
-                "target_arch": record.get("target_arch") or value_for_device(gfx_targets, device_index),
-                "device_name": record.get("device_name") or value_for_device(device_names, device_index),
-                "bdf": record.get("bdf") or value_for_device(bdfs, device_index),
-                "numa_node": record.get("numa_node")
-                if record.get("numa_node") is not None
-                else (value_for_device(numa_nodes, device_index) if numa_nodes else None),
-                "visible": device_index in requested_device_ids if requested_device_ids else None,
-                "visibility_index": requested_device_ids.index(device_index) if device_index in requested_device_ids else None,
-                "topology_source": source,
+                "target_arch": record.get("target_arch"),
+                "device_name": record.get("device_name"),
+                "bdf": record.get("bdf"),
+                "numa_node": record.get("numa_node"),
+                "visible": None,
+                "visibility_index": None,
+                "topology_source": "per_device_smi_log",
+                "conflicting_fields": record.get("conflicting_fields", []),
             }
         )
 
@@ -246,7 +235,11 @@ def build_summary(
     rccl_library = first_match(rccl, [r"^(/.*librccl\.so)$"])
     rccl_tests = {
         name: path
-        for name, path in re.findall(r"^(all_[a-z_]+_perf|broadcast_perf|reduce_scatter_perf)=(.+)$", rccl, flags=re.MULTILINE)
+        for name, path in re.findall(
+            r"^(all_[a-z_]+_perf|broadcast_perf|reduce_scatter_perf)=(.+)$",
+            rccl,
+            flags=re.MULTILINE,
+        )
         if path != "not-found"
     }
     rocm_version = rocm_version_from_logs(hipconfig, rocm_version_files, rocm_package_versions)
@@ -254,22 +247,30 @@ def build_summary(
     matrix_instruction_log = read_log(log_dir, "amd_matrix_instruction_report")
     matrix_instruction_dir = log_dir / "amd-matrix-instructions"
     matrix_instruction_reports = sorted(
-        path.relative_to(log_dir).as_posix() for path in matrix_instruction_dir.rglob("*") if path.is_file()
+        path.relative_to(log_dir).as_posix()
+        for path in matrix_instruction_dir.rglob("*")
+        if path.is_file()
     )
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
+        "qualification_status": "provided_logs_only_not_hardware_qualified",
+        "promotion_allowed": False,
         "dry_run": dry_run,
         "runtime_environment": runtime_environment,
         "requested_devices": split_visible(devices_option),
+        "requested_device_namespace": "parent_HIP_runtime_ordinal_not_correlated_to_SMI",
+        "requested_gpu_count": len(requested_device_ids),
         "rocminfo_gfx_targets": gfx_targets,
         "smi_device_names": device_names,
         "rocm_version": rocm_version,
         "hip_version": hip_version,
         "hip_sdk_or_rocm_version": hip_version or rocm_version,
-        "visible_gpu_count": visible_gpu_count,
-        "node_gpu_count": node_gpu_count,
-        "physical_device_mapping_source": "per_device_smi" if indexed_records else "heuristic_index_order",
+        "visible_gpu_count": None,
+        "node_gpu_count": None,
+        "observed_smi_device_count": len(indexed_records),
+        "physical_device_mapping_source": "per_device_smi_log" if indexed_records else "unknown",
+        "runtime_to_physical_mapping_verified": False,
         "physical_devices": physical_devices,
         "numa_nodes": numa_nodes,
         "pci_bdf_ids": bdfs,
@@ -282,7 +283,8 @@ def build_summary(
         "rccl_ready": bool(rccl_header and rccl_library),
         "rccl_tests_ready": bool(rccl_tests),
         "rccl_tests": rccl_tests,
-        "amd_matrix_instruction_calculator_ready": "AMD matrix instruction report: PASS" in matrix_instruction_log,
+        "amd_matrix_instruction_calculator_ready": "AMD matrix instruction report: PASS"
+        in matrix_instruction_log,
         "amd_matrix_instruction_reports": matrix_instruction_reports,
         "raw_logs": sorted(str(path.name) for path in log_dir.glob("*.log")),
     }

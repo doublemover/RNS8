@@ -1,0 +1,73 @@
+{
+  "schema": "rns8_native_invariant_routes_v2",
+  "owner_issue": 103,
+  "scope": "initial mandatory CPU mutation registry; no device-route or per-test callchain inference",
+  "routes": {
+    "omit-checked-add-overflow-rejection": {
+      "invariant": "checked machine extent rejects overflow without publishing query resources",
+      "entrypoint": "rns8_query_integer_split_i64",
+      "source": "src/core/api_integer_split.cpp",
+      "scope": "public_cpu_route"
+    },
+    "omit-signed-crt-centering": {
+      "invariant": "signed reconstruction retains the centered exact value",
+      "entrypoint": "rns8_export_i64",
+      "source": "src/core/api_export.cpp",
+      "scope": "public_cpu_route"
+    },
+    "omit-published-value-generation": {
+      "invariant": "public mutation advances the published value generation",
+      "entrypoint": "rns8_pack_i64",
+      "source": "src/core/api_pack.cpp",
+      "scope": "public_cpu_route"
+    },
+    "discard-failed-handle-close-owner": {
+      "invariant": "failed close retains the retryable actual host template owner",
+      "entrypoint": null,
+      "source": null,
+      "scope": "host_template_fake_operations_only"
+    },
+    "misclassify-signed-export-preflight": {
+      "invariant": "public export preflight rejects malformed input with the required status",
+      "entrypoint": "rns8_export_i64",
+      "source": "src/core/api_export.cpp",
+      "scope": "public_cpu_route"
+    },
+    "omit-prepared-a-generation-admission": {
+      "invariant": "prepared public execution rejects a stale input generation",
+      "entrypoint": "rns8_execute_prepared",
+      "source": "src/core/api_prepared.cpp",
+      "scope": "public_cpu_route"
+    },
+    "gram-wrong-triangle-directory": {
+      "invariant": "gram wrong triangle directory",
+      "entrypoint": null,
+      "source": null,
+      "scope": "production_cpu_helper"
+    },
+    "gram-omit-diagonal-directory": {
+      "invariant": "gram omit diagonal directory",
+      "entrypoint": null,
+      "source": null,
+      "scope": "production_cpu_helper"
+    },
+    "gram-duplicate-tile-owner": {
+      "invariant": "gram duplicate tile owner",
+      "entrypoint": null,
+      "source": null,
+      "scope": "production_cpu_helper"
+    },
+    "gram-wrong-cpu-mirror-index": {
+      "invariant": "gram wrong cpu mirror index",
+      "entrypoint": null,
+      "source": null,
+      "scope": "production_cpu_helper"
+    },
+    "gram-reuse-stale-transpose-after-refresh": {
+      "invariant": "gram reuse stale transpose after refresh",
+      "entrypoint": "rns8_refresh_prepared_gram",
+      "source": "src/core/api_prepared_gram.cpp",
+      "scope": "public_cpu_route"
+    }
+  }
+}

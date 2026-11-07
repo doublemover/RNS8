@@ -12,16 +12,20 @@ from metadata_registry_constants import (
     GROUPED_TASK_BUCKET_POLICIES,
     GROUPED_TASK_DESCRIPTOR_LAYOUTS,
 )
-from test_benchmark_schema import (
-    as_grouped_dispatch_capture,
+from test_benchmark_schema_support_chains_wrap64 import (
     as_hip_graph_full_bounded_capture,
     as_hip_graph_full_exact_wide_capture,
     as_hip_graph_full_finite_capture,
     as_hip_graph_full_wrap64_capture,
     as_hip_graph_replay_capture,
+)
+from test_benchmark_schema_support_core import (
     as_host_api_batch_capture,
     expect_invalid,
     expect_valid,
+)
+from test_benchmark_schema_support_grouped import (
+    as_grouped_dispatch_capture,
 )
 
 
@@ -81,19 +85,21 @@ def main() -> int:
     assert "same_contract_bucketed_resident_task_triplets_v1" in GROUPED_TASK_DESCRIPTOR_LAYOUTS
 
     bucketed_bad_offset = copy.deepcopy(bucketed_grouped)
-    bucketed_bad_offset["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1]["task_offset"] = 5
+    bucketed_bad_offset["grouped_dispatch"]["task_descriptor_contract"]["buckets"][1][
+        "task_offset"
+    ] = 5
     expect_invalid(
         bucketed_bad_offset,
         "bucketed grouped task descriptor task_offset must be contiguous",
     )
 
     grouped_device_pack_gemm = copy.deepcopy(grouped)
-    grouped_device_pack_gemm["grouped_dispatch"][
-        "execution_strategy"
-    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
-    grouped_device_pack_gemm["timing_metadata"][
-        "grouped_dispatch_execution_strategy"
-    ] = GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    grouped_device_pack_gemm["grouped_dispatch"]["execution_strategy"] = (
+        GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    )
+    grouped_device_pack_gemm["timing_metadata"]["grouped_dispatch_execution_strategy"] = (
+        GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
+    )
     device_pack_gemm_policy = GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES[
         GROUPED_DISPATCH_STRATEGY_DEVICE_GROUPED_PACK_GEMM_HOST_EXPORTS
     ]
@@ -116,7 +122,9 @@ def main() -> int:
 
     bad_graph_launches = copy.deepcopy(graph)
     bad_graph_launches["hip_graph_replay"]["total_graph_launches"] += 1
-    expect_invalid(bad_graph_launches, "hip_graph_replay.total_graph_launches must equal warmups + repeats")
+    expect_invalid(
+        bad_graph_launches, "hip_graph_replay.total_graph_launches must equal warmups + repeats"
+    )
 
     bad_graph_capture_time = copy.deepcopy(graph)
     bad_graph_capture_time["hip_graph_replay"]["capture_us"] = 0
@@ -161,7 +169,9 @@ def main() -> int:
     )
 
     bad_full_graph_scope = copy.deepcopy(full_graph)
-    bad_full_graph_scope["hip_graph_replay"]["scope"] = "direct_hip_reused_inputs_residue_current_rns_chain"
+    bad_full_graph_scope["hip_graph_replay"]["scope"] = (
+        "direct_hip_reused_inputs_residue_current_rns_chain"
+    )
     expect_invalid(
         bad_full_graph_scope,
         "bounded pack/GEMM/export hip_graph_replay captures must set hip_graph_replay.scope",
@@ -202,9 +212,9 @@ def main() -> int:
     )
 
     bad_finite_graph_policy = copy.deepcopy(finite_graph)
-    bad_finite_graph_policy["hip_graph_replay"][
-        "final_export_policy"
-    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    bad_finite_graph_policy["hip_graph_replay"]["final_export_policy"] = (
+        "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    )
     expect_invalid(
         bad_finite_graph_policy,
         "finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
@@ -223,9 +233,9 @@ def main() -> int:
     validate_capture(exact_graph)
 
     bad_exact_graph_policy = copy.deepcopy(exact_graph)
-    bad_exact_graph_policy["hip_graph_replay"][
-        "final_export_policy"
-    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    bad_exact_graph_policy["hip_graph_replay"]["final_export_policy"] = (
+        "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    )
     expect_invalid(
         bad_exact_graph_policy,
         "exact-wide pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",
@@ -235,9 +245,9 @@ def main() -> int:
     validate_capture(wrap64_graph)
 
     bad_wrap64_graph_policy = copy.deepcopy(wrap64_graph)
-    bad_wrap64_graph_policy["hip_graph_replay"][
-        "final_export_policy"
-    ] = "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    bad_wrap64_graph_policy["hip_graph_replay"]["final_export_policy"] = (
+        "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+    )
     expect_invalid(
         bad_wrap64_graph_policy,
         "wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported",

@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from direct_residue_dataflow import validate_policy_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -61,7 +62,9 @@ def _load_json_yaml(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise MetadataRegistryError(f"{path}: metadata files must use the JSON-compatible YAML subset: {exc}") from exc
+        raise MetadataRegistryError(
+            f"{path}: metadata files must use the JSON-compatible YAML subset: {exc}"
+        ) from exc
     if not isinstance(data, dict):
         raise MetadataRegistryError(f"{path}: top-level registry document must be an object")
     return data
@@ -84,7 +87,9 @@ def _require_list(document: dict[str, Any], key: str, path: str) -> list[Any]:
     return value
 
 
-def _require_string_list(document: dict[str, Any], key: str, path: str, *, allow_empty: bool = False) -> list[str]:
+def _require_string_list(
+    document: dict[str, Any], key: str, path: str, *, allow_empty: bool = False
+) -> list[str]:
     values = _require_list(document, key, path)
     valid = all(isinstance(item, str) and (allow_empty or bool(item)) for item in values)
     if not valid:
@@ -114,10 +119,14 @@ def _strategy_ids(registry: Registry) -> list[str]:
     ids: list[str] = []
     for index, item in enumerate(strategies):
         if not isinstance(item, dict):
-            raise MetadataRegistryError(f"benchmark_modes.grouped_dispatch_execution_strategies[{index}] must be an object")
+            raise MetadataRegistryError(
+                f"benchmark_modes.grouped_dispatch_execution_strategies[{index}] must be an object"
+            )
         value = item.get("id")
         if not isinstance(value, str) or not value:
-            raise MetadataRegistryError(f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].id must be a string")
+            raise MetadataRegistryError(
+                f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].id must be a string"
+            )
         if not isinstance(item.get("batched_exact_wide_export"), bool):
             raise MetadataRegistryError(
                 f"benchmark_modes.grouped_dispatch_execution_strategies[{index}].batched_exact_wide_export must be boolean"
@@ -179,15 +188,21 @@ def _kernel_groups(registry: Registry) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for group, values in sorted(groups.items()):
         if not isinstance(group, str) or not group:
-            raise MetadataRegistryError("kernels.selected_kernel_groups keys must be nonempty strings")
+            raise MetadataRegistryError(
+                "kernels.selected_kernel_groups keys must be nonempty strings"
+            )
         if not isinstance(values, list):
             raise MetadataRegistryError(f"kernels.selected_kernel_groups.{group} must be a list")
         if not all(isinstance(item, str) and item for item in values):
-            raise MetadataRegistryError(f"kernels.selected_kernel_groups.{group} must contain only nonempty strings")
+            raise MetadataRegistryError(
+                f"kernels.selected_kernel_groups.{group} must contain only nonempty strings"
+            )
         _require_unique(values, f"kernels.selected_kernel_groups.{group}")
         missing = sorted(set(values) - selected)
         if missing:
-            raise MetadataRegistryError(f"kernels.selected_kernel_groups.{group} references unknown kernels: {missing}")
+            raise MetadataRegistryError(
+                f"kernels.selected_kernel_groups.{group} references unknown kernels: {missing}"
+            )
         result[group] = list(values)
     return result
 
@@ -199,11 +214,15 @@ def _export_kernel_groups(registry: Registry) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
     for group, values in sorted(groups.items()):
         if not isinstance(group, str) or not group:
-            raise MetadataRegistryError("kernels.export_kernel_groups keys must be nonempty strings")
+            raise MetadataRegistryError(
+                "kernels.export_kernel_groups keys must be nonempty strings"
+            )
         if not isinstance(values, list):
             raise MetadataRegistryError(f"kernels.export_kernel_groups.{group} must be a list")
         if not all(isinstance(item, str) and item for item in values):
-            raise MetadataRegistryError(f"kernels.export_kernel_groups.{group} must contain only nonempty strings")
+            raise MetadataRegistryError(
+                f"kernels.export_kernel_groups.{group} must contain only nonempty strings"
+            )
         _require_unique(values, f"kernels.export_kernel_groups.{group}")
         result[group] = list(values)
     return result
@@ -214,7 +233,9 @@ def _generated_reducer_identities(registry: Registry) -> list[str]:
 
 
 def _generated_reducer_identity_patterns(registry: Registry) -> list[str]:
-    patterns = _require_string_list(registry.epilogues(), "generated_reducer_identity_patterns", "epilogues")
+    patterns = _require_string_list(
+        registry.epilogues(), "generated_reducer_identity_patterns", "epilogues"
+    )
     for index, pattern in enumerate(patterns):
         try:
             re.compile(pattern)
@@ -228,7 +249,9 @@ def _generated_reducer_identity_patterns(registry: Registry) -> list[str]:
 def _reducer_families(registry: Registry) -> list[dict[str, Any]]:
     families = _require_list(registry.epilogues(), "reducer_families", "epilogues")
     epilogue_types = set(_require_string_list(registry.epilogues(), "epilogue_types", "epilogues"))
-    backend_modes = set(_require_string_list(registry.epilogues(), "backend_epilogue_modes", "epilogues"))
+    backend_modes = set(
+        _require_string_list(registry.epilogues(), "backend_epilogue_modes", "epilogues")
+    )
     reducer_identities = set(_generated_reducer_identities(registry))
     selected_kernels = set(_require_string_list(registry.kernels(), "selected_kernels", "kernels"))
     ids: list[str] = []
@@ -238,11 +261,15 @@ def _reducer_families(registry: Registry) -> list[dict[str, Any]]:
             raise MetadataRegistryError(f"epilogues.reducer_families[{index}] must be an object")
         family_id = item.get("id")
         if not isinstance(family_id, str) or not family_id:
-            raise MetadataRegistryError(f"epilogues.reducer_families[{index}].id must be a nonempty string")
+            raise MetadataRegistryError(
+                f"epilogues.reducer_families[{index}].id must be a nonempty string"
+            )
         ids.append(family_id)
         epilogue_type = item.get("epilogue_type")
         if epilogue_type not in epilogue_types:
-            raise MetadataRegistryError(f"reducer family {family_id} references unknown epilogue_type {epilogue_type}")
+            raise MetadataRegistryError(
+                f"reducer family {family_id} references unknown epilogue_type {epilogue_type}"
+            )
         backend_mode = item.get("backend_epilogue_mode")
         if backend_mode not in backend_modes:
             raise MetadataRegistryError(
@@ -256,9 +283,13 @@ def _reducer_families(registry: Registry) -> list[dict[str, Any]]:
         for key in ["generated_reducer_identity_pattern", "generated_helper", "isa_evidence"]:
             value = item.get(key)
             if not isinstance(value, str) or not value:
-                raise MetadataRegistryError(f"epilogues.reducer_families[{index}].{key} must be a nonempty string")
+                raise MetadataRegistryError(
+                    f"epilogues.reducer_families[{index}].{key} must be a nonempty string"
+                )
         examples = item.get("selected_kernel_examples")
-        if not isinstance(examples, list) or not all(isinstance(value, str) and value for value in examples):
+        if not isinstance(examples, list) or not all(
+            isinstance(value, str) and value for value in examples
+        ):
             raise MetadataRegistryError(
                 f"epilogues.reducer_families[{index}].selected_kernel_examples must be a nonempty string list"
             )
@@ -269,7 +300,9 @@ def _reducer_families(registry: Registry) -> list[dict[str, Any]]:
         _require_unique(examples, f"epilogues.reducer_families[{index}].selected_kernel_examples")
         missing = sorted(set(examples) - selected_kernels)
         if missing:
-            raise MetadataRegistryError(f"reducer family {family_id} references unknown kernels: {missing}")
+            raise MetadataRegistryError(
+                f"reducer family {family_id} references unknown kernels: {missing}"
+            )
         result.append(dict(item))
     _require_unique(ids, "epilogues.reducer_families")
     return result
@@ -328,7 +361,9 @@ def validate_registry(registry: Registry) -> None:
     descriptor_policies = set(descriptor["device_descriptor_policies"])
     for strategy, policy in _strategy_policy_map(registry).items():
         if policy not in descriptor_policies:
-            raise MetadataRegistryError(f"grouped strategy {strategy} references unknown descriptor policy {policy}")
+            raise MetadataRegistryError(
+                f"grouped strategy {strategy} references unknown descriptor policy {policy}"
+            )
     if "not_requested" not in strategy_ids:
         raise MetadataRegistryError("grouped strategies must include not_requested")
 
@@ -360,6 +395,7 @@ def validate_registry(registry: Registry) -> None:
         "amdgpu_builtin_deep_gpu_event_labels",
     ]:
         _require_string_list(event, key, "event_phases")
+    _builtin_event_families(registry)
     _require_string_list(registry.epilogues(), "epilogue_types", "epilogues")
     _require_string_list(registry.epilogues(), "backend_epilogue_modes", "epilogues")
     _generated_reducer_identities(registry)
@@ -369,6 +405,10 @@ def validate_registry(registry: Registry) -> None:
     _require_string_list(registry.kernels(), "selected_kernels", "kernels")
     _kernel_groups(registry)
     _export_kernel_groups(registry)
+    try:
+        validate_policy_manifest(registry.kernels().get("direct_residue_tile_dataflow"))
+    except ValueError as error:
+        raise MetadataRegistryError(str(error)) from error
     claim = registry.claim_labels()
     _require_string_list(claim, "comparison_baseline_statuses", "claim_labels")
     _require_string_list(claim, "release_gate_review_statuses", "claim_labels")
@@ -395,6 +435,53 @@ def _constant_suffix(value: str) -> str:
     return suffix.strip("_")
 
 
+def _builtin_event_families(registry: Registry) -> list[dict[str, str]]:
+    event = registry.event_phases()
+    rows = _require_list(event, "amdgpu_builtin_event_families", "event_phases")
+    allowed = set(event["amdgpu_builtin_deep_gpu_event_labels"])
+    if not rows:
+        raise MetadataRegistryError("builtin event family map must be nonempty")
+    seen = set()
+    for row in rows:
+        if (
+            type(row) is not dict
+            or set(row) != {"family", "integer_event", "finite_event"}
+            or any(type(v) is not str or not v for v in row.values())
+        ):
+            raise MetadataRegistryError("invalid builtin event family row")
+        if row["family"] in seen or any(
+            row["family"] in old or old in row["family"] for old in seen
+        ):
+            raise MetadataRegistryError("ambiguous builtin event family match")
+        seen.add(row["family"])
+        if row["integer_event"] not in allowed or row["finite_event"] not in allowed:
+            raise MetadataRegistryError("builtin family references unregistered event")
+    return rows
+
+
+def _cpp_builtin_event_map(registry: Registry) -> str:
+    rows = _builtin_event_families(registry)
+    lines = [
+        "struct BuiltinEventFamily {std::string_view family, integer_event, finite_event;};",
+        "inline constexpr std::array<BuiltinEventFamily, "
+        + str(len(rows))
+        + "> builtin_event_families{{",
+    ]
+    lines += [
+        '    {"' + r["family"] + '", "' + r["integer_event"] + '", "' + r["finite_event"] + '"},'
+        for r in rows
+    ]
+    lines += [
+        "}};",
+        "inline constexpr const char* builtin_event_label(std::string_view kernel,bool finite) {",
+        "  for(const auto& row:builtin_event_families) if(kernel.find(row.family)!=std::string_view::npos)",
+        '    return (finite || kernel.find("_finite")!=std::string_view::npos ? row.finite_event : row.integer_event).data();',
+        '  return "amdgpu_builtin_rns_matrix_core_kernel";',
+        "}",
+    ]
+    return "\n".join(lines)
+
+
 def render_python_constants(registry: Registry) -> str:
     benchmark = registry.benchmark_modes()
     descriptor = benchmark["grouped_task_descriptor"]
@@ -410,6 +497,7 @@ def render_python_constants(registry: Registry) -> str:
         "# Generated by tools/metadata_registry.py. Do not edit by hand.",
         "from __future__ import annotations",
         "",
+        "AMDGPU_BUILTIN_EVENT_FAMILIES = " + repr(_builtin_event_families(registry)),
         f"BENCHMARK_EXECUTION_MODES = {_python_repr_set(benchmark['benchmark_execution_modes'])}",
         f"BOUND_SOURCES = {_python_repr_set(benchmark['bound_sources'])}",
         f"BOUND_DISCOVERY_SOURCES = {_python_repr_set(benchmark['bound_discovery_sources'])}",
@@ -496,7 +584,8 @@ def render_python_constants(registry: Registry) -> str:
         "",
     ]
     strategy_constants = [
-        f"GROUPED_DISPATCH_STRATEGY_{_constant_suffix(strategy)} = {strategy!r}" for strategy in sorted(strategies)
+        f"GROUPED_DISPATCH_STRATEGY_{_constant_suffix(strategy)} = {strategy!r}"
+        for strategy in sorted(strategies)
     ]
     if strategy_constants:
         generated.extend(strategy_constants)
@@ -507,9 +596,7 @@ def render_python_constants(registry: Registry) -> str:
 def _cpp_array(name: str, values: list[str]) -> str:
     items = ",\n".join(f'    "{value}"' for value in sorted(values))
     return (
-        f"inline constexpr std::array<std::string_view, {len(values)}> {name}{{{{\n"
-        f"{items}\n"
-        "}};\n"
+        f"inline constexpr std::array<std::string_view, {len(values)}> {name}{{{{\n{items}\n}}}};\n"
     )
 
 
@@ -525,7 +612,8 @@ def render_cpp_header(registry: Registry) -> str:
         set(export_kernel_groups["bounded_i64"]) | set(export_kernel_groups["bounded_u64"])
     )
     exact_wide_export_kernels = sorted(
-        set(export_kernel_groups["exact_wide_signed"]) | set(export_kernel_groups["exact_wide_unsigned"])
+        set(export_kernel_groups["exact_wide_signed"])
+        | set(export_kernel_groups["exact_wide_unsigned"])
     )
     return "\n".join(
         [
@@ -540,11 +628,14 @@ def render_cpp_header(registry: Registry) -> str:
             _cpp_array("benchmark_execution_modes", benchmark["benchmark_execution_modes"]),
             _cpp_array("grouped_dispatch_statuses", benchmark["grouped_dispatch_statuses"]),
             _cpp_array("grouped_dispatch_execution_strategies", _strategy_ids(registry)),
-            _cpp_array("grouped_task_device_descriptor_policies", descriptor["device_descriptor_policies"]),
+            _cpp_array(
+                "grouped_task_device_descriptor_policies", descriptor["device_descriptor_policies"]
+            ),
             _cpp_array("output_destination_layouts", output["destination_layouts"]),
             _cpp_array("status_handling_modes", output["status_handling"]),
             _cpp_array("output_contract_domains", output["output_contract_domains"]),
             _cpp_array("pack_layouts", output["pack_layouts"]),
+            _cpp_builtin_event_map(registry),
             _cpp_array("gpu_event_source_scopes", event["gpu_event_source_scopes"]),
             _cpp_array("epilogue_types", epilogues["epilogue_types"]),
             _cpp_array("backend_epilogue_modes", epilogues["backend_epilogue_modes"]),
@@ -573,14 +664,20 @@ def check_generated(path: Path, expected: str) -> list[str]:
         return [f"missing generated file: {path}"]
     actual = path.read_text(encoding="utf-8")
     if actual != expected:
-        return [f"stale generated file: {path}; run python tools\\metadata_registry.py --write-generated"]
+        return [
+            f"stale generated file: {path}; run python tools\\metadata_registry.py --write-generated"
+        ]
     return []
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--write-generated", action="store_true", help="rewrite generated Python/C++ constants")
-    parser.add_argument("--check", action="store_true", help="validate registry and check generated outputs")
+    parser.add_argument(
+        "--write-generated", action="store_true", help="rewrite generated Python/C++ constants"
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="validate registry and check generated outputs"
+    )
     args = parser.parse_args()
 
     registry = load_registry()
@@ -593,7 +690,11 @@ def main() -> int:
             write_if_changed(PYTHON_CONSTANTS_PATH, python_constants),
             write_if_changed(CPP_HEADER_PATH, cpp_header),
         ]
-        print("metadata registry generated files updated" if any(changed) else "metadata registry generated files unchanged")
+        print(
+            "metadata registry generated files updated"
+            if any(changed)
+            else "metadata registry generated files unchanged"
+        )
         return 0
 
     errors = check_generated(PYTHON_CONSTANTS_PATH, python_constants)

@@ -1,0 +1,204 @@
+{
+  "schema": "rns8_native_production_mutations_v1",
+  "owner_issue": 103,
+  "qualification": "source_authored_no_compiler_baseline_mutant_or_test_executed",
+  "scope": "CPU exact arithmetic/publication, shared native fuzz replay result/status/stale-state assertions, and actual templated host ownership with fake operations; no device faults",
+  "seeds": [
+    {
+      "id": "omit-checked-add-overflow-rejection",
+      "source": "src/backend_common/checked_arithmetic.hpp",
+      "anchor": "constexpr bool add(uint64_t a, uint64_t b, uint64_t& output) noexcept {",
+      "before": "if (a > UINT64_MAX - b)",
+      "after": "if (a > UINT64_MAX - b && a < b)",
+      "tests": [
+        {
+          "name": "shared checked arithmetic preserves output on overflow and handles aliased results",
+          "source": "tests/unit/test_hip_handle_owner.cpp",
+          "assertion_marker": "result == 17"
+        },
+        {
+          "name": "integer split public query rejects wrapped native extents without publishing resources",
+          "source": "tests/unit/test_integer_split.cpp",
+          "assertion_marker": "rns8_query_integer_split_i64(&overflow, &info) == RNS8_RANGE_ERROR"
+        }
+      ],
+      "source_sha256": "68d402c1c2fa214d63d0db5ea5935fea6cb743f2a36cab1206e3c5e349fbd833",
+      "mandatory": true
+    },
+    {
+      "id": "omit-signed-crt-centering",
+      "source": "src/reconstruct/crt.cpp",
+      "anchor": "rns8_status reconstruct_strided(",
+      "before": "value -= contract.products[contract.prefix];",
+      "after": "value += cpp_int(0);",
+      "tests": [
+        {
+          "name": "CRT reconstruction recovers signed and unsigned bounded values",
+          "source": "tests/unit/test_crt.cpp",
+          "assertion_marker": "reconstruct_signed"
+        },
+        {
+          "name": "native corpus detects production signed result mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
+        }
+      ],
+      "source_sha256": "5affd0f217bea9909b84ff5f0bb24c267af732b232192b5c454e54805b07aae3",
+      "mandatory": true
+    },
+    {
+      "id": "omit-published-value-generation",
+      "source": "src/core/api_matrix_currentness_storage.inc",
+      "anchor": "void publish_matrix_value(",
+      "before": "++matrix.content_generation;",
+      "after": "matrix.content_generation += 0;",
+      "tests": [
+        {
+          "name": "reserved CPU publication preserves exclusivity metadata and one generation advance",
+          "source": "tests/unit/test_api.cpp",
+          "assertion_marker": "c.content_generation == generation + 1"
+        },
+        {
+          "name": "independent CPU owners overlap with exact results and unique matrix identities",
+          "source": "tests/unit/test_host_concurrency.cpp",
+          "assertion_marker": "errors[i].empty()"
+        }
+      ],
+      "source_sha256": "932e9db753f36604eee4ea8d39690f3fb796aba5b9de1d2091576ade7a559d9a",
+      "mandatory": true
+    },
+    {
+      "id": "discard-failed-handle-close-owner",
+      "source": "src/core/hip_handle_owner.hpp",
+      "anchor": "status_type reset() noexcept {",
+      "before": "if (status != Operations::success)\n        return status;",
+      "after": "if (status == Operations::success)\n        return status;",
+      "tests": [
+        {
+          "name": "runtime handle replacement preserves failed destruction and original device",
+          "source": "tests/unit/test_hip_handle_owner.cpp",
+          "assertion_marker": "first.reset()"
+        }
+      ],
+      "source_sha256": "9318ec711092619c0937820d36d1ad65195bc834737a60e07ea3587bf291474d",
+      "mandatory": true
+    },
+    {
+      "id": "misclassify-signed-export-preflight",
+      "source": "src/core/api_export.cpp",
+      "source_sha256": "ac9f7397357ce85426f867cea59f7df15e3969775c8dba203d43e88fcb0d64fc",
+      "anchor": "rns8_status rns8_export_i64(",
+      "before": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_INVALID_ARGUMENT;\n    }\n",
+      "after": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_RANGE_ERROR;\n    }\n",
+      "tests": [
+        {
+          "name": "native corpus detects production preflight status mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "omit-prepared-a-generation-admission",
+      "source": "src/core/api_prepared.cpp",
+      "source_sha256": "8845c288574ef047bf52d51c02933c051f9c175a1becdc7c42e9650e8a64177c",
+      "anchor": "bool inputs_match(const rns8_prepared_execution& e) {",
+      "before": "return e.a_instance == e.a->matrix_instance_id && e.a_generation == e.a->content_generation &&",
+      "after": "return e.a_instance == e.a->matrix_instance_id &&",
+      "tests": [
+        {
+          "name": "native corpus detects production stale prepared mutations",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "replay(value, expected)"
+        },
+        {
+          "name": "native history models prepared generations publication and retained ownership",
+          "source": "tests/unit/test_fuzz_arithmetic_replay.cpp",
+          "assertion_marker": "rns8_fuzz::history_support::replay(history, sizeof(history))"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-wrong-triangle-directory",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "for (uint32_t col = row; col < q; ++col)",
+      "after": "for (uint32_t col = 0; col < row; ++col)",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "jobs.size() == expected_jobs"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-omit-diagonal-directory",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "for (uint32_t col = row; col < q; ++col)",
+      "after": "for (uint32_t col = row + 1; col < q; ++col)",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "jobs.size() == expected_jobs"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-duplicate-tile-owner",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline std::vector<GramTile> gram_tiles(",
+      "before": "jobs.push_back({row, col});",
+      "after": "jobs.insert(jobs.end(), 2, GramTile{row, col});",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "count == 1"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-wrong-cpu-mirror-index",
+      "source": "src/backend_common/gram_plan.hpp",
+      "source_sha256": "b3e6b6c75fc8617e175ab6ff9cb3488682b4c0bf311b91c504cfa7a7e4c8b284",
+      "anchor": "inline void gram_residues_cpu(",
+      "before": "c[(int64_t(plane) * n + col) * p.output_ld + row] = int8_t(sum);",
+      "after": "c[(int64_t(plane) * n + row) * p.output_ld + col] = int8_t(sum);",
+      "tests": [
+        {
+          "name": "Gram production directory and mirror retain independent ownership and exact values",
+          "source": "tests/unit/test_gram_ownership.cpp",
+          "assertion_marker": "== expected_residue"
+        }
+      ],
+      "mandatory": true
+    },
+    {
+      "id": "gram-reuse-stale-transpose-after-refresh",
+      "source": "src/core/api_prepared_gram.cpp",
+      "source_sha256": "3037312fbcd9b40de13cd7051fd4b3b9ef2d78e3a6717d2922ebdcc3ae32f025",
+      "anchor": "rns8_status rns8_refresh_prepared_gram(",
+      "before": "owner->adapter_ready = false;",
+      "after": "static_cast<void>(owner->adapter_ready);",
+      "tests": [
+        {
+          "name": "Gram native, retained transpose and reconstruction-once compose without stale publication",
+          "source": "tests/support/gram_fixture.hpp",
+          "assertion_marker": "out[index] == expected"
+        }
+      ],
+      "mandatory": true
+    }
+  ]
+}

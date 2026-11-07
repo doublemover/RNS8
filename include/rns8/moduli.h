@@ -24,4 +24,3 @@ RNS8_API rns8_status rns8_validate_default_moduli(void);
 #endif
 
 #endif
-

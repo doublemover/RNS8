@@ -1,0 +1,375 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+  "collector_launch": {
+    "command": {
+      "archived_json_pointer": "/collector_launch/command",
+      "entries": 15
+    },
+    "collector_source_commit": "6a52665c1b4ef3f036665c8b343e140f033af823",
+    "started_unix": 1792964728.7433293,
+    "executable_sha256": "e6441f10fc36eb1200e73f652b814d4402fb4e1ab87791e0493b5e5e15304b4b",
+    "compiled_source_commit": "668f9ea2188bbc31879b3db260140d014478fa79",
+    "campaign_resumed": false,
+    "exit_code": 0,
+    "seconds": 89.11743211746216
+  },
+  "completed_captures": 60,
+  "comparisons": [
+    {
+      "workload": "metadata-4-5-8-p1",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 122812.0,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/0/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/0/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/0/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/0/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/0/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 114921.9,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/0/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/0/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/0/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/0/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/0/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/0/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    },
+    {
+      "workload": "metadata-4-5-512-p9",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 158762.7,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/1/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/1/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/1/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/1/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/1/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 155309.2,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/1/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/1/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/1/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/1/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/1/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/1/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    },
+    {
+      "workload": "metadata-32-8-256-p18",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 164380.90000000002,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/2/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/2/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/2/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/2/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/2/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 160491.4,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/2/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/2/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/2/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/2/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/2/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/2/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    },
+    {
+      "workload": "metadata-32-8-256-p20",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 162415.4,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/3/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/3/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/3/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/3/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/3/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 159159.19999999998,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/3/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/3/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/3/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/3/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/3/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/3/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    },
+    {
+      "workload": "metadata-512-512-512-p20",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 455097.1,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/4/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/4/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/4/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/4/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/4/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 462518.7,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/4/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/4/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/4/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/4/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/4/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/4/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    },
+    {
+      "workload": "metadata-2-3-65537-p9",
+      "same_physical_algorithm_and_work": true,
+      "same_witness": true,
+      "per_block": {
+        "median_us": 161923.0,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/5/per_block/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/5/per_block/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/5/per_block/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/5/per_block/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/5/per_block/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "per_call": {
+        "median_us": 166128.1,
+        "range_us": {
+          "archived_json_pointer": "/comparisons/5/per_call/range_us",
+          "entries": 2
+        },
+        "process_samples_us": {
+          "archived_json_pointer": "/comparisons/5/per_call/process_samples_us",
+          "entries": 5
+        },
+        "plan_workspace_metadata_setup_us": {
+          "archived_json_pointer": "/comparisons/5/per_call/plan_workspace_metadata_setup_us",
+          "entries": 5
+        },
+        "matrix_allocation_us": {
+          "archived_json_pointer": "/comparisons/5/per_call/matrix_allocation_us",
+          "entries": 5
+        },
+        "first_completed_call_us": {
+          "archived_json_pointer": "/comparisons/5/per_call/first_completed_call_us",
+          "entries": 5
+        }
+      },
+      "physical_scope": {
+        "archived_json_pointer": "/comparisons/5/physical_scope",
+        "entries": 4
+      },
+      "scope": "measured_planning_workspace_metadata_queries_plus_matrix_allocation_plus_first_completed_call_after_context_creation_excluding_input_generation_and_independent_oracle"
+    }
+  ],
+  "records": {
+    "archived_json_pointer": "/records",
+    "entries": 60
+  },
+  "collector_identity": {
+    "source_sha256": "a5c430cf36ccfee5cba2f80b71cb03ecb1d0129a378369701bef76eea71e4243",
+    "case_manifest_sha256": "3de87bbc228bb70a3c789d5310cb10b4d45095c610e8270c00a1af66d39d3fa1"
+  },
+  "promotion_eligible": false,
+  "campaign_resumed": false,
+  "steady_state_comparison": false,
+  "original_schema": "rns8_hipblaslt_first_call_review_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/hipblaslt-first-call-observations-20261025.json",
+    "sha256": "2efda9810f7243d9c02436a41b006390f368c8a439d7b20612b792c396a6e62b",
+    "bytes": 236203
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

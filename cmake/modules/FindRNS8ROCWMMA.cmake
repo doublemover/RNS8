@@ -1,3 +1,14 @@
+include("${CMAKE_CURRENT_LIST_DIR}/../RocwmmaTargetContract.cmake")
+set(_RNS8_ROCWMMA_TARGETS ${RNS8_AMDGPU_TARGETS})
+if(NOT _RNS8_ROCWMMA_TARGETS)
+  set(_RNS8_ROCWMMA_TARGETS gfx1100)
+endif()
+rns8_rocwmma_target_contract(RNS8_ROCWMMA_WAVE_THREADS ${_RNS8_ROCWMMA_TARGETS})
+set(_RNS8_ROCWMMA_OFFLOAD_ARGS)
+foreach(_target IN LISTS _RNS8_ROCWMMA_TARGETS)
+  list(APPEND _RNS8_ROCWMMA_OFFLOAD_ARGS "--offload-arch=${_target}")
+endforeach()
+
 set(_RNS8_ROCWMMA_HINTS)
 foreach(_RNS8_ROCWMMA_HINT IN ITEMS
     "${RNS8_ROCWMMA_ROOT}"
@@ -29,12 +40,11 @@ set(RNS8_ROCWMMA_PRIMITIVE_PROBE_OUTPUT "")
 if(RNS8_ROCWMMA_INCLUDE_DIR)
   rns8_assert_no_linux_windows_vcpkg_paths("rocWMMA include directory" "${RNS8_ROCWMMA_INCLUDE_DIR}")
   set(RNS8_ROCWMMA_CANDIDATE TRUE)
-  set(_RNS8_ROCWMMA_TARGET "gfx1100")
-  if(RNS8_AMDGPU_TARGETS)
-    set(_RNS8_ROCWMMA_TARGETS ${RNS8_AMDGPU_TARGETS})
-    list(GET _RNS8_ROCWMMA_TARGETS 0 _RNS8_ROCWMMA_TARGET)
-  endif()
 
+
+  if(RNS8_DISCOVERY_IDENTITY_SHA256)
+    set(RNS8_ROCWMMA_HIPCC "${RNS8_HIP_HIPCC}" CACHE FILEPATH "Shared selected HIP compiler" FORCE)
+  endif()
   find_program(
     RNS8_ROCWMMA_HIPCC
     NAMES hipcc hipcc.exe hipcc.bat
@@ -48,7 +58,8 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     set(_RNS8_ROCWMMA_PROBE_BINARY "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_probe${CMAKE_EXECUTABLE_SUFFIX}")
     file(
       WRITE "${_RNS8_ROCWMMA_PROBE_SOURCE}"
-      "#include <rocwmma/rocwmma.hpp>\n"
+      "#include <chrono>\n"
+      "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_headers.hpp\"\n"
       "__global__ void rns8_rocwmma_dependency_probe_kernel() {}\n"
       "int main() { return 0; }\n"
     )
@@ -56,7 +67,7 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
       COMMAND
         "${RNS8_ROCWMMA_HIPCC}"
         "-std=c++17"
-        "--offload-arch=${_RNS8_ROCWMMA_TARGET}"
+        ${_RNS8_ROCWMMA_OFFLOAD_ARGS}
         "-I${RNS8_ROCWMMA_INCLUDE_DIR}"
         "${_RNS8_ROCWMMA_PROBE_SOURCE}"
         "-o"
@@ -79,9 +90,11 @@ if(RNS8_ROCWMMA_INCLUDE_DIR)
     else()
       set(_RNS8_ROCWMMA_PRIMITIVE_OBJECT "${_RNS8_ROCWMMA_PROBE_DIR}/rocwmma_primitive_probe.o")
     endif()
-    file(WRITE "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}" [=[
+    file(WRITE "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}"
+      "#include <chrono>\n"
+      "#include \"${CMAKE_CURRENT_SOURCE_DIR}/src/backend_rocwmma/rocwmma_headers.hpp\"\n")
+    file(APPEND "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}" [=[
 #include <cstdint>
-#include <rocwmma/rocwmma.hpp>
 
 extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
     const int8_t* a, const int8_t* b, int32_t* c) {
@@ -104,7 +117,7 @@ extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
         "${RNS8_ROCWMMA_HIPCC}"
         "-std=c++17"
         "-O2"
-        "--offload-arch=${_RNS8_ROCWMMA_TARGET}"
+        ${_RNS8_ROCWMMA_OFFLOAD_ARGS}
         "-c"
         "${_RNS8_ROCWMMA_PRIMITIVE_SOURCE}"
         "-I${RNS8_ROCWMMA_INCLUDE_DIR}"

@@ -1,0 +1,537 @@
+# Shared dependency selection
+
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
+The existing dependency checker and the pre-project CMake hook use
+`tools/check_dependencies_lib/resolution.py` to select installations. Selection
+is a filesystem operation: it does not run a compiler, package manager,
+device query, installer or version probe. A discovered path is not evidence
+of API, ABI, instruction, runtime or arithmetic compatibility.
+
+## SDK initialization
+
+`tools/bootstrap_rocm_accelerators.py` also provisions exact ROCm Core SDK
+tarballs from the [AMD stable index](https://stable.repo.amd.com/rocm/core/tarball/).
+The default is Core SDK 10.1.0. This opt-in path is separate from the read-only
+doctor and from `--init`/`--probe` source-submodule actions. It does not install
+a driver, change system PATH, install vcpkg packages or qualify a GPU backend.
+AMD documents the [tarball layout and extraction](https://rocm.docs.amd.com/en/docs-10.1.0/install/rocm.html).
+
+```powershell
+# Find the selected Python, exact SDK, tools and packages; configure/build.
+python tools/init.py --json
+
+# Preview detected targets and one SDK/build lane per family; no network/writes.
+python tools/init.py --dry-run --json
+
+# Build and run the registered suite in the selected SDK/VS environment.
+python tools/init.py --sdk-test --json
+
+# Explicit target also works before any SDK is installed, or on a headless host.
+python tools/bootstrap_rocm_accelerators.py --sdk-install --sdk-target gfx1100 --json
+
+# Reuse an existing extraction; explicitly select the vcpkg installation already prepared.
+python tools/bootstrap_rocm_accelerators.py --sdk-root C:/TheRock/build --sdk-target gfx1100 --sdk-build --sdk-cmake-arg=-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake --sdk-cmake-arg=-DVCPKG_INSTALLED_DIR=C:/Users/sneak/Development/RNS8/vcpkg_installed --json
+```
+
+`tools/init.py` dispatches to the existing accelerator bootstrap with `--sdk-auto`
+and `--sdk-build`. It preserves an already matching interpreter, otherwise
+searches the active/project virtual environment, managed NuGet Python prefix,
+conventional user Python install and PATH for the exact `.python-version`.
+Windows Store execution aliases are excluded. Missing selected Python fails
+with an installation instruction; an older interpreter is never silently used.
+`--no-build` performs SDK preparation only.
+
+`--sdk-auto` checks managed receipts, environment roots and bounded platform
+locations including AMD's `C:/TheRock/build` layout. It reuses only a coherent
+SDK with the exact `.info/version` requested, otherwise provisions the family
+archive. Ambiguous matching installations require an explicit root. Existing
+unmanaged extractions retain unverified archive-origin status; supplying a hash
+pin forces a managed archive installation instead of pretending to verify them.
+
+Build setup prefers CMake/Ninja/CTest beside the selected Python, then PATH,
+and passes their actual paths and `Python3_EXECUTABLE` explicitly. On Windows it
+also finds a prepared vcpkg manifest installation in the repository, selected
+vcpkg root or managed dependency cache. Automatic package choices require the
+requested triplet, installed status, headers and matching policy versions/port
+revisions; explicit `VCPKG_INSTALLED_DIR` choices can retain reported version
+drift. Matching repository packages take precedence; other ambiguous matches
+fail. No package manager is run implicitly. All child build/test commands get
+the chosen SDK/LLVM/tool paths; CTest also loads the VS/Windows SDK environment.
+Windows builds stage the selected HIP runtime and its SDK-owned `rocm_kpack`
+loader and `amd_comgr` compiler library beside executables when supplied, with
+hashes in the build manifest. COMGR is loaded dynamically during GPU discovery;
+omitting it can make a complete SDK report no devices. Staging is necessary
+because System32 precedes PATH in ordinary DLL loading. Installed packages
+include those selected files; the shipped consumers call
+`rns8_copy_runtime_dependencies(target)` to stage them beside each executable.
+Custom Windows CMake consumers can use the same exported helper without SDK path
+arguments. Parallel targets sharing an output directory serialize staging;
+missing selected files fail the build. Runtime module paths/hashes remain part
+of qualification evidence, independently of compiler selection.
+Shared discovery accepts `VCPKG_INSTALLED_DIR` directly and binds enabled
+GMP/FLINT headers and libraries to that selected manifest triplet. A missing
+enabled reference fails instead of borrowing it from an older classic install;
+an intentional alternate reference still uses its explicit component root.
+The installation/status identity is recorded. The initializer resolves every
+enabled component before invoking CMake, overriding stale automatic component
+paths when the selected manifest installation changes.
+
+Native Linux uses the same Python entry point. AMD architecture enumeration is
+preferred; Windows also recognizes common desktop RX 7000/9000 adapter names
+without an SDK. Unknown AMD adapters require an exact `--sdk-target`; there is
+no silent gfx1100 fallback. Repeat that option for multiple devices/families.
+Only exact known targets are mapped; actual OS/family/release availability is
+checked against AMD's index before download. Available archives do not imply
+official driver support or arithmetic/instruction qualification.
+
+`--sdk-prefix`, `--sdk-cache` and `--sdk-build-root` select managed directories;
+defaults are ignored `out/third_party/rocm/sdk`, `temp/rocm-sdk-downloads` and
+`build/rocm-sdk`. Family/version directories are never overlaid. Downloads use
+HTTPS, bounded streaming and atomic publication; extraction uses Python's tar
+data filter plus path/member/expanded-size checks in a new staging directory.
+Internal Linux library links are permitted, escaping links and special files
+are rejected. An interrupted extraction never becomes an installed prefix.
+Links resolve after streamed payloads, including forward references; Windows
+file links can become internal hard links/copies when symlink privileges are
+unavailable. Expanded-byte limits also cover fallback copies.
+Successful installations record source URL, archive SHA-256, family, version
+and SDK-relative root in `rns8-sdk.json`. Reuse rechecks SDK coherence/version.
+
+Supply `--sdk-sha256 gfx110X-all=HEX_DIGEST` to enforce an independently obtained
+64-digit SHA-256. The observed AMD index has no checksum sidecar for the local
+archive; an unpinned install records `https_observed_sha256`, not publisher hash
+verification. Cached archives are rehashed before reuse; corrupt/unknown cache
+entries and existing inconsistent prefixes fail without being overwritten.
+An adopted `--sdk-root` records unverified archive origin instead of inventing
+a download receipt. Archive hashes describe the archive, not ongoing installed
+file tamper detection.
+
+`--sdk-build` configures Release/Ninja and builds each selected family separately,
+feeding explicit compiler, runtime, bitcode, optional SDK-header roots and
+offload targets through shared discovery. `--sdk-cmake-arg=-DKEY=VALUE` supplies
+feature/package choices and `--sdk-jobs` bounds compilation parallelism. SDK
+bindings take precedence over extra options. Build commands inherit only
+process-local SDK paths; Windows loads the VS developer environment through
+`windows_dev.py`. No tests or benchmark campaigns are started by provisioning.
+The JSON output records the actual commands; in a dry run the archive's internal
+SDK subdirectory is not yet known, so the planned root is the destination prefix.
+
+Run Windows CTest through the developer wrapper as well, so installed-consumer
+checks inherit the Windows SDK linker/resource-compiler environment:
+
+```powershell
+python tools/windows_dev.py ctest --test-dir build/rocm-sdk/windows-gfx110X-all-10.1.0 --output-on-failure -j 1
+```
+
+## Inspect or configure
+
+Inspect environment candidates without executing the full doctor's command/
+device inventory or optional probes:
+
+```powershell
+python tools/check_dependencies.py --resolve-only --json
+```
+
+Use the same CMake variable names for explicit choices. This example selects
+nondefault Windows roots with spaces:
+
+```powershell
+python tools/check_dependencies.py --resolve-only --json --set "RNS8_HIP_ROOT=D:/AMD SDK/ROCm/7.1" --set "VCPKG_ROOT=D:/Development Tools/vcpkg" --set RNS8_ENABLE_HIP=ON
+python tools/windows_dev.py cmake --preset windows-msvc-hip-debug "-DRNS8_HIP_ROOT=D:/AMD SDK/ROCm/7.1" "-DVCPKG_ROOT=D:/Development Tools/vcpkg" -DRNS8_AMDGPU_TARGETS=gfx1100
+```
+
+The Windows wrapper loads the Visual Studio developer environment and preserves
+the CMake command, preset and `-D` choices. CMake calls the same checker in
+resolve-only mode **before `project()`**, so the selected vcpkg toolchain is
+available before compiler and package discovery. The checked-in presets no
+longer require a particular workstation HIP/vcpkg root. An unambiguous existing
+installation can be selected without root overrides:
+
+```powershell
+python tools/windows_dev.py cmake --preset windows-msvc-hip-debug -DRNS8_AMDGPU_TARGETS=gfx1100
+```
+
+On native Linux use the existing native-package presets. For example:
+
+```sh
+python3 tools/check_dependencies.py --resolve-only --json --set RNS8_HIP_ROOT=/opt/rocm-7.1.0 --set RNS8_ENABLE_HIP=ON
+cmake --preset linux-rocm-debug -DRNS8_HIP_ROOT=/opt/rocm-7.1.0 -DRNS8_AMDGPU_TARGETS=gfx1100
+```
+
+These commands describe implemented selection paths. Fresh nondefault-prefix
+Windows/Linux GPU quickstart qualification remains separate from filesystem
+fixtures. Choose versions and targets supported by the actual platform; this
+resolver does not select or upgrade to a purported latest release. The
+[Windows](platform-windows.md) and [Linux](platform-linux.md) guides retain the
+actual build/test boundaries.
+
+Each configure writes `dependency-discovery/request.json` and `resolution.json`
+inside that build directory. The typed request records root/component overrides,
+feature policy and target context; the result records every bounded candidate,
+its origin/priority, canonical paths, rejection reasons and the selected reason.
+An effective identity binds selected files/paths, header version or null, source
+revision where readable, targets, feature policy and manifest identity. Candidate
+history and generated output filenames do not change that identity merely
+because a subsequent configure cached an automatic choice. Compiled provenance
+records `dependency_resolution_sha256`; without this path it explicitly records
+`unavailable_no_shared_resolution`.
+
+Inspect a configured build with the same cache choices:
+
+```powershell
+python tools/check_dependencies.py --resolve-only --json --cmake-cache build/windows-msvc-hip-debug/CMakeCache.txt
+```
+
+`--set NAME=VALUE` overrides that cache for inspection only. It does not rewrite
+the cache, a user preset, PATH, registry, package sources or installed files.
+The ordinary checker still includes its existing tool/device inventory;
+`--accelerator-probes` explicitly requests its existing compile/runtime probes.
+Resolve-only cannot be combined with those probes. Bootstrap remains a separate
+explicit workflow; its selected toolchain report reuses the shared resolver.
+
+## Selection rules
+
+HIP selection uses these ordered sources:
+
+1. Explicit CMake/cache/`--set` `RNS8_HIP_ROOT`, or an SDK inferred from explicit
+   compiler/include/library/runtime/device-library component paths.
+2. Project environment `RNS8_HIP_ROOT`, then `HIP_PATH` and `ROCM_PATH`.
+3. Declared sysroot/find-root candidates and `CMAKE_PREFIX_PATH` candidates.
+4. The SDK owning the `hipcc` found on PATH.
+5. Bounded platform roots: immediate version directories under
+   `Program Files/AMD/ROCm` on Windows; `/opt/rocm`, immediate `/opt/rocm-*`,
+   `/usr` and `/usr/local` on Linux.
+
+Automatic SDK initialization uses this same ranked result with an exact
+requested Core release constraint from `.info/version`, separate from the HIP
+header version. Valid managed receipts enter after declared prefixes and before
+PATH/default candidates. They cannot bypass an explicit project root. Invalid
+explicit roots, incompatible explicit releases, and equal-priority ambiguity
+stop reuse before provisioning; canonical aliases remain one candidate. A bad
+managed receipt is reported and may be bypassed by a valid higher-priority SDK;
+an unselected inconsistent managed destination is preserved for repair.
+`--sdk-root`, explicit archive installation and archive SHA-256 pins deliberately
+override environment discovery and report that policy. A pin never certifies an
+unmanaged extraction.
+
+An invalid explicit choice fails even when another complete SDK exists. Two
+valid candidates at the same best priority require an explicit selection;
+directory names and highest-version guesses do not break ties. Symlink aliases
+to the same canonical root count as one installation. Lower-priority rejected
+candidates remain visible. Missing unrequested optional components do not fail
+an otherwise valid selection; explicitly requested missing components do.
+
+A HIP candidate needs its compiler driver, Clang driver, public headers,
+development link library, runtime artifact and device bitcode under one
+canonical SDK root. Header/library/compiler component overrides are honored
+only when coherent with that root. Runtime/device-library overrides can resolve
+ambiguity within it. A runtime DLL/header major disagreement, known binary
+architecture mismatch, missing component or path escaping the selected root
+rejects the candidate. The HIP version comes from its selected `hip_version.h`;
+unknown remains null. Selected compiler/header/library/runtime file hashes are
+identity artifacts, not a hash of every SDK header or proof of binary loading.
+
+The HIP compiler child processes receive the selected `HIP_PATH`, `ROCM_PATH`,
+`HIP_CLANG_PATH` and `HIP_DEVICE_LIB_PATH`, including component overrides.
+These paths pass through the child environment because the Windows HIP driver
+can lose spaces when forwarding joined path flags. These are process settings;
+the user's system environment remains unchanged. See the upstream
+[Clang HIP path rules](https://clang.llvm.org/docs/HIPSupport.html) and
+[HIPCC environment variables](https://rocm.docs.amd.com/projects/HIPCC/en/docs-6.0.2/env.html).
+The STL overlay probe uses the selected Clang driver rather than assuming it
+lives beside `hipcc`.
+
+Host Python selection preserves an explicit interpreter or virtual environment.
+Windows autodiscovery tries `python` before `python3`. Unreadable Windows Store
+app-execution aliases are unsupported: select a readable interpreter explicitly,
+for example `-DPython3_EXECUTABLE=C:/path/to/python.3.15.2/tools/python.exe`
+for a verified portable CPython installation, or the selected project venv executable. Discovery fails rather than switching interpreter versions.
+A virtual environment's invocation path stays intact even when its executable
+is a symlink to a base interpreter. The selected Python version, prefixes and
+readable executable digest are recorded in discovery identity.
+
+Windows vcpkg selection prefers an explicit `CMAKE_TOOLCHAIN_FILE` or
+`VCPKG_ROOT`, then environment `VCPKG_ROOT`, the executable's PATH root, and the
+bounded system-drive `vcpkg` root. The root must contain both the toolchain and a
+bootstrapped executable. An explicitly selected external toolchain is preserved;
+discovered vcpkg is not injected over it. Conflicting explicit vcpkg roots fail.
+The declared Windows triplet is checked against the selected host/system
+processor. Package presence, baseline identity and triplet spelling do not prove
+the ABI or lock compatibility of an existing binary installation.
+
+Native Linux and WSL retain native package policy. They reject vcpkg toolchains,
+Windows triplets and Windows package paths in include/library/prefix/sysroot
+inputs. No Linux-vcpkg lane is introduced. `lib`, `lib64` and immediate native
+multiarch directories are considered. Declared sysroot/find-root candidates
+are recorded; package mode `ONLY` rejects candidates outside those roots.
+The resolver does not execute or interpret arbitrary user toolchain scripts.
+If a toolchain computes roots only when CMake loads it, supply the intended
+`CMAKE_SYSROOT`/find-root and SDK values explicitly for the early selection.
+This is a selection contract, not general cross-compilation qualification.
+
+## Optional components and core packages
+
+Explicit `RNS8_CK_ROOT`, `RNS8_ROCWMMA_ROOT`, `RNS8_HIPBLASLT_ROOT`,
+`RNS8_GMP_ROOT` and `RNS8_FLINT_ROOT` are honored. Their existing include/library
+overrides are also retained or rejected for mixed-root conflicts; the handoff
+does not silently overwrite them. Without overrides, candidates include CMake
+prefixes, the selected SDK, selected Windows vcpkg/manifest triplet, pinned
+repository CK/rocWMMA sources, and native prefixes as appropriate. Optional
+header/library candidates remain `discovered`; their existing CMake finders and
+explicit probe workflows own API/target/link evidence. Merely discovering them
+does not change any `RNS8_ENABLE_*` flag or default backend dispatch.
+
+Enabled hipBLASLt builds and installed consumers require the upstream CMake
+config package exporting `roc::hipblaslt`. Raw header/library discovery remains
+useful inventory/probe evidence, but cannot recreate its full link interface or
+Windows import-library contract. The shared build/consumer package resolver
+honors current `hipblaslt_DIR`, `RNS8_HIPBLASLT_ROOT`, `RNS8_HIP_ROOT` and ordinary
+CMake package prefixes; explicit roots and package directories must agree.
+A consumer package-directory choice takes precedence over inherited project
+root variables. Installed RNS8 configuration no longer embeds producer-machine
+hipBLASLt include/library paths or fabricates a raw imported target after a
+failed lookup. Missing dependencies return package-not-found for optional
+lookups and fail a required lookup. Failed partial imports cannot become success
+on a subsequent lookup. CPU-only packages do not require this component.
+Core HIP export linkage likewise uses a named runtime dependency, rather than
+serializing the producer's runtime library path. Windows Development packages
+include the matching HIP import library under `lib/rns8-dependencies`; installed
+static consumers bind it to the HIP DLL already bundled in the Runtime component.
+Both components are required for an installed HIP package. Relocating the RNS8
+prefix moves that pair together without requiring the producer's SDK. Native
+Linux consumers resolve their current AMD HIP config package (`hip::host` and
+`hip::amdhip64`) through `hip_DIR`, `RNS8_HIP_ROOT` or normal CMake prefixes.
+The shared package checker verifies the physical AMD runtime as well as its
+host interface against an explicit SDK root. No CMake HIP language is enabled.
+
+The installed workload harness forwards the selected SDK/component/package
+inputs. Compiler-free configure fixtures cover moved RNS8 prefixes, nondefault
+SDKs with spaces, required/quiet rejection, conflicting roots and CPU-only use;
+real static/shared link/runtime qualification remains a separate gate.
+
+Boost.Multiprecision and nlohmann-json remain required CMake dependencies;
+Catch2 remains conditional on test targets and OpenMP on the existing CPU option.
+Their actual `find_package`/header checks consume the selected toolchain and
+prefix context. The shared resolver does not replace CMake's native package
+solver. Unrelated Python/scientific packages remain inventory entries. GMP/FLINT
+package inventory versions are reported separately from usability. Explicit
+enablement now compiles and links a tiny arithmetic API program through the
+selected imported targets, including builds with project tests disabled. Configure
+does not execute it. The separately registered smoke test checks runtime arithmetic
+when tests are enabled. Those authored checks do not establish complete transitive
+ABI or upgraded-stack qualification.
+
+FLINT enablement also resolves and binds GMP and MPFR, including when
+`RNS8_ENABLE_GMP=OFF`. `RNS8_MPFR_ROOT`, `RNS8_MPFR_INCLUDE_DIR` and
+`RNS8_MPFR_LIBRARY` follow the same explicit-choice rules as the GMP/FLINT inputs.
+A selected FLINT root is a dependency-prefix candidate, so a complete private
+prefix works without additional path edits; explicit per-library roots still
+take priority. Raw imported FLINT targets carry MPFR, GMP, native POSIX threads
+and, on Linux, libm. Native MSVC requires the complete `PThreads4W::PThreads4W`
+package interface, as used by the upstream Windows build. Put its prefix in
+`CMAKE_PREFIX_PATH`; an unsupported custom thread configuration fails rather
+than inventing an import target. Linux uses native `Threads::Threads`.
+
+The shared compile/link smoke requires GMP >=6.2.1, FLINT >=3 and MPFR >=4.1.0,
+checks GMP's host limb layout, and references the integer and MPFR conversion
+APIs together. The separately executed smoke checks the resulting arithmetic
+and prints runtime versions. These are compatibility checks for the selected
+APIs, not a complete loader or every-configuration ABI certificate. Additional
+custom FLINT features such as BLAS must provide a linkable configuration.
+The requirements follow [FLINT's dependency documentation](https://flintlib.org/doc/guide/getting-started/introduction.html)
+and the [selected release's Windows link setup](https://github.com/flintlib/flint/blob/v3.6.0/CMakeLists.txt).
+
+The doctor offers the same compile/link check explicitly:
+
+```sh
+python tools/check_dependencies.py --reference-probes --json
+```
+
+Use the existing `--cmake-cache` or `--set NAME=VALUE` inputs for the selected
+compiler, toolchain and native prefixes. It probes discovered GMP and FLINT
+separately, retaining a missing/unsupported state instead of installing anything.
+Each invocation configures a fresh tiny CMake project through the production
+finder in `temp/exact-reference-deps/COMPONENT-NONCE`; `--reference-probe-dir`
+selects another parent under repository `temp/`. Native Windows uses the existing
+developer-environment wrapper. Native Linux invokes the selected tools directly;
+cross/other-host configurations remain an explicit unsupported doctor lane.
+Both vcpkg manifest mode and configure-time installation are disabled.
+
+The 180-second, 8MiB output and 256MiB artifact budgets apply per component.
+Reports retain full bounded process output, compiler/link diagnostics, selected
+input bookends, actual compiler identity, linked binary and native CMake receipt.
+`COMPILE_LINK_PASS` establishes the selected smoke APIs linked; runtime loading,
+arithmetic execution, complete transitive file custody and platform qualification
+remain unproven. `optional_cpp_references` distinguishes that result from package
+inventory. Optional probe outcomes do not change host readiness, feature policy
+or default dispatch. Interrupted probes stop without retries. Ordinary discovery,
+`--resolve-only` and `--check-lock` never execute this path. The registered inert
+recorder controls are source-authored and follow the roadmap's execution scope.
+
+## Installation and remaining gates
+
+The existing submodule bootstrap now uses native host checks: MSVC developer
+discovery on Windows, and the selected native C++ compiler on Linux. It does not
+run `where cl` or require Visual Studio on Linux. A different or absent local
+GPU is diagnostic information, not a toolchain rejection; compilation targets
+come from the explicit request. All bootstrap compile steps keep the same shared
+SDK selection and selected HIP child environment. These changes are source-ready;
+native Windows/Linux installation and target compatibility remain unqualified.
+
+Initialization reuses a clean checkout already at the reviewed pin. It preserves
+dirty/untracked, uninspectable, foreign-URL, nonempty foreign or linked dependency
+destinations and reports why it did not initialize them. Updates never use
+`--force`; a failed attempt retains the existing files and a newly initialized
+checkout must be clean at the reviewed SHA/URL. Read-only Git inventory disables
+optional index locking/refresh writes. The write-free dry run still makes no
+installation, compiler or device probe.
+
+Host selection honors `CMAKE_CXX_COMPILER` before `CXX`, then native PATH. A
+compiler choice must identify one executable; put flags in separate CMake/compiler
+flag inputs. A quoted single path with spaces is accepted. Invalid explicit
+choices fail without PATH fallback. Preserve driver invocation names such as
+`clang++` and virtual-environment interpreter paths; resolved artifacts are hashed
+separately. The shared invocation helper also serves host instrumentation.
+
+| Dependency | Windows setup decision | Native Linux setup decision | Compatibility boundary |
+|---|---|---|---|
+| CK / rocWMMA | Explicit pinned submodule initialization | Same pinned source workflow with native compiler | Per-target primitives, followed by real configured build; no automatic backend enablement |
+| hipBLASLt | Reuse supported AMD SDK/component package; otherwise manual upstream setup | Reuse release-matched native ROCm package or custom installed prefix | Complete exported target and actual API/link checks; unsupported OS/release/target combinations stay unsupported |
+| AMDGPU builtins | Reuse selected HIP compiler; SDK provisioning is a separate explicit action | Reuse selected ROCm/HIP compiler; driver/system installation is manual | Production body object checks; no independently installable builtin library |
+| GMP / FLINT / MPFR | Explicit vcpkg optional feature or manual native prefix, including supported PThreads4W interface | Explicit distribution development packages or manual upstream native prefix; no Windows-vcpkg reuse | Shared production compile/link probe, then separately requested runtime smoke |
+
+The platform setup commands live in [Windows](platform-windows.md) and
+[Linux](platform-linux.md); the [dependency guide](../third_party/README.md) owns
+pins. Automatic source builds of custom hipBLASLt/GMP/FLINT configurations are
+not offered: compiler/CRT/thread/BLAS options and platform packaging require an
+operator-selected supported build. Manual setup is an explicit supported policy
+choice here, not an implicit install or an unobserved platform pass.
+
+The manual [dependency-contract candidate workflow](../.github/workflows/dependency-contract-candidate.yml)
+defines native Windows2025 and Ubuntu24.04 fixture lanes using exact selected
+Python and hash-locked CMake/Ninja. Its compiler-free CMake project and the
+ordinary test build call the same registration helper for all 14 dependency
+contracts. The full batch includes discovery/root/ABI-policy rejection,
+CK/rocWMMA/builtin target and wrapped-environment controls, reference probe
+receipts, installed package policy, archive/bootstrap planning and interrupted
+installation controls. CTest keeps the named denominator, per-case failures and
+JUnit/log artifacts. It requires no SDK, GPU, privileged package installation or
+first-party library build. The workflow is authored and linted, not dispatched;
+required CI activation awaits its native sensitivity/cost qualification.
+Filesystem mocks
+and command recorders never qualify native dependency binaries.
+
+| Lane | Source readiness | Observed acceptance for these new changes |
+|---|---|---|
+| Native Windows host contracts | Authored, manual workflow | Not run |
+| Native Linux host contracts | Authored, manual workflow | Not run |
+| Windows SDK/reference packages and fresh custom prefixes | Discovery/probe/build entrypoints authored | Pending native compiler/link/runtime and disposable install runs |
+| Linux ROCm/reference packages and fresh custom prefixes | Native entrypoints and explicit manual setup policy authored | Pending native compiler/link/runtime and disposable install runs |
+| WSL | Separate Linux/native-artifact policy | No transferred native-Linux or Windows qualification |
+
+Resolution now records an explicit `host_environment`: native Windows/Linux,
+kernel-reported WSL2 or unspecified WSL, unverified WSL environment hints,
+unknown Linux kernel scope, or a requested platform differing from the running
+host. Private WSL socket/distribution values are not recorded. This scope is
+bound into selection identity and carried by doctor/bootstrap/reference and
+primitive probe reports, so native Linux and WSL cannot silently reuse one
+selection identity. Both retain native Linux artifact discovery and Windows
+package rejection. Kernel/environment metadata is not a driver or GPU support
+probe; all scopes retain `qualification: not_run` until their separate native
+acceptance is observed.
+
+The shipped presets and early handoff default `VCPKG_MANIFEST_INSTALL=OFF`.
+Install declared packages explicitly using the existing
+[dependency guide](../third_party/README.md) command. An old cache or deliberately
+supplied vcpkg setting remains visible; use `-DVCPKG_MANIFEST_INSTALL=OFF` when
+reconfiguring such a tree to prohibit its toolchain's install behavior. Root
+selection itself never downloads, bootstraps or upgrades anything. It never
+overwrites `CMakeUserPresets.json`. Remove a stale build cache or use an explicit
+fresh build when switching compiler generations or installations; invalid cached
+paths fail rather than silently selecting another release.
+
+This slice does not close all of[#57](https://github.com/doublemover/RNS8/issues/57).
+Existing CK XDL/WMMA probes instantiate the actual DeviceGemm, MakeArgument and
+Invoker path; rocWMMA probes compile the required MMA primitive. These are
+source/target compile checks, not complete backend differentials. Remaining gates
+include broader target/release API compatibility, builtin signature coverage,
+hipBLASLt runtime/transitive ABI checks, optional-reference platform qualification,
+core-package version/lock compatibility, disposable installer qualification, and
+real fresh-prefix Windows/Linux/WSL runs.
+[#60](https://github.com/doublemover/RNS8/issues/60) owns upgrade qualification and the maintained version policy;
+[#58](https://github.com/doublemover/RNS8/issues/58) owns Linux session rehearsal.
+Filesystem fixtures and a CMake script-mode handoff test do not compile a kernel
+or qualify a GPU, compiler, platform, or supported-release combination.
+
+CK configuration probes every distinct requested target, retaining separate
+compile/link and real INT8 primitive-object logs in a fresh configure-local
+directory. Every target must pass both stages before dependency readiness is
+reported; a later target's failure cannot reuse the first one's result. CMake
+and the Python dependency/bootstrap probes share `tools/probes/ck_primitive.hip`
+for the actual XDL/WMMA DeviceGemm, invocation and centered epilogue types.
+CK's package has one host lowering: wave64 targets use XDL/alignment128 and
+wave32 targets use WMMA/alignment64. Mixed families require separate CK builds;
+direct HIP remains available for mixed packages with optional backends disabled.
+CK and rocWMMA share the finite target/feature validator, including duplicate
+`xnack`/`sramecc` rejection. A listed target still needs the selected compiler
+and dependency to support it; a compiler pass provides no runtime or ISA credit.
+The configure command-recorder and target-contract regressions are authored,
+not executed in this frontload phase. Native platform qualification remains
+outstanding.
+
+Doctor `--accelerator-probes` now uses the shared selected target list, with an
+explicit `--set RNS8_AMDGPU_TARGETS=...` taking precedence over observed hardware.
+Every distinct CK/rocWMMA/builtin target gets its own fresh primitive object and
+bounded process receipt; aggregate success requires the complete denominator.
+Mixed CK/rocWMMA host lowerings cannot become package readiness. Malformed or
+duplicate feature flags, unsupported bodies, missing compilers and actual compile
+failures retain different states. Object probes have per-target 180-second,
+8MiB output and 256MiB artifact budgets. An interruption stops remaining targets.
+Native Windows wrapping carries the selected HIP environment explicitly.
+
+Builtin probes compile the production kernel translation unit, including its
+target-specific dense and sparse signatures, with a device-pass guard rejecting
+empty specializations. Current builtin bodies are gfx942, gfx1100/1101/1102 and
+gfx1200/1201; other families remain unsupported here even if the SDK accepts
+their target names. This is an object-only basic C++17/O2 compatibility probe,
+not a replacement for the real configured production build/options, exact CPU
+differentials, ISA inspection or runtime hardware qualification. Source/driver/
+selected-header bookends and complete bounded process logs are retained;
+complete transitive compilation provenance still belongs to the build manifest.
+No backend is installed, enabled or promoted by these probes. Inert
+recorder
+controls are registered; native probe qualification is specific to the selected
+SDK/backend/target.
+
+The [dependency version policy](dependency-versions.md) now supplies exact
+candidate pins and offline consistency/observed-version gates. Filesystem
+resolution still does not establish qualification; source declarations, installed
+artifacts and actual runtime compatibility remain distinct.
+
+Build manifest version3 records package-manager-neutral selected content. CMake
+declares the actual dependency trees, linked HIP/hipBLASLt/transport/reference
+files, explicit runtime files and compiler inputs. Every build hashes those
+contents alongside the dependency policy, build-tool lock and shared resolution
+identity. Native packages need no vcpkg installation or status file. A vcpkg
+toolchain additionally binds its actual installed-status receipt; an empty install
+setting never triggers a relative lookup in the working directory.
+
+The full dependency digest binds each selected set. Compatibility compares common
+header/library contents and policy/package receipts, allowing different optional
+backend sets while rejecting contradictory shared contents. Existing complete
+version2 manifests retain their historical status/header contract; version2 and
+version3 are not implicitly merged. Missing declared contents, stale lock hashes,
+unknown resolution, dirty/unknown source and backend mismatches remain ineligible.
+Diagnostic shape acceptance remains separate and cannot substitute a fabricated
+digest or rewrite experimental configuration to obtain qualification.
+
+`tools/build_manifest.py --check-build BUILD_DIR` performs host-only admission of
+the unique built configuration manifest; `--backend` may be repeated for combined
+lanes. Multiple built configurations require explicit `--check-manifest PATH`.
+The qualification runner invokes this gate after each build and before device
+inspection, tests or collection. Interface-only hipBLASLt packages without a
+declared concrete binary remain buildable but lack complete binary provenance.
+Native Linux execution and target measurements for this source change remain
+deferred; content admission alone qualifies no GPU behavior or performance.

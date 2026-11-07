@@ -1,41 +1,81 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
-import os
 import platform
-import re
-import shutil
-import subprocess
-import sys
-from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .accelerators import *
-from .config import *
-from .discovery import *
-from .system import *
+from check_dependencies_lib.config import (
+    ACCELERATOR_ENABLE_FLAGS,
+    ACCELERATOR_ENABLE_POLICY,
+    ACCELERATOR_NAMES,
+    CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+    CHECKER_VALIDATION_SCOPE,
+    CORE_VCPKG_PACKAGES,
+    HOST_NEUTRAL_CORE_COMMANDS,
+    LINUX_CDNA_TARGETS,
+    LINUX_PROFILER_COMMANDS,
+    LINUX_RDNA_TARGETS,
+    LINUX_ROCM_DIAGNOSTIC_COMMANDS,
+    LINUX_ROCM_REQUIRED_COMMANDS,
+    LINUX_SMI_COMMANDS,
+    LINUX_TOPOLOGY_COMMANDS,
+    OPTIONAL_CPP_PACKAGES,
+    PYTHON_PACKAGES,
+    WINDOWS_CORE_COMMANDS,
+    WINDOWS_HIP_COMMANDS,
+)
+from check_dependencies_lib.discovery import (
+    first_existing,
+)
+from check_dependencies_lib.system import (
+    repo_root,
+)
+from .resolution import ACTIVE_RESOLUTION
 
-def optional_cpp_references(vcpkg_installed: dict[str, str]) -> dict[str, dict[str, object]]:
+
+def optional_cpp_references(
+    vcpkg_installed: dict[str, str], probes: dict | None = None
+) -> dict[str, dict[str, object]]:
     report: dict[str, dict[str, object]] = {}
+    resolution = ACTIVE_RESOLUTION.get()
     for package in OPTIONAL_CPP_PACKAGES:
+        component = resolution["optional_components"].get(package) if resolution else None
         report[package] = {
-            "ok": package in vcpkg_installed,
+            "ok": False,
             "required": False,
-            "version": vcpkg_installed.get(package),
+            "version": None,
+            "package_inventory_version": vcpkg_installed.get(package),
+            "status": component["status"] if component else "not_probed",
+            "selected": component.get("selected") if component else None,
+            "compatibility": "not_run",
+            "detail": "inventory/path evidence alone does not establish version/API/ABI/transitive-link compatibility",
         }
+        probe = (probes or {}).get("items", {}).get(package)
+        if probe:
+            report[package]["compile_link_probe"] = probe
+            if probe["ok"]:
+                report[package].update(
+                    ok=True,
+                    compatibility="compile_link_compatible_runtime_not_run",
+                    detail="Selected native APIs compiled and linked using the production finder; runtime arithmetic and loader compatibility remain unobserved",
+                )
     return report
 
 
 def project_tools() -> dict[str, dict[str, object]]:
     root = repo_root()
     tools = {
-        "rns8-inspect": [root / "tools" / "rns8_inspect.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-inspect.exe"],
-        "rns8-verify": [root / "tools" / "rns8_verify.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-verify.exe"],
-        "rns8-bench": [root / "benchmarks" / "rns8_bench.cpp", root / "build" / "windows-msvc-hip-debug" / "rns8-bench.exe"],
+        "rns8-inspect": [
+            root / "tools" / "rns8_inspect.cpp",
+            root / "build" / "windows-msvc-hip-debug" / "rns8-inspect.exe",
+        ],
+        "rns8-verify": [
+            root / "tools" / "rns8_verify.cpp",
+            root / "build" / "windows-msvc-hip-debug" / "rns8-verify.exe",
+        ],
+        "rns8-bench": [
+            root / "benchmarks" / "rns8_bench.cpp",
+            root / "build" / "windows-msvc-hip-debug" / "rns8-bench.exe",
+        ],
         "result_compare": [root / "tools" / "result_compare.py"],
     }
     return {
@@ -101,6 +141,12 @@ def accelerator_gate(
         status = "PRIMITIVE_PROBE_PASS"
     elif primitive_probe_status == "OBJECT_COMPILE_FAIL":
         status = "PRIMITIVE_PROBE_FAIL"
+    elif (
+        isinstance(probe, dict)
+        and probe.get("primitive_probe_requested")
+        and not probe.get("primitive_probe_ok")
+    ):
+        status = "PRIMITIVE_PROBE_BLOCKED"
     elif probe_status == "COMPILE_LINK_PASS_RUN_PASS":
         status = "PROBE_PASS"
     elif probe_status == "COMPILE_LINK_PASS_RUN_FAIL":
@@ -197,7 +243,9 @@ def accelerator_gate(
             f"int8 primitive object probe: {primitive_probe_status}",
         ],
         "detail": detail,
-        "windows_policy": "optional feature-detected accelerator" if host_is_windows else "not the active host policy",
+        "windows_policy": "optional feature-detected accelerator"
+        if host_is_windows
+        else "not the active host policy",
     }
 
 
@@ -245,19 +293,24 @@ def accelerator_enablement_policy(
             ),
             "validated_correctness_backend": False,
             "can_enable_correctness_backend": (
-                (is_hipblaslt or is_ck or is_rocwmma or is_amdgpu_builtins) and bool(component.get("ok"))
+                (is_hipblaslt or is_ck or is_rocwmma or is_amdgpu_builtins)
+                and bool(component.get("ok"))
                 if isinstance(component, dict)
                 else False
             ),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
-            "component_discovered": bool(component.get("ok")) if isinstance(component, dict) else False,
+            "component_discovered": bool(component.get("ok"))
+            if isinstance(component, dict)
+            else False,
             "probe_status": probe.get("status") if isinstance(probe, dict) else "NOT_REQUESTED",
             "primitive_probe_status": (
                 probe.get("primitive_probe_status") if isinstance(probe, dict) else "NOT_REQUESTED"
             ),
-            "primitive_probe_ok": bool(probe.get("primitive_probe_ok")) if isinstance(probe, dict) else False,
+            "primitive_probe_ok": bool(probe.get("primitive_probe_ok"))
+            if isinstance(probe, dict)
+            else False,
             "readiness_effect": "none",
         }
     return {
@@ -333,7 +386,9 @@ def correctness_backend_validation_status(
             "direct_hip": {
                 "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_HIP",
                 "evidence_class": "implemented_correctness_backend",
-                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "host_target_evidence": "windows_gfx1100_visible"
+                if windows_gfx1100_visible
+                else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "Windows/Linux HIP build, ctest, and smoke runs, not dependency discovery",
             },
@@ -346,28 +401,36 @@ def correctness_backend_validation_status(
             "hipblaslt": {
                 "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_HIPBLASLT",
                 "evidence_class": "implemented_correctness_backend",
-                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "host_target_evidence": "windows_gfx1100_visible"
+                if windows_gfx1100_visible
+                else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-hipblaslt-debug build and exact CPU/direct-HIP differentials, not dependency discovery",
             },
             "ck": {
                 "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_CK",
                 "evidence_class": "implemented_correctness_backend",
-                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "host_target_evidence": "windows_gfx1100_visible"
+                if windows_gfx1100_visible
+                else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-ck-debug build, exact CPU/direct-HIP differentials, CK ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
             "rocwmma": {
                 "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_ROCWMMA",
                 "evidence_class": "implemented_correctness_backend",
-                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "host_target_evidence": "windows_gfx1100_visible"
+                if windows_gfx1100_visible
+                else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-rocwmma-debug build, exact CPU/direct-HIP differentials, rocWMMA ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
             "amdgpu_builtins": {
                 "backend_enablement": "implemented_when_built_with_RNS8_ENABLE_AMDGPU_BUILTINS",
                 "evidence_class": "implemented_correctness_backend",
-                "host_target_evidence": "windows_gfx1100_visible" if windows_gfx1100_visible else "not_current_host_evidence",
+                "host_target_evidence": "windows_gfx1100_visible"
+                if windows_gfx1100_visible
+                else "not_current_host_evidence",
                 "validated_by_this_report": False,
                 "validation_source": "windows-amdgpu-builtins-debug build, exact CPU/direct-HIP differentials, ISA gate, and benchmark schema fixtures, not dependency discovery",
             },
@@ -380,7 +443,9 @@ def correctness_backend_validation_status(
     }
 
 
-def exact_wide_platform_validation_status(host_system: str, hip_info: dict[str, object]) -> dict[str, object]:
+def exact_wide_platform_validation_status(
+    host_system: str, hip_info: dict[str, object]
+) -> dict[str, object]:
     target = hip_info.get("target")
     windows_gfx1100_evidence = host_system == "Windows" and target == "gfx1100"
     return {
@@ -406,7 +471,9 @@ def exact_wide_platform_validation_status(host_system: str, hip_info: dict[str, 
             "those gates require a real supported Linux ROCm host and exact CPU differential runs"
         ),
         "validation_claims": {
-            "windows_gfx1100": "evidence_only" if windows_gfx1100_evidence else "not_current_host_evidence",
+            "windows_gfx1100": "evidence_only"
+            if windows_gfx1100_evidence
+            else "not_current_host_evidence",
             "linux_rocm": "unvalidated_by_this_host",
             "instinct_cdna": "unvalidated_by_this_host",
         },
@@ -446,10 +513,11 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(windows, dict)
     assert isinstance(linux, dict)
 
-    host_core_commands = HOST_NEUTRAL_CORE_COMMANDS + (WINDOWS_CORE_COMMANDS if host_is_windows else [])
-    core_host_ok = (
-        all(command_ok(commands, name) for name in host_core_commands)
-        and (not host_is_windows or vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES))
+    host_core_commands = HOST_NEUTRAL_CORE_COMMANDS + (
+        WINDOWS_CORE_COMMANDS if host_is_windows else []
+    )
+    core_host_ok = all(command_ok(commands, name) for name in host_core_commands) and (
+        not host_is_windows or vcpkg_ok(vcpkg_packages, CORE_VCPKG_PACKAGES)
     )
     windows_hip_ok = (
         host_is_windows
@@ -465,7 +533,9 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         and linux_smi_ok
         and bool(linux["represented"])
     )
-    linux_profiler_ok = host_is_linux and all(command_ok(commands, name) for name in LINUX_PROFILER_COMMANDS)
+    linux_profiler_ok = host_is_linux and all(
+        command_ok(commands, name) for name in LINUX_PROFILER_COMMANDS
+    )
     linux_topology_present = any(command_ok(commands, name) for name in LINUX_TOPOLOGY_COMMANDS)
     rccl_ready = bool(rccl.get("ok"))
     rccl_tests_ready = bool(rccl.get("rccl_tests_ready"))
@@ -477,9 +547,16 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "ok": core_host_ok,
             "required_for_host_readiness": True,
             "evidence": [
-                "commands: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in host_core_commands),
+                "commands: "
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in host_core_commands
+                ),
                 "python packages: "
-                + ", ".join(f"{name}={'OK' if py_packages.get(name) else 'MISSING'}" for name in PYTHON_PACKAGES),
+                + ", ".join(
+                    f"{name}={'OK' if py_packages.get(name) else 'MISSING'}"
+                    for name in PYTHON_PACKAGES
+                ),
                 (
                     "Windows vcpkg core: "
                     + ", ".join(
@@ -498,7 +575,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "required_for_host_readiness": host_is_windows,
             "evidence": [
                 "commands: "
-                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in WINDOWS_HIP_COMMANDS),
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in WINDOWS_HIP_COMMANDS
+                ),
                 f"MSVC={'OK' if msvc['ok'] else 'MISSING'}",
                 f"windows preset={'OK' if windows['ok'] else 'MISSING'}",
                 f"HIP device={hip_info.get('detail') or 'not parsed'}",
@@ -520,7 +600,11 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
                     f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
                     for name in LINUX_ROCM_DIAGNOSTIC_COMMANDS
                 ),
-                "smi: " + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_SMI_COMMANDS),
+                "smi: "
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in LINUX_SMI_COMMANDS
+                ),
                 f"linux preset represented={'OK' if linux['represented'] else 'MISSING'}",
             ],
             "detail": "Linux ROCm production gate; hipconfig is diagnostic capture only and does not block a passing HIP build/smoke path",
@@ -539,8 +623,12 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         "E005_hipblaslt_int8_capability": accelerator_gate(
             "hipblaslt", accelerators, host_is_windows, accelerator_probes
         ),
-        "E006_ck_capability": accelerator_gate("ck", accelerators, host_is_windows, accelerator_probes),
-        "E007_rocwmma_capability": accelerator_gate("rocwmma", accelerators, host_is_windows, accelerator_probes),
+        "E006_ck_capability": accelerator_gate(
+            "ck", accelerators, host_is_windows, accelerator_probes
+        ),
+        "E007_rocwmma_capability": accelerator_gate(
+            "rocwmma", accelerators, host_is_windows, accelerator_probes
+        ),
         "E008_amdgpu_builtin_capability": accelerator_gate(
             "amdgpu_builtins", accelerators, host_is_windows, accelerator_probes
         ),
@@ -551,7 +639,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "required_for_counter_resource_audit": host_is_linux,
             "evidence": [
                 "commands: "
-                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_PROFILER_COMMANDS)
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in LINUX_PROFILER_COMMANDS
+                )
             ],
             "detail": "rocprofv3 and rocprofv3-avail are required for counter/resource audit readiness, not for basic build-only smoke",
         },
@@ -561,7 +652,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "required_for_host_readiness": False,
             "evidence": [
                 "commands: "
-                + ", ".join(f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}" for name in LINUX_TOPOLOGY_COMMANDS)
+                + ", ".join(
+                    f"{name}={'OK' if command_ok(commands, name) else 'MISSING'}"
+                    for name in LINUX_TOPOLOGY_COMMANDS
+                )
             ],
             "detail": "numactl/lstopo improve topology evidence for CDNA reports; missing tools do not block a basic single-device smoke",
         },
@@ -589,7 +683,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "detail": "local Windows bring-up gate for RX 7900-class gfx1100 targets",
         },
         "E071_windows_rdna4_direct_hip": {
-            "status": status_label(windows_hip_ok and target in {"gfx1200", "gfx1201"}, host_is_windows and target in {"gfx1200", "gfx1201"}),
+            "status": status_label(
+                windows_hip_ok and target in {"gfx1200", "gfx1201"},
+                host_is_windows and target in {"gfx1200", "gfx1201"},
+            ),
             "ok": windows_hip_ok and target in {"gfx1200", "gfx1201"},
             "required_for_host_readiness": False,
             "detail": "current Radeon gate; evaluated only on matching Windows RDNA4 hardware",
@@ -604,7 +701,10 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
             "detail": "Radeon Linux gate for documented RDNA2/RDNA3/RDNA4 targets; not required on Windows",
         },
         "E073_E074_E075_linux_instinct_rocm": {
-            "status": status_label(linux_rocm_ok and target in LINUX_CDNA_TARGETS, host_is_linux and target in LINUX_CDNA_TARGETS),
+            "status": status_label(
+                linux_rocm_ok and target in LINUX_CDNA_TARGETS,
+                host_is_linux and target in LINUX_CDNA_TARGETS,
+            ),
             "ok": linux_rocm_ok and target in LINUX_CDNA_TARGETS,
             "required_for_host_readiness": False,
             "detail": "Instinct validation gates cover documented CDNA2/CDNA3/CDNA4 targets and require supported Linux ROCm hardware",
@@ -619,9 +719,13 @@ def readiness_report(report: dict[str, object]) -> dict[str, object]:
         "policy": "optional accelerators are never promoted to enabled backends by this checker",
         "gates": gates,
         "platform_gates": platform_gates,
-        "correctness_backend_validation": correctness_backend_validation_status(host_system, hip_info, accelerators),
+        "correctness_backend_validation": correctness_backend_validation_status(
+            host_system, hip_info, accelerators
+        ),
         "accelerator_enablement": accelerator_enablement_policy(accelerators, accelerator_probes),
-        "exact_wide_platform_validation": exact_wide_platform_validation_status(host_system, hip_info),
+        "exact_wide_platform_validation": exact_wide_platform_validation_status(
+            host_system, hip_info
+        ),
     }
 
 
@@ -639,7 +743,9 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
     assert isinstance(flags, dict)
     assert isinstance(candidate_accelerators, dict)
     expected_flags_present = all(name in flags for name in ACCELERATOR_NAMES)
-    expected_candidate_records_present = all(name in candidate_accelerators for name in ACCELERATOR_NAMES)
+    expected_candidate_records_present = all(
+        name in candidate_accelerators for name in ACCELERATOR_NAMES
+    )
     accelerator_flags_policy_clean = True
     for name, item in flags.items():
         if not isinstance(item, dict):
@@ -687,7 +793,10 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
         },
         "no_validated_accelerator_correctness_backends": {
             "ok": accelerator_enablement.get("validated_correctness_backend_count") == 0
-            and correctness_validation.get("candidate_accelerator_evidence_is_correctness_validation") is False,
+            and correctness_validation.get(
+                "candidate_accelerator_evidence_is_correctness_validation"
+            )
+            is False,
             "detail": "candidate accelerator evidence is not reported as correctness validation",
         },
         "dependency_checker_does_not_claim_correctness_validation": {
@@ -709,5 +818,3 @@ def hard_cut_self_checks(report: dict[str, object]) -> dict[str, object]:
         "checker_validation_scope": CHECKER_VALIDATION_SCOPE,
         "checks": checks,
     }
-
-

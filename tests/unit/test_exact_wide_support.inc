@@ -37,15 +37,8 @@ rns8_matrix_desc exact_matrix_desc(int64_t rows, int64_t cols, rns8_semantics se
   return desc;
 }
 
-void check_signed_residues(
-    const rns8_matrix& matrix,
-    const int64_t* A,
-    int64_t lda,
-    const int64_t* B,
-    int64_t ldb,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+void check_signed_residues(const rns8_matrix& matrix, const int64_t* A, int64_t lda,
+                           const int64_t* B, int64_t ldb, int64_t m, int64_t n, int64_t k) {
   for (uint32_t p = 0; p < matrix.prefix; ++p) {
     const uint16_t modulus = rns8::detail::kDefaultModuli[p];
     for (int64_t row = 0; row < m; ++row) {
@@ -58,15 +51,8 @@ void check_signed_residues(
   }
 }
 
-void check_unsigned_residues(
-    const rns8_matrix& matrix,
-    const uint64_t* A,
-    int64_t lda,
-    const uint64_t* B,
-    int64_t ldb,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+void check_unsigned_residues(const rns8_matrix& matrix, const uint64_t* A, int64_t lda,
+                             const uint64_t* B, int64_t ldb, int64_t m, int64_t n, int64_t k) {
   for (uint32_t p = 0; p < matrix.prefix; ++p) {
     const uint16_t modulus = rns8::detail::kDefaultModuli[p];
     for (int64_t row = 0; row < m; ++row) {
@@ -82,13 +68,15 @@ void check_unsigned_residues(
 std::vector<uint64_t> unsigned_limbs(boost::multiprecision::cpp_int value, uint32_t limb_count) {
   std::vector<uint64_t> limbs(limb_count);
   for (uint32_t limb = 0; limb < limb_count; ++limb) {
-    limbs[limb] = static_cast<uint64_t>(value & boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()));
+    limbs[limb] = static_cast<uint64_t>(
+        value & boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()));
     value >>= 64u;
   }
   return limbs;
 }
 
-std::vector<uint64_t> signed_twos_complement_limbs(boost::multiprecision::cpp_int value, uint32_t limb_count) {
+std::vector<uint64_t> signed_twos_complement_limbs(boost::multiprecision::cpp_int value,
+                                                   uint32_t limb_count) {
   if (value < 0) {
     value += boost::multiprecision::cpp_int(1) << (64u * limb_count);
   }
@@ -103,7 +91,8 @@ std::vector<int8_t> residues_for(boost::multiprecision::cpp_int value, uint32_t 
   return residues;
 }
 
-void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::multiprecision::cpp_int>& values) {
+void fill_exact_residue_matrix(rns8_matrix* matrix,
+                               const std::vector<boost::multiprecision::cpp_int>& values) {
   REQUIRE(matrix != nullptr);
   REQUIRE(values.size() == static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols));
   std::vector<std::vector<int8_t>> residues;
@@ -126,4 +115,4 @@ void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::mul
   rns8::test::set_device_byte_limbs_current(*matrix, false);
 }
 
-}  // namespace
+} // namespace

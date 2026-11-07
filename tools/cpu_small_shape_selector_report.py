@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex, checksum_u64
+
 import argparse
 import json
 from collections import Counter, defaultdict
@@ -11,6 +13,16 @@ from typing import Any
 
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase
 from report_capture_inputs import load_report_captures
+from diagnostic_companion import load_bindings
+from observation_cohorts import (
+    ProductionCohortIndex,
+    aggregate_captures,
+    best_row,
+    cohort_noise_margin,
+    partition_rows,
+    row_identity,
+)
+from review_contract import release_capture_satisfied
 
 
 DEFAULT_OUT_DIR = Path("temp") / "cpu-small-shape-selector-reports"
@@ -73,10 +85,19 @@ def _group_key(capture: dict[str, Any]) -> tuple[str, str, str, str, str, int, i
     )
 
 
-def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
+def row_for_capture(
+    capture: dict[str, Any],
+    references: CPUReferenceIndex | None = None,
+    production: ProductionCohortIndex | None = None,
+) -> dict[str, Any]:
     selector = _selector(capture)
     backend = backend_id(capture)
-    blockers: list[str] = []
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(numerical.blockers) + (
+        production or ProductionCohortIndex([capture])
+    ).blockers(capture)
+    if not release_capture_satisfied(capture):
+        blockers.append("not_release_reviewed")
     if selector.get("enabled") is not True:
         blockers.append("cpu_small_shape_selector_not_enabled")
     if selector.get("cpu_reference_required") is not True:
@@ -90,6 +111,7 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
     if median is None:
         blockers.append("missing_end_to_end_median")
     return {
+        **row_identity(capture, exclude=("export_variant.selector_key",)),
         "path": _path(capture),
         "backend": backend,
         "target_boundary": _target_boundary(capture),
@@ -97,37 +119,42 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         "policy": selector.get("policy"),
         "boundary_key": selector.get("boundary_key"),
         "median_end_to_end_us": median,
-        "checksum": capture.get("checksum"),
+        "checksum_u64": checksum_u64(capture),
+        "numerical_reference": numerical.to_json(),
         "blockers": sorted(set(blockers)),
     }
 
 
-def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _group_report(
+    key: tuple[str, str, str, str, str, int, int, int], rows: list[dict[str, Any]]
+) -> dict[str, Any]:
     blockers = sorted({blocker for row in rows for blocker in row["blockers"]})
     cpu_rows = [row for row in rows if row["backend"] in {"cpu-reference", "cpu"}]
     gpu_rows = [row for row in rows if row["backend"] not in {"cpu-reference", "cpu"}]
     if not cpu_rows:
         blockers.append("cpu_reference_baseline_missing")
-    cpu_median = min(
-        (float(row["median_end_to_end_us"]) for row in cpu_rows if isinstance(row["median_end_to_end_us"], (int, float))),
-        default=None,
-    )
-    fastest_gpu = min(
-        (row for row in gpu_rows if isinstance(row["median_end_to_end_us"], (int, float))),
-        key=lambda row: float(row["median_end_to_end_us"]),
-        default=None,
-    )
+    fastest_cpu = best_row([row for row in cpu_rows if not row["blockers"]])
+    cpu_median = fastest_cpu["median_end_to_end_us"] if fastest_cpu else None
+    fastest_gpu = best_row([row for row in gpu_rows if not row["blockers"]])
     fastest_gpu_median = (
-        float(fastest_gpu["median_end_to_end_us"]) if fastest_gpu and fastest_gpu["median_end_to_end_us"] is not None else None
+        float(fastest_gpu["median_end_to_end_us"])
+        if fastest_gpu and fastest_gpu["median_end_to_end_us"] is not None
+        else None
     )
-    cpu_checksum = cpu_rows[0].get("checksum") if cpu_rows else None
-    for row in rows:
-        if cpu_checksum is not None and row.get("checksum") not in {None, cpu_checksum}:
-            blockers.append("checksum_mismatch_vs_cpu")
     target_boundaries = sorted({str(row["target_boundary"]) for row in rows})
-    if len(target_boundaries) > 2:
-        blockers.append("mixed_target_boundary_review")
-    if cpu_median is None or fastest_gpu_median is None:
+    noise_margin = (
+        cohort_noise_margin(fastest_cpu["measurement_cohort"], fastest_gpu["measurement_cohort"])
+        if fastest_cpu and fastest_gpu
+        else None
+    )
+    required_margin = max(PROMOTION_MARGIN, noise_margin) if noise_margin is not None else None
+    if cpu_median is None:
+        blockers.append("qualified_cpu_performance_cohort_missing")
+    if fastest_gpu_median is None:
+        blockers.append("qualified_gpu_performance_cohort_missing")
+    if required_margin is None:
+        blockers.append("comparison_variance_evidence_missing")
+    if blockers or cpu_median is None or fastest_gpu_median is None:
         recommendation = "blocked"
         speedup = None
         promotion_decision = "blocked"
@@ -135,22 +162,26 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
         promotion_speedup = None
     else:
         ratio = cpu_median / fastest_gpu_median if fastest_gpu_median > 0 else None
-        if ratio is not None and abs(cpu_median - fastest_gpu_median) / min(cpu_median, fastest_gpu_median) <= 0.05:
+        if (
+            ratio is not None
+            and abs(cpu_median - fastest_gpu_median) / min(cpu_median, fastest_gpu_median) <= 0.05
+        ):
             recommendation = "threshold_boundary"
         elif cpu_median <= fastest_gpu_median:
             recommendation = "cpu_wins"
         else:
             recommendation = "gpu_wins"
         speedup = ratio
-        if blockers:
-            promotion_decision = "blocked"
-            promoted_backend = None
-            promotion_speedup = None
-        elif recommendation == "gpu_wins" and ratio is not None and ratio >= PROMOTION_MARGIN:
+        if recommendation == "gpu_wins" and ratio is not None and ratio > required_margin:
             promotion_decision = "promote_gpu_selector_threshold"
             promoted_backend = fastest_gpu.get("backend") if fastest_gpu else None
             promotion_speedup = ratio
-        elif recommendation == "cpu_wins" and ratio is not None and ratio > 0 and (1.0 / ratio) >= PROMOTION_MARGIN:
+        elif (
+            recommendation == "cpu_wins"
+            and ratio is not None
+            and ratio > 0
+            and (1.0 / ratio) > required_margin
+        ):
             promotion_decision = "promote_cpu_selector_threshold"
             promoted_backend = "cpu-reference"
             promotion_speedup = 1.0 / ratio
@@ -178,7 +209,9 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
         "promotion_decision": promotion_decision,
         "promoted_backend": promoted_backend,
         "promotion_speedup_vs_next_best": promotion_speedup,
-        "promotion_margin_required": PROMOTION_MARGIN,
+        "promotion_margin_required": required_margin,
+        "selected_cpu_cohort": fastest_cpu["measurement_cohort"] if fastest_cpu else None,
+        "selected_gpu_cohort": fastest_gpu["measurement_cohort"] if fastest_gpu else None,
         "promotion_scope": "local_selector_threshold_recommendation_not_cache_entry",
         "target_boundaries": target_boundaries,
         "status": "blocked" if blockers else "reviewed",
@@ -187,17 +220,30 @@ def _group_report(key: tuple[str, str, str, str, str, int, int, int], rows: list
     }
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(
+    paths: list[Path], diagnostic_binding_paths: list[Path] | None = None
+) -> dict[str, Any]:
     captures = [
         capture
         for capture in load_report_captures(paths)
         if isinstance(capture.get("cpu_small_shape_selector"), dict)
         and capture.get("cpu_small_shape_selector", {}).get("enabled") is True
     ]
-    grouped: dict[tuple[str, str, str, str, str, int, int, int], list[dict[str, Any]]] = defaultdict(list)
-    for capture in captures:
-        grouped[_group_key(capture)].append(row_for_capture(capture))
-    groups = [_group_report(key, rows) for key, rows in sorted(grouped.items(), key=lambda item: str(item[0]))]
+    grouped: dict[tuple[str, str, str, str, str, int, int, int], list[dict[str, Any]]] = (
+        defaultdict(list)
+    )
+    references = CPUReferenceIndex(captures)
+    production = ProductionCohortIndex(captures, load_bindings(diagnostic_binding_paths or []))
+    for capture in aggregate_captures(captures):
+        grouped[_group_key(capture)].append(row_for_capture(capture, references, production))
+    groups = []
+    for key, rows in sorted(grouped.items(), key=lambda item: str(item[0])):
+        for (work, source, environment), members in partition_rows(rows):
+            group = _group_report(key, members)
+            group.update(
+                work_contract_key=work, source_identity=source, comparison_environment=environment
+            )
+            groups.append(group)
     blocker_counts = Counter(blocker for group in groups for blocker in group["blockers"])
     promotable_thresholds = [
         {
@@ -209,6 +255,11 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             "promoted_backend": group["promoted_backend"],
             "promotion_speedup_vs_next_best": group["promotion_speedup_vs_next_best"],
             "target_boundaries": group["target_boundaries"],
+            "work_contract_key": group["work_contract_key"],
+            "source_identity": group["source_identity"],
+            "comparison_environment": group["comparison_environment"],
+            "selected_cpu_cohort": group["selected_cpu_cohort"],
+            "selected_gpu_cohort": group["selected_gpu_cohort"],
         }
         for group in groups
         if str(group.get("promotion_decision", "")).startswith("promote_")
@@ -266,8 +317,9 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     args = parser.parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, args.diagnostic_binding)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

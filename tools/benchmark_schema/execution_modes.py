@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import math
 from typing import Any
 
 from metadata_registry_constants import (
-    GRAPH_REPLAY_STATUSES,
     GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES,
     GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES,
     GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES,
@@ -24,7 +25,11 @@ def _is_int(value: Any) -> bool:
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
 
 
 def _close(actual: float, expected: float) -> bool:
@@ -43,10 +48,16 @@ def _require_graph_full_path_phase_metadata(
         return
     phase_order = metadata.get("phase_order")
     required_order = ["pack", "rns_gemm", "crt_export", "end_to_end"]
-    if not isinstance(phase_order, list) or any(phase not in phase_order for phase in required_order):
-        self._error(f"{label} hip_graph_replay captures must include pack/rns_gemm/crt_export/end_to_end phase_order")
+    if not isinstance(phase_order, list) or any(
+        phase not in phase_order for phase in required_order
+    ):
+        self._error(
+            f"{label} hip_graph_replay captures must include pack/rns_gemm/crt_export/end_to_end phase_order"
+        )
     elif [phase for phase in phase_order if phase in required_order] != required_order:
-        self._error(f"{label} hip_graph_replay phase_order must preserve pack, rns_gemm, crt_export, end_to_end order")
+        self._error(
+            f"{label} hip_graph_replay phase_order must preserve pack, rns_gemm, crt_export, end_to_end order"
+        )
     notes = metadata.get("phase_notes")
     if not isinstance(notes, dict):
         self._error(f"{label} hip_graph_replay captures must include timing_metadata.phase_notes")
@@ -69,7 +80,9 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
     is_grouped = self._is_grouped_dispatch_capture()
     if grouped is None:
         if is_grouped:
-            self._error("benchmark_grouped_dispatch_evidence captures must include grouped_dispatch metadata")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must include grouped_dispatch metadata"
+            )
         return
     if not isinstance(grouped, dict):
         return
@@ -82,94 +95,155 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
                 "benchmark=rns8_grouped_dispatch_persistent_resident"
             )
         if self.data.get("backend_selected") != "hip-direct":
-            self._error("benchmark_grouped_dispatch_evidence captures must use backend_selected=hip-direct")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must use backend_selected=hip-direct"
+            )
         if grouped.get("requested") is not True:
-            self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.requested=true")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.requested=true"
+            )
         if not _is_int(task_count) or task_count <= 1:
-            self._error("benchmark_grouped_dispatch_evidence captures must use grouped_dispatch.task_count > 1")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must use grouped_dispatch.task_count > 1"
+            )
         if grouped.get("capture_status") != "executed":
-            self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.capture_status=executed")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.capture_status=executed"
+            )
         if grouped.get("unsupported_reason") is not None:
-            self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.unsupported_reason=null")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.unsupported_reason=null"
+            )
         if grouped.get("promotion_eligible") is not False:
-            self._error("benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.promotion_eligible=false")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must set grouped_dispatch.promotion_eligible=false"
+            )
         strategy = grouped.get("execution_strategy")
         batched_export = grouped.get("batched_export_enabled")
         slab_bytes = grouped.get("device_output_slab_bytes")
         if strategy is not None and strategy == "not_requested":
-            self._error("benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must declare an executed grouped strategy"
+            )
         if batched_export is True:
-            if strategy in GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
-                    self._error("grouped_dispatch exact-wide batched export is only valid for exact-wide semantics")
-                if self.data.get("exact_wide_export_status_check") != "elided_full_width_device_reconstruction":
-                    self._error("grouped_dispatch exact-wide batched export requires structurally elided exact-wide status")
-            elif strategy in GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
-                    self._error("grouped_dispatch bounded batched export is only valid for bounded semantics")
+            if text_choice(strategy, GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES):
+                if not text_choice(
+                    self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"}
+                ):
+                    self._error(
+                        "grouped_dispatch exact-wide batched export is only valid for exact-wide semantics"
+                    )
+                if (
+                    self.data.get("exact_wide_export_status_check")
+                    != "elided_full_width_device_reconstruction"
+                ):
+                    self._error(
+                        "grouped_dispatch exact-wide batched export requires structurally elided exact-wide status"
+                    )
+            elif text_choice(strategy, GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES):
+                if not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"}):
+                    self._error(
+                        "grouped_dispatch bounded batched export is only valid for bounded semantics"
+                    )
                 if self.data.get("exact_wide_export_status_check") is not None:
-                    self._error("grouped_dispatch bounded batched export must not declare exact-wide status handling")
-            elif strategy in GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES:
-                if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
-                    self._error("grouped_dispatch finite batched export is only valid for finite-u8 semantics")
+                    self._error(
+                        "grouped_dispatch bounded batched export must not declare exact-wide status handling"
+                    )
+            elif text_choice(strategy, GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES):
+                if not text_choice(
+                    self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}
+                ):
+                    self._error(
+                        "grouped_dispatch finite batched export is only valid for finite-u8 semantics"
+                    )
                 if self.data.get("exact_wide_export_status_check") is not None:
-                    self._error("grouped_dispatch finite batched export must not declare exact-wide status handling")
+                    self._error(
+                        "grouped_dispatch finite batched export must not declare exact-wide status handling"
+                    )
             else:
-                self._error("grouped_dispatch batched export requires a registered batched export strategy")
+                self._error(
+                    "grouped_dispatch batched export requires a registered batched export strategy"
+                )
             if not _is_int(slab_bytes) or slab_bytes <= 0:
-                self._error("grouped_dispatch batched export requires a positive device_output_slab_bytes")
+                self._error(
+                    "grouped_dispatch batched export requires a positive device_output_slab_bytes"
+                )
         elif strategy in (
             GROUPED_DISPATCH_BATCHED_EXACT_WIDE_EXPORT_STRATEGIES
             | GROUPED_DISPATCH_BATCHED_BOUNDED_EXPORT_STRATEGIES
             | GROUPED_DISPATCH_BATCHED_FINITE_EXPORT_STRATEGIES
         ):
-            self._error("grouped_dispatch batched export strategy requires batched_export_enabled=true")
+            self._error(
+                "grouped_dispatch batched export strategy requires batched_export_enabled=true"
+            )
         if self.data.get("semantics") == "wrap_u64_mod_2_64":
-            self._error("benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must not use wrap_u64_mod_2_64"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("benchmark_grouped_dispatch_evidence captures must not use packed-input reuse")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must not use packed-input reuse"
+            )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("benchmark_grouped_dispatch_evidence captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must use pack_mode=per_repeat_repack"
+            )
         if self._residue_chain_length() != 1 or self._residue_output_mode() != "host_export":
-            self._error("benchmark_grouped_dispatch_evidence captures must use host_export residue_chain_length=1")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must use host_export residue_chain_length=1"
+            )
         if self.data.get("bound_mode") != "global":
             self._error("benchmark_grouped_dispatch_evidence captures must use bound_mode=global")
         if self.data.get("bound_source") not in {None, "static_profile"}:
-            self._error("benchmark_grouped_dispatch_evidence captures must use bound_source=static_profile")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must use bound_source=static_profile"
+            )
 
         batch = self.data.get("host_api_batch")
         if not isinstance(batch, dict):
-            self._error("benchmark_grouped_dispatch_evidence captures must include disabled host_api_batch metadata")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must include disabled host_api_batch metadata"
+            )
         elif batch.get("enabled") is not False or batch.get("batch_size") != 1:
-            self._error("benchmark_grouped_dispatch_evidence captures must keep host_api_batch disabled")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must keep host_api_batch disabled"
+            )
 
         task_descriptor = grouped.get("task_descriptor_contract")
         if not isinstance(task_descriptor, dict):
-            self._error("benchmark_grouped_dispatch_evidence captures must include task_descriptor_contract")
+            self._error(
+                "benchmark_grouped_dispatch_evidence captures must include task_descriptor_contract"
+            )
         else:
             semantics = self.data.get("semantics")
             expected_output_domain = "native_i64_u64_host"
-            if semantics in {"finite_ring_u8", "finite_field_u8"}:
+            if text_choice(semantics, {"finite_ring_u8", "finite_field_u8"}):
                 expected_output_domain = "finite_u8_host"
-            elif semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+            elif text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
                 expected_output_domain = "exact_wide_limb_host"
             descriptor_layout = task_descriptor.get("descriptor_layout")
             bucket_policy = task_descriptor.get("bucket_policy")
             bucket_count = task_descriptor.get("bucket_count")
             if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY:
                 if descriptor_layout != SINGLE_GROUPED_DESCRIPTOR_LAYOUT:
-                    self._error("single grouped task descriptors must use same_shape_resident_task_triplets_v1")
+                    self._error(
+                        "single grouped task descriptors must use same_shape_resident_task_triplets_v1"
+                    )
                 if bucket_count != 1:
                     self._error("single grouped task descriptor bucket_count must be 1")
             elif bucket_policy == BUCKETED_GROUPED_BUCKET_POLICY:
                 if descriptor_layout != BUCKETED_GROUPED_DESCRIPTOR_LAYOUT:
-                    self._error("bucketed grouped task descriptors must use same_contract_bucketed_resident_task_triplets_v1")
+                    self._error(
+                        "bucketed grouped task descriptors must use same_contract_bucketed_resident_task_triplets_v1"
+                    )
                 if not _is_int(bucket_count) or bucket_count < 2:
                     self._error("bucketed grouped task descriptor bucket_count must be at least 2")
             else:
                 self._error("grouped task descriptor must use a known executable bucket policy")
             if _is_int(task_count) and task_descriptor.get("task_count") != task_count:
-                self._error("grouped task descriptor task_count must match grouped_dispatch.task_count")
+                self._error(
+                    "grouped task descriptor task_count must match grouped_dispatch.task_count"
+                )
             if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY:
                 if task_descriptor.get("same_shape_required") is not True:
                     self._error("single grouped task descriptor must require same_shape")
@@ -181,8 +255,13 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
                 f"tile_m={self.data.get('tile_m')};tile_n={self.data.get('tile_n')};"
                 f"prefix={selected_prefix}"
             )
-            if bucket_policy == SINGLE_GROUPED_BUCKET_POLICY and task_descriptor.get("shape_key") != expected_shape_key:
-                self._error("grouped task descriptor shape_key must match capture shape/tile/prefix")
+            if (
+                bucket_policy == SINGLE_GROUPED_BUCKET_POLICY
+                and task_descriptor.get("shape_key") != expected_shape_key
+            ):
+                self._error(
+                    "grouped task descriptor shape_key must match capture shape/tile/prefix"
+                )
             if bucket_policy == BUCKETED_GROUPED_BUCKET_POLICY:
                 buckets = task_descriptor.get("buckets")
                 if not isinstance(buckets, list) or len(buckets) != bucket_count:
@@ -191,80 +270,154 @@ def validate_grouped_dispatch_metadata(self: Any) -> None:
                     expected_offset = 0
                     for bucket_index, bucket in enumerate(buckets):
                         if not isinstance(bucket, dict):
-                            self._error("bucketed grouped task descriptor bucket entries must be objects")
+                            self._error(
+                                "bucketed grouped task descriptor bucket entries must be objects"
+                            )
                             continue
                         if bucket.get("bucket_index") != bucket_index:
-                            self._error("bucketed grouped task descriptor bucket_index must be contiguous")
+                            self._error(
+                                "bucketed grouped task descriptor bucket_index must be contiguous"
+                            )
                         if bucket.get("task_offset") != expected_offset:
-                            self._error("bucketed grouped task descriptor task_offset must be contiguous")
+                            self._error(
+                                "bucketed grouped task descriptor task_offset must be contiguous"
+                            )
                         bucket_tasks = bucket.get("task_count")
                         if not _is_int(bucket_tasks) or bucket_tasks <= 1:
-                            self._error("bucketed grouped task descriptor bucket task_count must exceed one")
+                            self._error(
+                                "bucketed grouped task descriptor bucket task_count must exceed one"
+                            )
                         else:
                             expected_offset += bucket_tasks
-                        if not isinstance(bucket.get("shape_key"), str) or not bucket.get("shape_key"):
-                            self._error("bucketed grouped task descriptor bucket shape_key must be a string")
+                        if not isinstance(bucket.get("shape_key"), str) or not bucket.get(
+                            "shape_key"
+                        ):
+                            self._error(
+                                "bucketed grouped task descriptor bucket shape_key must be a string"
+                            )
                         if bucket.get("semantics") != semantics:
-                            self._error("bucketed grouped task descriptor bucket semantics must match capture semantics")
+                            self._error(
+                                "bucketed grouped task descriptor bucket semantics must match capture semantics"
+                            )
                         if bucket.get("output_domain") != expected_output_domain:
                             self._error(
                                 "bucketed grouped task descriptor bucket output_domain must match capture output contract"
                             )
                     if _is_int(task_count) and expected_offset != task_count:
-                        self._error("bucketed grouped task descriptor bucket task counts must sum to task_count")
+                        self._error(
+                            "bucketed grouped task descriptor bucket task counts must sum to task_count"
+                        )
             if task_descriptor.get("semantics") != semantics:
                 self._error("grouped task descriptor semantics must match capture semantics")
             if task_descriptor.get("output_domain") != expected_output_domain:
-                self._error("grouped task descriptor output_domain must match capture output contract")
-            if task_descriptor.get("source_version_policy") != "per_task_monotonic_source_version_repack":
-                self._error("grouped task descriptor source_version_policy must require per-task repack versions")
+                self._error(
+                    "grouped task descriptor output_domain must match capture output contract"
+                )
+            if (
+                task_descriptor.get("source_version_policy")
+                != "per_task_monotonic_source_version_repack"
+            ):
+                self._error(
+                    "grouped task descriptor source_version_policy must require per-task repack versions"
+                )
             if task_descriptor.get("workspace_policy") != "one_workspace_per_task_shared_plan":
-                self._error("grouped task descriptor workspace_policy must be one workspace per task")
-            if task_descriptor.get("matrix_ownership_policy") != "benchmark_owns_all_task_triplets_until_capture_end":
-                self._error("grouped task descriptor matrix_ownership_policy must be benchmark-owned")
-            if task_descriptor.get("descriptor_reuse_policy") != "reuse_after_shape_workspace_source_validation":
-                self._error("grouped task descriptor descriptor_reuse_policy must require validated reuse")
-            if task_descriptor.get("stride_policy") != "matrix_ld_matches_logical_shape_host_output_ld_explicit":
-                self._error("grouped task descriptor stride_policy must declare explicit matrix/output strides")
+                self._error(
+                    "grouped task descriptor workspace_policy must be one workspace per task"
+                )
+            if (
+                task_descriptor.get("matrix_ownership_policy")
+                != "benchmark_owns_all_task_triplets_until_capture_end"
+            ):
+                self._error(
+                    "grouped task descriptor matrix_ownership_policy must be benchmark-owned"
+                )
+            if (
+                task_descriptor.get("descriptor_reuse_policy")
+                != "reuse_after_shape_workspace_source_validation"
+            ):
+                self._error(
+                    "grouped task descriptor descriptor_reuse_policy must require validated reuse"
+                )
+            if (
+                task_descriptor.get("stride_policy")
+                != "matrix_ld_matches_logical_shape_host_output_ld_explicit"
+            ):
+                self._error(
+                    "grouped task descriptor stride_policy must declare explicit matrix/output strides"
+                )
             if (
                 task_descriptor.get("output_currentness_policy")
                 != "device_residue_current_after_grouped_gemm_host_output_after_export"
             ):
-                self._error("grouped task descriptor output_currentness_policy must bind device-current outputs")
-            if task_descriptor.get("lifetime_policy") != "task_matrices_and_workspaces_destroyed_after_capture":
-                self._error("grouped task descriptor lifetime_policy must describe capture lifetime")
+                self._error(
+                    "grouped task descriptor output_currentness_policy must bind device-current outputs"
+                )
+            if (
+                task_descriptor.get("lifetime_policy")
+                != "task_matrices_and_workspaces_destroyed_after_capture"
+            ):
+                self._error(
+                    "grouped task descriptor lifetime_policy must describe capture lifetime"
+                )
             if task_descriptor.get("checksum_policy") != "combined_per_task_checksum_u64":
-                self._error("grouped task descriptor checksum_policy must combine per-task checksums")
+                self._error(
+                    "grouped task descriptor checksum_policy must combine per-task checksums"
+                )
             if task_descriptor.get("status_policy") != "fail_fast_per_task_operation_status":
-                self._error("grouped task descriptor status_policy must fail fast on per-task operation status")
+                self._error(
+                    "grouped task descriptor status_policy must fail fast on per-task operation status"
+                )
             expected_device_policy = GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES.get(
                 strategy,
                 "host_resident_task_loop",
             )
             if task_descriptor.get("device_descriptor_policy") != expected_device_policy:
-                self._error("grouped task descriptor device_descriptor_policy must match execution strategy")
+                self._error(
+                    "grouped task descriptor device_descriptor_policy must match execution strategy"
+                )
 
         metadata = self.data.get("timing_metadata")
         if isinstance(metadata, dict):
             if metadata.get("grouped_dispatch_enabled") is not True:
-                self._error("timing_metadata.grouped_dispatch_enabled must be true for grouped dispatch captures")
+                self._error(
+                    "timing_metadata.grouped_dispatch_enabled must be true for grouped dispatch captures"
+                )
             if _is_int(task_count) and metadata.get("grouped_dispatch_task_count") != task_count:
                 self._error(
                     "timing_metadata.grouped_dispatch_task_count must match grouped_dispatch.task_count"
                 )
-            if strategy is not None and metadata.get("grouped_dispatch_execution_strategy") not in {None, strategy}:
-                self._error("timing_metadata.grouped_dispatch_execution_strategy must match grouped_dispatch")
-            if batched_export is not None and metadata.get("grouped_dispatch_batched_export_enabled") not in {None, batched_export}:
-                self._error("timing_metadata.grouped_dispatch_batched_export_enabled must match grouped_dispatch")
-            if _is_int(slab_bytes) and metadata.get("grouped_dispatch_device_output_slab_bytes") not in {None, slab_bytes}:
-                self._error("timing_metadata.grouped_dispatch_device_output_slab_bytes must match grouped_dispatch")
+            if strategy is not None and metadata.get("grouped_dispatch_execution_strategy") not in {
+                None,
+                strategy,
+            }:
+                self._error(
+                    "timing_metadata.grouped_dispatch_execution_strategy must match grouped_dispatch"
+                )
+            if batched_export is not None and metadata.get(
+                "grouped_dispatch_batched_export_enabled"
+            ) not in {None, batched_export}:
+                self._error(
+                    "timing_metadata.grouped_dispatch_batched_export_enabled must match grouped_dispatch"
+                )
+            if _is_int(slab_bytes) and metadata.get(
+                "grouped_dispatch_device_output_slab_bytes"
+            ) not in {None, slab_bytes}:
+                self._error(
+                    "timing_metadata.grouped_dispatch_device_output_slab_bytes must match grouped_dispatch"
+                )
             notes = metadata.get("phase_notes")
             if not isinstance(notes, dict):
-                self._error("benchmark_grouped_dispatch_evidence captures must include timing_metadata.phase_notes")
+                self._error(
+                    "benchmark_grouped_dispatch_evidence captures must include timing_metadata.phase_notes"
+                )
             else:
                 for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
                     note = notes.get(phase)
-                    if not isinstance(note, str) or "aggregate" not in note or "grouped" not in note:
+                    if (
+                        not isinstance(note, str)
+                        or "aggregate" not in note
+                        or "grouped" not in note
+                    ):
                         self._error(
                             f"benchmark_grouped_dispatch_evidence phase note {phase} "
                             "must describe aggregate grouped timing"
@@ -303,7 +456,12 @@ def validate_host_api_batch_metadata(self: Any) -> None:
             self._error(f"host_api_batch.{key} must be a positive integer")
     if _is_int(batch_size) and _is_int(tasks_per_repeat) and tasks_per_repeat != batch_size:
         self._error("host_api_batch.tasks_per_measured_repeat must equal host_api_batch.batch_size")
-    if _is_int(batch_size) and _is_int(repeats) and _is_int(total_tasks) and total_tasks != batch_size * repeats:
+    if (
+        _is_int(batch_size)
+        and _is_int(repeats)
+        and _is_int(total_tasks)
+        and total_tasks != batch_size * repeats
+    ):
         self._error("host_api_batch.total_measured_tasks must equal batch_size * repeats")
 
     expected_batch_size = 1 if not is_batch else None
@@ -318,7 +476,9 @@ def validate_host_api_batch_metadata(self: Any) -> None:
         else "single_task_default_benchmark_mode"
     )
     expected_timing = (
-        "aggregate_batch_totals_per_measured_repeat" if is_batch else "single_call_totals_per_measured_repeat"
+        "aggregate_batch_totals_per_measured_repeat"
+        if is_batch
+        else "single_call_totals_per_measured_repeat"
     )
     expected_checksum = (
         "fnv1a_over_final_task_output_checksums" if is_batch else "single_final_output_checksum"
@@ -340,7 +500,9 @@ def validate_host_api_batch_metadata(self: Any) -> None:
 
     if is_batch:
         if self.data.get("benchmark") != "rns8_host_api_batch_persistent_resident":
-            self._error("benchmark_host_api_batch captures must use benchmark=rns8_host_api_batch_persistent_resident")
+            self._error(
+                "benchmark_host_api_batch captures must use benchmark=rns8_host_api_batch_persistent_resident"
+            )
         if self.data.get("semantics") == "wrap_u64_mod_2_64":
             self._error("benchmark_host_api_batch captures must not use wrap_u64_mod_2_64")
         if self.data.get("reuse_packed_inputs") is not False:
@@ -348,7 +510,9 @@ def validate_host_api_batch_metadata(self: Any) -> None:
         if self.data.get("pack_mode") != "per_repeat_repack":
             self._error("benchmark_host_api_batch captures must use pack_mode=per_repeat_repack")
         if self._residue_chain_length() != 1 or self._residue_output_mode() != "host_export":
-            self._error("benchmark_host_api_batch captures must use host_export residue_chain_length=1")
+            self._error(
+                "benchmark_host_api_batch captures must use host_export residue_chain_length=1"
+            )
         if self.data.get("bound_mode") != "global":
             self._error("benchmark_host_api_batch captures must use bound_mode=global")
         if self.data.get("bound_source") not in {None, "static_profile"}:
@@ -357,12 +521,16 @@ def validate_host_api_batch_metadata(self: Any) -> None:
         if isinstance(metadata, dict):
             notes = metadata.get("phase_notes")
             if not isinstance(notes, dict):
-                self._error("benchmark_host_api_batch captures must include timing_metadata.phase_notes")
+                self._error(
+                    "benchmark_host_api_batch captures must include timing_metadata.phase_notes"
+                )
             else:
                 for phase in ["pack", "rns_gemm", "crt_export", "end_to_end"]:
                     note = notes.get(phase)
                     if not isinstance(note, str) or "aggregate" not in note:
-                        self._error(f"benchmark_host_api_batch phase note {phase} must describe aggregate batch timing")
+                        self._error(
+                            f"benchmark_host_api_batch phase note {phase} must describe aggregate batch timing"
+                        )
 
     for field, source in [
         ("avg_pack_per_task_us", "avg_pack_us"),
@@ -398,7 +566,9 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     is_graph = self._is_hip_graph_replay_capture()
     if graph is None:
         if is_graph:
-            self._error("hip_graph_replay_resident_rns_chain captures must include hip_graph_replay metadata")
+            self._error(
+                "hip_graph_replay_resident_rns_chain captures must include hip_graph_replay metadata"
+            )
         return
     if not isinstance(graph, dict):
         self._error("hip_graph_replay must be an object")
@@ -411,14 +581,15 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         if not isinstance(graph.get(key), str):
             self._error(f"hip_graph_replay.{key} must be a string")
     for key in [
-        "capture_us",
-        "instantiate_us",
         "graph_launches_per_measured_repeat",
         "total_graph_launches",
         "captured_chain_length",
     ]:
         if not _is_int(graph.get(key)) or graph.get(key) < 0:
             self._error(f"hip_graph_replay.{key} must be a nonnegative integer")
+    for key in ["capture_us", "instantiate_us"]:
+        if not _is_number(graph.get(key)) or graph.get(key) < 0:
+            self._error(f"hip_graph_replay.{key} must be finite and nonnegative")
     caveat = graph.get("caveat")
     if caveat is not None and not isinstance(caveat, str):
         self._error("hip_graph_replay.caveat must be a string or null")
@@ -451,7 +622,9 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
         if isinstance(metadata, dict):
             enabled = metadata.get("hip_graph_replay_enabled")
             if enabled is not None and enabled is not False:
-                self._error("non-graph captures must set timing_metadata.hip_graph_replay_enabled=false")
+                self._error(
+                    "non-graph captures must set timing_metadata.hip_graph_replay_enabled=false"
+                )
         return
 
     execution_mode = self._benchmark_execution_mode()
@@ -462,7 +635,9 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     wrap64_full_graph = execution_mode == "hip_graph_replay_wrap64_pack_gemm_export"
     if resident_chain_graph:
         if self.data.get("benchmark") != "rns8_hip_graph_replay_resident_rns_chain":
-            self._error("resident-chain hip_graph_replay captures must use benchmark=rns8_hip_graph_replay_resident_rns_chain")
+            self._error(
+                "resident-chain hip_graph_replay captures must use benchmark=rns8_hip_graph_replay_resident_rns_chain"
+            )
     elif bounded_full_graph:
         if self.data.get("benchmark") != "rns8_hip_graph_replay_bounded_pack_gemm_export":
             self._error(
@@ -489,7 +664,10 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             )
     else:
         self._error("hip_graph_replay captures must use a registered graph replay execution mode")
-    if self.data.get("backend_selected") != "hip-direct" or self.data.get("backend_requested") != "hip-direct":
+    if (
+        self.data.get("backend_selected") != "hip-direct"
+        or self.data.get("backend_requested") != "hip-direct"
+    ):
         self._error("hip_graph_replay captures must request and select backend hip-direct")
     if self.data.get("bound_mode") != "global":
         self._error("hip_graph_replay captures must use bound_mode=global")
@@ -502,54 +680,101 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     if graph.get("status") != "available":
         self._error("hip_graph_replay captures must set hip_graph_replay.status=available")
     for key in ["capture_us", "instantiate_us"]:
-        if _is_int(graph.get(key)) and graph.get(key) <= 0:
-            self._error(f"hip_graph_replay.{key} must be positive for executed graph replay captures")
+        if _is_number(graph.get(key)) and graph.get(key) <= 0:
+            self._error(
+                f"hip_graph_replay.{key} must be positive for executed graph replay captures"
+            )
     if graph.get("graph_launches_per_measured_repeat") != 1:
         self._error("hip_graph_replay captures must launch one graph per measured repeat")
-    if _is_int(repeats) and _is_int(warmups) and graph.get("total_graph_launches") != repeats + warmups:
+    if (
+        _is_int(repeats)
+        and _is_int(warmups)
+        and graph.get("total_graph_launches") != repeats + warmups
+    ):
         self._error("hip_graph_replay.total_graph_launches must equal warmups + repeats")
 
     if resident_chain_graph:
-        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"}:
-            self._error("resident-chain hip_graph_replay captures must use bounded or exact-wide RNS semantics")
+        if not text_choice(
+            self.data.get("semantics"),
+            {"bounded_i64", "bounded_u64", "exact_wide_signed", "exact_wide_unsigned"},
+        ):
+            self._error(
+                "resident-chain hip_graph_replay captures must use bounded or exact-wide RNS semantics"
+            )
         if self.data.get("reuse_packed_inputs") is not True:
-            self._error("resident-chain hip_graph_replay captures must use reuse_packed_inputs=true")
+            self._error(
+                "resident-chain hip_graph_replay captures must use reuse_packed_inputs=true"
+            )
         if self.data.get("pack_mode") != "prepacked_reuse":
-            self._error("resident-chain hip_graph_replay captures must use pack_mode=prepacked_reuse")
+            self._error(
+                "resident-chain hip_graph_replay captures must use pack_mode=prepacked_reuse"
+            )
         if self.data.get("prepack_reuse_operands") != ["A", "B"]:
             self._error("resident-chain hip_graph_replay captures must reuse operands A and B")
         if self.data.get("prepack_reuse_strategy") != "persistent_matrix_residency":
-            self._error("resident-chain hip_graph_replay captures must use prepack_reuse_strategy=persistent_matrix_residency")
+            self._error(
+                "resident-chain hip_graph_replay captures must use prepack_reuse_strategy=persistent_matrix_residency"
+            )
         if chain_length <= 1 or self._residue_output_mode() != "residue_current_rns":
-            self._error("resident-chain hip_graph_replay captures must use residue-current chain output")
+            self._error(
+                "resident-chain hip_graph_replay captures must use residue-current chain output"
+            )
         if graph.get("scope") != "direct_hip_reused_inputs_residue_current_rns_chain":
             self._error(
                 "resident-chain hip_graph_replay captures must set hip_graph_replay.scope="
                 "direct_hip_reused_inputs_residue_current_rns_chain"
             )
         if graph.get("captured_chain_length") != chain_length:
-            self._error("resident-chain hip_graph_replay.captured_chain_length must match residue_chain_length")
-        if graph.get("timing_policy") != "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync":
+            self._error(
+                "resident-chain hip_graph_replay.captured_chain_length must match residue_chain_length"
+            )
+        if (
+            graph.get("timing_policy")
+            != "raw_timings_us.rns_gemm_and_end_to_end_measure_one_hipGraphLaunch_plus_stream_sync"
+        ):
             self._error("resident-chain hip_graph_replay.timing_policy is stale or unsupported")
-        if graph.get("setup_policy") != "A_B_prepack_before_capture_capture_and_instantiate_before_warmups":
+        if (
+            graph.get("setup_policy")
+            != "A_B_prepack_before_capture_capture_and_instantiate_before_warmups"
+        ):
             self._error("resident-chain hip_graph_replay.setup_policy is stale or unsupported")
-        if graph.get("final_export_policy") != "one_final_logical_export_after_measured_repeats_for_checksum_only":
-            self._error("resident-chain hip_graph_replay.final_export_policy is stale or unsupported")
-        if not isinstance(caveat, str) or "resident Direct-HIP RNS GEMM launches only" not in caveat:
+        if (
+            graph.get("final_export_policy")
+            != "one_final_logical_export_after_measured_repeats_for_checksum_only"
+        ):
+            self._error(
+                "resident-chain hip_graph_replay.final_export_policy is stale or unsupported"
+            )
+        if (
+            not isinstance(caveat, str)
+            or "resident Direct-HIP RNS GEMM launches only" not in caveat
+        ):
             self._error("resident-chain hip_graph_replay.caveat must describe graph replay scope")
     elif bounded_full_graph:
-        if self.data.get("semantics") not in {"bounded_i64", "bounded_u64"}:
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must use bounded semantics")
+        if not text_choice(self.data.get("semantics"), {"bounded_i64", "bounded_u64"}):
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use bounded semantics"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false"
+            )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack"
+            )
         if self.data.get("prepack_reuse_operands") != []:
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must not reuse packed operands"
+            )
         if self.data.get("prepack_reuse_strategy") != "none":
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none"
+            )
         if chain_length != 1 or self._residue_output_mode() != "host_export":
-            self._error("bounded pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1"
+            )
         if graph.get("scope") != "direct_hip_bounded_pack_gemm_export":
             self._error(
                 "bounded pack/GEMM/export hip_graph_replay captures must set "
@@ -561,16 +786,27 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             graph.get("timing_policy")
             != "raw_timings_us.end_to_end_measure_one_full_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
         ):
-            self._error("bounded pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported"
+            )
         if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
-            self._error("bounded pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
-        if graph.get("final_export_policy") != "logical_export_and_output_d2h_captured_inside_graph_each_repeat":
-            self._error("bounded pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported"
+            )
+        if (
+            graph.get("final_export_policy")
+            != "logical_export_and_output_d2h_captured_inside_graph_each_repeat"
+        ):
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported"
+            )
         if (
             not isinstance(caveat, str)
             or "pack, one RNS GEMM, export status, export kernel, and output D2H" not in caveat
         ):
-            self._error("bounded pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+            self._error(
+                "bounded pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope"
+            )
         _require_graph_full_path_phase_metadata(
             self,
             metadata,
@@ -583,41 +819,72 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             },
         )
     elif finite_full_graph:
-        if self.data.get("semantics") not in {"finite_ring_u8", "finite_field_u8"}:
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use finite-u8 semantics")
+        if not text_choice(self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}):
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use finite-u8 semantics"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false"
+            )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack"
+            )
         if self.data.get("prepack_reuse_operands") != []:
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must not reuse packed operands"
+            )
         if self.data.get("prepack_reuse_strategy") != "none":
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none"
+            )
         if chain_length != 1 or self._residue_output_mode() != "host_export":
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
-        if not isinstance(self.data.get("finite_modulus"), int) or self.data.get("finite_modulus") <= 1:
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay captures must record finite_modulus")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1"
+            )
+        if (
+            not isinstance(self.data.get("finite_modulus"), int)
+            or self.data.get("finite_modulus") <= 1
+        ):
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay captures must record finite_modulus"
+            )
         if graph.get("scope") != "direct_hip_finite_u8_pack_gemm_export":
             self._error(
                 "finite-u8 pack/GEMM/export hip_graph_replay captures must set "
                 "hip_graph_replay.scope=direct_hip_finite_u8_pack_gemm_export"
             )
         if graph.get("captured_chain_length") != 1:
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay.captured_chain_length must be 1"
+            )
         if (
             graph.get("timing_policy")
             != "raw_timings_us.end_to_end_measure_one_full_finite_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
         ):
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported"
+            )
         if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
-        if graph.get("final_export_policy") != "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat":
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported"
+            )
+        if (
+            graph.get("final_export_policy")
+            != "finite_canonical_export_and_output_d2h_captured_inside_graph_each_repeat"
+        ):
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported"
+            )
         if (
             not isinstance(caveat, str)
-            or "finite-u8 pack, one modular GEMM, canonical finite export, and output D2H" not in caveat
+            or "finite-u8 pack, one modular GEMM, canonical finite export, and output D2H"
+            not in caveat
         ):
-            self._error("finite-u8 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+            self._error(
+                "finite-u8 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope"
+            )
         _require_graph_full_path_phase_metadata(
             self,
             metadata,
@@ -626,45 +893,81 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
                 "pack": ["captured inside one HIP Graph launch"],
                 "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP finite-u8"],
                 "crt_export": ["finite export kernel", "output D2H"],
-                "end_to_end": ["hipGraphLaunch", "finite-u8", "pack", "modular GEMM", "canonical export", "D2H"],
+                "end_to_end": [
+                    "hipGraphLaunch",
+                    "finite-u8",
+                    "pack",
+                    "modular GEMM",
+                    "canonical export",
+                    "D2H",
+                ],
             },
         )
     elif exact_wide_full_graph:
-        if self.data.get("semantics") not in {"exact_wide_signed", "exact_wide_unsigned"}:
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use exact-wide semantics")
+        if not text_choice(
+            self.data.get("semantics"), {"exact_wide_signed", "exact_wide_unsigned"}
+        ):
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use exact-wide semantics"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false"
+            )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack"
+            )
         if self.data.get("prepack_reuse_operands") != []:
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must not reuse packed operands"
+            )
         if self.data.get("prepack_reuse_strategy") != "none":
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none"
+            )
         if chain_length != 1 or self._residue_output_mode() != "host_export":
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1"
+            )
         if self.data.get("exact_wide_limb_count") != 4:
-            self._error("exact-wide pack/GEMM/export hip_graph_replay captures currently require exact_wide_limb_count=4")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay captures currently require exact_wide_limb_count=4"
+            )
         if graph.get("scope") != "direct_hip_exact_wide_pack_gemm_export":
             self._error(
                 "exact-wide pack/GEMM/export hip_graph_replay captures must set "
                 "hip_graph_replay.scope=direct_hip_exact_wide_pack_gemm_export"
             )
         if graph.get("captured_chain_length") != 1:
-            self._error("exact-wide pack/GEMM/export hip_graph_replay.captured_chain_length must be 1")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay.captured_chain_length must be 1"
+            )
         if (
             graph.get("timing_policy")
             != "raw_timings_us.end_to_end_measure_one_full_exact_wide_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
         ):
-            self._error("exact-wide pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported"
+            )
         if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
-            self._error("exact-wide pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
-        if graph.get("final_export_policy") != "exact_wide_limb_export_and_output_d2h_captured_inside_graph_each_repeat":
-            self._error("exact-wide pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported"
+            )
+        if (
+            graph.get("final_export_policy")
+            != "exact_wide_limb_export_and_output_d2h_captured_inside_graph_each_repeat"
+        ):
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported"
+            )
         if (
             not isinstance(caveat, str)
             or "exact-wide pack, one RNS GEMM, fixed-width exact limb export" not in caveat
         ):
-            self._error("exact-wide pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+            self._error(
+                "exact-wide pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope"
+            )
         _require_graph_full_path_phase_metadata(
             self,
             metadata,
@@ -673,22 +976,41 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
                 "pack": ["captured inside one HIP Graph launch"],
                 "rns_gemm": ["captured inside one HIP Graph launch", "Direct-HIP exact-wide"],
                 "crt_export": ["exact-wide limb export kernel", "status D2H", "output D2H"],
-                "end_to_end": ["hipGraphLaunch", "exact-wide", "pack", "RNS GEMM", "limb export", "D2H"],
+                "end_to_end": [
+                    "hipGraphLaunch",
+                    "exact-wide",
+                    "pack",
+                    "RNS GEMM",
+                    "limb export",
+                    "D2H",
+                ],
             },
         )
     elif wrap64_full_graph:
         if self.data.get("semantics") != "wrap_u64_mod_2_64":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use wrap_u64_mod_2_64 semantics")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use wrap_u64_mod_2_64 semantics"
+            )
         if self.data.get("reuse_packed_inputs") is not False:
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use reuse_packed_inputs=false"
+            )
         if self.data.get("pack_mode") != "per_repeat_repack":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use pack_mode=per_repeat_repack"
+            )
         if self.data.get("prepack_reuse_operands") != []:
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must not reuse packed operands")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must not reuse packed operands"
+            )
         if self.data.get("prepack_reuse_strategy") != "none":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use prepack_reuse_strategy=none"
+            )
         if chain_length != 1 or self._residue_output_mode() != "host_export":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay captures must use host_export residue_chain_length=1"
+            )
         if graph.get("scope") != "direct_hip_wrap64_pack_gemm_export":
             self._error(
                 "wrap64 pack/GEMM/export hip_graph_replay captures must set "
@@ -700,16 +1022,27 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
             graph.get("timing_policy")
             != "raw_timings_us.end_to_end_measure_one_full_wrap64_pack_gemm_export_hipGraphLaunch_plus_stream_sync"
         ):
-            self._error("wrap64 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay.timing_policy is stale or unsupported"
+            )
         if graph.get("setup_policy") != "capture_and_instantiate_before_warmups_no_prepack_reuse":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported")
-        if graph.get("final_export_policy") != "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat":
-            self._error("wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay.setup_policy is stale or unsupported"
+            )
+        if (
+            graph.get("final_export_policy")
+            != "wrap64_low64_export_and_output_d2h_captured_inside_graph_each_repeat"
+        ):
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay.final_export_policy is stale or unsupported"
+            )
         if (
             not isinstance(caveat, str)
             or "wrap64 byte-limb pack, byte-GEMM36, low64 export, and output D2H" not in caveat
         ):
-            self._error("wrap64 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope")
+            self._error(
+                "wrap64 pack/GEMM/export hip_graph_replay.caveat must describe graph replay scope"
+            )
         _require_graph_full_path_phase_metadata(
             self,
             metadata,
@@ -718,14 +1051,23 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
                 "pack": ["captured inside one HIP Graph launch"],
                 "rns_gemm": ["captured inside one HIP Graph launch", "wrap64 byte-limb"],
                 "crt_export": ["wrap64 low64 export kernel", "output D2H"],
-                "end_to_end": ["hipGraphLaunch", "wrap64", "byte-limb pack", "byte-GEMM36", "low64 export", "D2H"],
+                "end_to_end": [
+                    "hipGraphLaunch",
+                    "wrap64",
+                    "byte-limb pack",
+                    "byte-GEMM36",
+                    "low64 export",
+                    "D2H",
+                ],
             },
         )
 
     if not isinstance(metadata, dict):
         return
     if metadata.get("hip_graph_replay_enabled") is not True:
-        self._error("hip_graph_replay captures must set timing_metadata.hip_graph_replay_enabled=true")
+        self._error(
+            "hip_graph_replay captures must set timing_metadata.hip_graph_replay_enabled=true"
+        )
     if metadata.get("hip_graph_replay_status") != graph.get("status"):
         self._error("timing_metadata.hip_graph_replay_status must match hip_graph_replay.status")
     if metadata.get("hip_graph_replay_scope") != graph.get("scope"):
@@ -733,12 +1075,24 @@ def validate_hip_graph_replay_metadata(self: Any) -> None:
     if metadata.get("hip_graph_capture_us") != graph.get("capture_us"):
         self._error("timing_metadata.hip_graph_capture_us must match hip_graph_replay.capture_us")
     if metadata.get("hip_graph_instantiate_us") != graph.get("instantiate_us"):
-        self._error("timing_metadata.hip_graph_instantiate_us must match hip_graph_replay.instantiate_us")
+        self._error(
+            "timing_metadata.hip_graph_instantiate_us must match hip_graph_replay.instantiate_us"
+        )
     if metadata.get("hip_graph_total_launches") != graph.get("total_graph_launches"):
-        self._error("timing_metadata.hip_graph_total_launches must match hip_graph_replay.total_graph_launches")
+        self._error(
+            "timing_metadata.hip_graph_total_launches must match hip_graph_replay.total_graph_launches"
+        )
     if metadata.get("gpu_event_timing") is not False:
         self._error("hip_graph_replay captures must report gpu_event_timing=false")
-    if metadata.get("gpu_event_timing_reason") != "hip_graph_replay_wall_clock_only":
-        self._error("hip_graph_replay captures must report gpu_event_timing_reason=hip_graph_replay_wall_clock_only")
-    if metadata.get("gpu_event_timing_status") != "not_requested_graph_replay":
-        self._error("hip_graph_replay captures must report gpu_event_timing_status=not_requested_graph_replay")
+    production = (
+        metadata.get("host_instrumentation_state") == "hooks_disabled"
+        and metadata.get("gpu_event_timing_reason") == "explicit_production_hooks_disabled"
+        and metadata.get("gpu_event_timing_status") == "not_requested_production_timing"
+    )
+    if not production:
+        if metadata.get("gpu_event_timing_reason") != "hip_graph_replay_wall_clock_only":
+            self._error(
+                "hip_graph_replay diagnostic captures require the explicit wall-clock policy"
+            )
+        if metadata.get("gpu_event_timing_status") != "not_requested_graph_replay":
+            self._error("hip_graph_replay diagnostic captures require not_requested_graph_replay")

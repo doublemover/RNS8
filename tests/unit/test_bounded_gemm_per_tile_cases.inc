@@ -15,7 +15,8 @@ TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile 
     desc.tile_n = 64;
     desc.tile_bounds = bounds.data();
     desc.tile_bounds_count = bounds.size();
-    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    CHECK(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) ==
+          RNS8_RANGE_ERROR);
     check_all_equal<int64_t>(C, -99);
   }
   {
@@ -29,7 +30,8 @@ TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile 
     desc.tile_n = 64;
     desc.tile_bounds = bounds.data();
     desc.tile_bounds_count = bounds.size();
-    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) ==
+          RNS8_RANGE_ERROR);
     check_all_equal<uint64_t>(C, 123);
   }
   {
@@ -43,7 +45,8 @@ TEST_CASE("bounded CPU export reports range errors for too-small valid per-tile 
     desc.tile_n = 64;
     desc.tile_bounds = bounds.data();
     desc.tile_bounds_count = bounds.size();
-    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_RANGE_ERROR);
+    CHECK(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) ==
+          RNS8_RANGE_ERROR);
     check_all_equal<uint64_t>(C, 123);
   }
   rns8_destroy_context(ctx);
@@ -73,11 +76,13 @@ TEST_CASE("bounded CPU oneshot materializes proven zero per-tile outputs") {
   desc.flags = RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS;
   desc.tile_bounds = bounds.data();
   desc.tile_bounds_count = bounds.size();
-  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), k, B.data(), n, C.data(), ldc) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      CHECK(C[static_cast<std::size_t>(row * ldc + col)] == A[static_cast<std::size_t>(row)] * B[static_cast<std::size_t>(col)]);
+      CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
+            A[static_cast<std::size_t>(row)] * B[static_cast<std::size_t>(col)]);
     }
     CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xdeadbeefdeadbeefull);
   }
@@ -188,9 +193,12 @@ TEST_CASE("bounded CPU persistent GEMM accepts compact per-tile signed storage")
   REQUIRE(info.max_selected_prefix > 0);
   REQUIRE(info.max_selected_prefix < plan->prefix);
 
-  auto a_desc = matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
-  auto b_desc = matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
-  auto c_desc = matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
+  auto a_desc =
+      matrix_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
+  auto b_desc =
+      matrix_desc(k, n, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
+  auto c_desc =
+      matrix_desc(m, n, RNS8_BOUNDED_I64, RNS8_BOUND_PER_TILE_MAX_ABS, info.max_selected_prefix);
   a_desc.tile_m = desc.tile_m;
   a_desc.tile_n = desc.tile_n;
   b_desc.tile_m = desc.tile_m;

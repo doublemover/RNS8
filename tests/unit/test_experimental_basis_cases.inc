@@ -1,0 +1,355 @@
+TEST_CASE("experimental basis typed inventory shares concrete owner resources and full identity") {
+  auto* ctx = create_cpu_context();
+  auto ordered = experimental_basis_fixture::moduli(), reordered = ordered;
+  std::reverse(reordered.begin(), reordered.end());
+  auto* basis = experimental_basis_fixture::create(ordered);
+  auto* other = experimental_basis_fixture::create(reordered);
+  rns8_basis_plan_desc d{};
+  d.struct_size = sizeof(d);
+  d.abi_version = RNS8_ABI_VERSION;
+  d.backend = RNS8_BACKEND_CPU_REFERENCE;
+  d.semantics = RNS8_EXACT_WIDE_SIGNED;
+  d.m = 3;
+  d.n = 2;
+  d.k = 5;
+  d.prefix = 20;
+  d.max_host_bytes = d.max_device_bytes = UINT64_MAX;
+  rns8_operation_support support{};
+  support.struct_size = sizeof(support);
+  support.abi_version = RNS8_ABI_VERSION;
+  rns8_basis_info info{};
+  info.struct_size = sizeof(info);
+  info.abi_version = RNS8_ABI_VERSION;
+  std::string first_identity;
+  for (auto operation : {RNS8_OP_GEMM, RNS8_OP_PACK, RNS8_OP_EXPORT, RNS8_OP_BASE_EXTEND,
+                         RNS8_OP_EXPERIMENTAL_BASIS}) {
+    REQUIRE(rns8_query_basis_operation(ctx, basis, &d, operation, RNS8_EXEC_SYNC, &support,
+                                       &info) == RNS8_SUCCESS);
+    CHECK(support.source_implemented == 1);
+    CHECK(support.compiled_inventory == 1);
+    CHECK(support.requires_binding == 1);
+    CHECK(support.correctness_qualified == 0);
+    CHECK(support.performance_qualified == 0);
+    CHECK(support.supported_execution_modes == RNS8_EXEC_SYNC);
+    CHECK(support.required_pinned_host_bytes == 0);
+    REQUIRE(std::equal(ordered.begin(), ordered.end(), info.moduli));
+    rns8_basis_resources resources{};
+    resources.struct_size = sizeof(resources);
+    resources.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_basis_plan(basis, &d, &resources) == RNS8_SUCCESS);
+    CHECK(resources.required_device_bytes == support.required_device_bytes);
+    CHECK(resources.required_host_bytes == support.required_host_bytes);
+    d.max_host_bytes = resources.required_host_bytes;
+    rns8_basis_plan* plan = nullptr;
+    REQUIRE(rns8_create_basis_plan(ctx, basis, &d, &plan) == RNS8_SUCCESS);
+    REQUIRE(rns8_destroy_basis_plan(plan) == RNS8_SUCCESS);
+    d.max_host_bytes = UINT64_MAX;
+    if (operation == RNS8_OP_GEMM)
+      first_identity = support.provider_identity_sha256;
+  }
+  REQUIRE(rns8_query_basis_operation(ctx, other, &d, RNS8_OP_GEMM, RNS8_EXEC_SYNC, &support,
+                                     &info) == RNS8_SUCCESS);
+  CHECK(first_identity != support.provider_identity_sha256);
+  CHECK(rns8_query_basis_operation(ctx, basis, &d, RNS8_OP_GEMM, RNS8_EXEC_OWNED_GRAPH, &support,
+                                   &info) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(support.reason_code == RNS8_SUPPORT_EXECUTION_MODE);
+  CHECK(rns8_query_basis_operation(ctx, basis, &d, RNS8_OP_QUARTER_CRT, RNS8_EXEC_SYNC, &support,
+                                   &info) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(support.reason_code == RNS8_SUPPORT_OPERATION);
+  REQUIRE(rns8_query_basis_operation(ctx, basis, &d, RNS8_OP_GEMM, RNS8_EXEC_SYNC, &support,
+                                     &info) == RNS8_SUCCESS);
+  d.max_host_bytes = support.required_host_bytes - 1;
+  CHECK(rns8_query_basis_operation(ctx, basis, &d, RNS8_OP_GEMM, RNS8_EXEC_SYNC, &support, &info) ==
+        RNS8_WORKSPACE_TOO_SMALL);
+  CHECK(support.reason_code == RNS8_SUPPORT_BUDGET);
+  CHECK(support.required_host_bytes == d.max_host_bytes + 1);
+  REQUIRE(rns8_destroy_basis(other) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_basis(basis) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+
+TEST_CASE("experimental ordered bases reject noncoprime descriptors and retain owned identities") {
+  rns8_basis_desc d{};
+  d.struct_size = sizeof(d);
+  d.abi_version = RNS8_ABI_VERSION;
+  d.representation = 1;
+  rns8_basis* basis = nullptr;
+  for (const std::vector<uint16_t>& moduli :
+       std::vector<std::vector<uint16_t>>{{}, {1}, {257}, {6, 9}, {251, 251}}) {
+    d.moduli = moduli.data();
+    d.count = uint32_t(moduli.size());
+    REQUIRE(rns8_create_basis(&d, &basis) == RNS8_INVALID_ARGUMENT);
+    REQUIRE(basis == nullptr);
+  }
+  auto* ctx = create_cpu_context();
+  auto ordered = experimental_basis_fixture::moduli();
+  d.moduli = ordered.data();
+  d.count = uint32_t(ordered.size());
+  for (unsigned field = 0; field < 2; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 2u : 1u}) {
+      auto invalid = d;
+      if (field == 0)
+        invalid.representation = bits;
+      else
+        invalid.flags = bits;
+      auto* const canary = reinterpret_cast<rns8_basis*>(uintptr_t(1));
+      auto* out = canary;
+      CHECK(rns8_create_basis(&invalid, &out) == RNS8_INVALID_ARGUMENT);
+      CHECK(out == canary);
+    }
+  auto* owner = experimental_basis_fixture::create(ordered);
+  auto* matrix = experimental_basis_fixture::matrix(ctx, owner, RNS8_EXACT_WIDE_SIGNED, 1, 1);
+  const auto data = matrix->experimental_basis;
+  REQUIRE(data != nullptr);
+  REQUIRE(rns8_destroy_basis(owner) == RNS8_SUCCESS);
+  using boost::multiprecision::cpp_int;
+  for (uint32_t prefix = 1; prefix <= 20; ++prefix) {
+    const auto& product = data->products[prefix];
+    for (bool sign : {false, true}) {
+      std::vector<cpp_int> values{0, 1, product - 1, product / 2};
+      if (sign)
+        values = {-(product / 2), -1, 0, (product - 1) / 2};
+      for (const auto& expected : values) {
+        std::vector<int8_t> residues(prefix);
+        for (uint32_t p = 0; p < prefix; ++p)
+          residues[p] = rns8::detail::centered_residue(expected, data->packet.moduli[p]);
+        uint64_t words[3]{};
+        REQUIRE(rns8::detail::basis_reconstruct_words(residues.data(), 1, prefix, data->packet,
+                                                      sign, words));
+        cpp_int actual = cpp_int(words[0]) + (cpp_int(words[1]) << 64) + (cpp_int(words[2]) << 128);
+        if (sign && words[2] >> 63)
+          actual -= cpp_int(1) << 192;
+        REQUIRE(actual == expected);
+        for (uint32_t limbs : {1u, 2u, 3u, 4u, 32u}) {
+          std::array<uint64_t, 32> exported;
+          exported.fill(99);
+          const cpp_int limit = cpp_int(1) << (64 * limbs - (sign ? 1 : 0));
+          const bool fits =
+              sign ? (expected >= -limit && expected < limit) : (expected >= 0 && expected < limit);
+          REQUIRE(rns8::detail::basis_export_words(words, sign, limbs, exported.data()) == fits);
+          if (!fits) {
+            CHECK(
+                std::all_of(exported.begin(), exported.end(), [](uint64_t v) { return v == 99; }));
+            continue;
+          }
+          cpp_int reference = expected;
+          if (reference < 0)
+            reference += cpp_int(1) << (64 * limbs);
+          for (uint32_t limb = 0; limb < limbs; ++limb) {
+            CHECK(exported[limb] == static_cast<uint64_t>(reference & UINT64_MAX));
+            reference >>= 64;
+          }
+          for (uint32_t limb = limbs; limb < 32; ++limb)
+            CHECK(exported[limb] == 99);
+        }
+      }
+    }
+  }
+  const int8_t invalid = -128;
+  uint64_t rejected[3]{};
+  CHECK_FALSE(rns8::detail::basis_reconstruct_words(&invalid, 1, 1, data->packet, true, rejected));
+  REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+TEST_CASE("experimental basis CPU routes preserve full-width products conversion and slab edges") {
+  auto* ctx = create_cpu_context();
+  for (bool sign : {false, true})
+    experimental_basis_fixture::roundtrip(ctx, sign);
+  experimental_basis_fixture::slab_edges(ctx);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}
+TEST_CASE("runtime basis selection binds prices to one exact workload and charges complete reuse") {
+  auto* ctx = create_cpu_context();
+  auto order = experimental_basis_fixture::moduli();
+  auto* first = experimental_basis_fixture::create(order);
+  std::reverse(order.begin(), order.end());
+  auto* second = experimental_basis_fixture::create(order);
+  rns8_basis_candidate candidates[2]{};
+  for (unsigned i = 0; i < 2; ++i) {
+    auto& c = candidates[i];
+    c.basis = i ? second : first;
+    auto& d = c.plan;
+    d.struct_size = sizeof(d);
+    d.abi_version = RNS8_ABI_VERSION;
+    d.backend = RNS8_BACKEND_CPU_REFERENCE;
+    d.semantics = RNS8_EXACT_WIDE_SIGNED;
+    d.m = 2;
+    d.n = 3;
+    d.k = 5;
+    d.prefix = 20;
+    d.max_device_bytes = d.max_host_bytes = UINT64_MAX;
+    rns8_basis_resources resources{};
+    resources.struct_size = sizeof(resources);
+    resources.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_query_basis_plan(c.basis, &d, &resources) == RNS8_SUCCESS);
+    rns8_basis_info basis{};
+    basis.struct_size = sizeof(basis);
+    basis.abi_version = RNS8_ABI_VERSION;
+    REQUIRE(rns8_get_basis_info(c.basis, 20, &basis) == RNS8_SUCCESS);
+    auto& p = c.cost;
+    p.struct_size = sizeof(p);
+    p.abi_version = RNS8_ABI_VERSION;
+    p.kind = 2;
+    REQUIRE(rns8_get_pipeline_build_identity(p.build_identity, sizeof(p.build_identity)) ==
+            RNS8_SUCCESS);
+    std::fill_n(p.cohort_identity, 64, 'a');
+    std::strcpy(p.target_id, "cpu");
+    std::copy_n(basis.moduli, 20, p.ordered_moduli);
+    p.count = p.prefix = 20;
+    p.backend = d.backend;
+    p.semantics = d.semantics;
+    p.m = d.m;
+    p.n = d.n;
+    p.k = d.k;
+    p.device_bytes = resources.required_device_bytes;
+    p.host_bytes = resources.required_host_bytes;
+    p.preparation_ns = i ? 10 : 1000;
+    p.pack_ns = 3;
+    p.gemm_ns = i ? 30 : 20;
+    p.export_ns = 7;
+  }
+  rns8_basis_selection_desc request{};
+  request.struct_size = sizeof(request);
+  request.abi_version = RNS8_ABI_VERSION;
+  request.semantics = RNS8_EXACT_WIDE_SIGNED;
+  request.m = 2;
+  request.n = 3;
+  request.k = 5;
+  request.reuse_count = 10;
+  request.magnitude_bound[0] = 5000;
+  std::fill_n(request.cohort_identity, 64, 'a');
+  rns8_basis_selection selection{};
+  selection.struct_size = sizeof(selection);
+  selection.abi_version = RNS8_ABI_VERSION;
+  REQUIRE(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) == RNS8_SUCCESS);
+  CHECK(selection.selected_index == 1);
+  CHECK(selection.projected_ns == 320);
+  CHECK(selection.eligible_candidates == 2);
+  request.reuse_count = 1000;
+  rns8_basis_plan* plan = nullptr;
+  REQUIRE(rns8_create_selected_basis_plan(ctx, &request, candidates, 2, &selection, &plan) ==
+          RNS8_SUCCESS);
+  CHECK(selection.selected_index == 0);
+  CHECK(selection.projected_ns == 21010);
+  REQUIRE(rns8_destroy_basis_plan(plan) == RNS8_SUCCESS);
+  const auto saved = selection;
+  candidates[0].cost.ordered_moduli[0] ^= 1;
+  candidates[1].cost.gemm_ns = UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(std::memcmp(&selection, &saved, sizeof(saved)) == 0);
+  candidates[0].cost.ordered_moduli[0] ^= 1;
+  candidates[1].cost.gemm_ns = 30;
+  request.magnitude_bound[2] = UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  request.magnitude_bound[2] = 0;
+  request.reuse_count = UINT64_MAX;
+  CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  request.reuse_count = 1;
+  const auto references = ctx->prepared_references;
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  auto reject_request = [&](const rns8_basis_selection_desc* input) {
+    const auto before = selection;
+    auto* const canary = reinterpret_cast<rns8_basis_plan*>(uintptr_t(1));
+    plan = canary;
+    CHECK(rns8_select_basis_plan(ctx, input, candidates, 2, &selection) == RNS8_INVALID_ARGUMENT);
+    CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+    CHECK(rns8_create_selected_basis_plan(ctx, input, candidates, 2, &selection, &plan) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(plan == canary);
+    CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+    CHECK(ctx->prepared_references == references);
+  };
+  for (unsigned field = 0; field < 2; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000), field == 0 ? 8u : 4u}) {
+      auto invalid = request;
+      if (field == 0)
+        invalid.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      else
+        invalid.flags = bits;
+      reject_request(&invalid);
+    }
+  for (unsigned field = 0; field < 2; ++field) {
+    auto invalid = request;
+    if (field == 0)
+      invalid.struct_size = sizeof(invalid) - 1;
+    else
+      ++invalid.abi_version;
+    reject_request(&invalid);
+  }
+  alignas(rns8_basis_selection_desc) uint64_t short_request = sizeof(uint64_t);
+  reject_request(reinterpret_cast<const rns8_basis_selection_desc*>(&short_request));
+  CHECK(short_request == sizeof(uint64_t));
+  // Valid flag combinations and real extension storage retain the minimum-size contract.
+  struct ExtendedRequest {
+    rns8_basis_selection_desc value;
+    uint64_t canary;
+  } extended_request{request, UINT64_C(0x123456789abcdef0)};
+  extended_request.value.struct_size = sizeof(extended_request);
+  for (uint32_t flags : {0u, 1u, 2u, 3u}) {
+    extended_request.value.flags = flags;
+    REQUIRE(rns8_select_basis_plan(ctx, &extended_request.value, candidates, 2, &selection) ==
+            RNS8_SUCCESS);
+    CHECK(extended_request.canary == UINT64_C(0x123456789abcdef0));
+  }
+  const uint32_t invalid_price_kinds[]{UINT32_MAX, UINT32_C(0x80000000), 3u, 0u};
+  for (unsigned field = 0; field < 7; ++field) {
+    auto invalid = candidates[1];
+    if (field < 4)
+      invalid.cost.kind = invalid_price_kinds[field];
+    else if (field == 4)
+      invalid.cost.build_identity[64] = 'a';
+    else if (field == 5)
+      invalid.cost.cohort_identity[64] = 'a';
+    else
+      std::fill_n(invalid.cost.target_id, sizeof(invalid.cost.target_id), 'a');
+    const auto original = candidates[1];
+    candidates[1] = invalid;
+    for (bool poisoned : {false, true}) {
+      ctx->hip_failure_poisoned = poisoned;
+      reject_request(&request);
+    }
+    ctx->hip_failure_poisoned = false;
+    candidates[1] = original;
+  }
+  const auto after = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(after.allocate_calls == allocations.allocate_calls);
+  CHECK(after.h2d_calls == allocations.h2d_calls);
+  CHECK(after.d2h_calls == allocations.d2h_calls);
+  for (unsigned field = 0; field < 5; ++field)
+    for (uint32_t bits : {UINT32_MAX, UINT32_C(0x80000000),
+                          field < 2   ? 10u
+                          : field < 4 ? 8u
+                                      : 1u}) {
+      const auto original = candidates[1];
+      if (field == 0)
+        candidates[1].plan.backend = raw_ffi_enum<rns8_backend_kind>(bits);
+      if (field == 1)
+        candidates[1].cost.backend = raw_ffi_enum<rns8_backend_kind>(bits);
+      if (field == 2)
+        candidates[1].plan.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 3)
+        candidates[1].cost.semantics = raw_ffi_enum<rns8_semantics>(bits);
+      if (field == 4)
+        candidates[1].plan.flags = bits;
+      const auto before = selection;
+      auto* const canary = reinterpret_cast<rns8_basis_plan*>(uintptr_t(1));
+      plan = canary;
+      CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+      CHECK(rns8_create_selected_basis_plan(ctx, &request, candidates, 2, &selection, &plan) ==
+            RNS8_INVALID_ARGUMENT);
+      CHECK(plan == canary);
+      CHECK(std::memcmp(&selection, &before, sizeof(selection)) == 0);
+      candidates[1] = original;
+    }
+  request.n = 4;
+  CHECK(rns8_select_basis_plan(ctx, &request, candidates, 2, &selection) ==
+        RNS8_UNSUPPORTED_BACKEND);
+  REQUIRE(rns8_destroy_basis(first) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_basis(second) == RNS8_SUCCESS);
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
+}

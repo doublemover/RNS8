@@ -1,23 +1,22 @@
-## Summary
+## Behavior and scope
 
--
+Describe the problem, resulting behavior and arithmetic/output contract.
+Link the owning issue and call out public versus internal changes.
 
-## Validation
+## Validation performed
 
-- [ ] `git diff --check`
-- [ ] `python tools\test_check_dependencies.py`
-- [ ] `python tools\test_benchmark_schema.py`
-- [ ] `python tools\test_result_compare.py`
-- [ ] `python tools\test_benchmark_sweep.py`
-- [ ] `python tools\check_release_tree.py`
+List exact commands and results, with source/configuration and device identity
+where relevant. State unavailable dependencies/hardware and explain skips.
+For docs-only work use the [documentation checks](../CONTRIBUTING.md#focused-tooling-and-documentation-checks).
 
-## Hardware And Dependency Notes
+- [ ] Relevant CPU/reference regressions cover changed semantics.
+- [ ] Kernel changes include CPU differentials and an applicable GPU correctness case.
+- [ ] Public API, schema or backend changes include documentation and tests.
+- [ ] `git diff --check` passes; ignored scratch output stays out of git.
 
-- CPU-only:
-- Windows HIP / `gfx1100`:
-- Optional accelerators:
+## Evidence and remaining work
 
-## Evidence Policy
-
-- [ ] Raw captures, ISA dumps, installers, and smoke binaries stayed under ignored paths.
-- [ ] Durable docs summarize reviewed evidence only.
+Keep raw captures/disassembly out of git. Link reviewed dated summaries for
+hardware or performance claims, with matched baselines and output boundaries.
+A build, probe or model is identified as such. State material limitations and
+follow-up work needed for review or qualification.

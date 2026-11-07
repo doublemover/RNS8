@@ -24,9 +24,12 @@ int main() {
   if (status == RNS8_SUCCESS) {
     status = rns8_create_workspace(ctx, plan, &workspace);
   }
-  const auto a_desc = row_major_matrix_desc(1, 2, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-  const auto b_desc = row_major_matrix_desc(2, 1, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-  const auto c_desc = row_major_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+  const auto a_desc = row_major_matrix_desc(1, 2, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE,
+                                            RNS8_MAX_SUPPORTED_PREFIX);
+  const auto b_desc = row_major_matrix_desc(2, 1, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE,
+                                            RNS8_MAX_SUPPORTED_PREFIX);
+  const auto c_desc = row_major_matrix_desc(1, 1, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE,
+                                            RNS8_MAX_SUPPORTED_PREFIX);
   if (status == RNS8_SUCCESS) {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
   }
@@ -68,6 +71,7 @@ int main() {
   if (limbs[0] != 0xfffffffffffffff1ull || limbs[1] != 0x000000000000003full) {
     return fail_check("exact-wide limb export mismatch");
   }
-  std::cout << "exact-wide signed limbs: 0x" << std::hex << limbs[1] << '_' << limbs[0] << std::dec << '\n';
+  std::cout << "exact-wide signed limbs: 0x" << std::hex << limbs[1] << '_' << limbs[0] << std::dec
+            << '\n';
   return EXIT_SUCCESS;
 }

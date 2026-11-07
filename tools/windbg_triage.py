@@ -15,7 +15,7 @@ def candidate_cdb_paths() -> list[Path]:
     candidates: list[Path] = []
     from_path = shutil.which("cdb.exe") or shutil.which("cdb")
     if from_path:
-      candidates.append(Path(from_path))
+        candidates.append(Path(from_path))
     roots = [
         Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")),
         Path(os.environ.get("ProgramFiles", r"C:\Program Files")),

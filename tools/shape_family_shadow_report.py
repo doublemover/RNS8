@@ -48,7 +48,11 @@ def target_family_for_id(target_id: str) -> str:
         return "cpu"
     if target_id.startswith("gfx94") or target_id in {"gfx90a", "gfx950"}:
         return "cdna"
-    if target_id.startswith("gfx10") or target_id.startswith("gfx11") or target_id.startswith("gfx12"):
+    if (
+        target_id.startswith("gfx10")
+        or target_id.startswith("gfx11")
+        or target_id.startswith("gfx12")
+    ):
         return "rdna"
     return "unknown"
 
@@ -159,7 +163,9 @@ def entry_query(entry: dict[str, Any]) -> ShapeQuery:
         layout=str(entry.get("layout", "row_major")),
         target_family=str(entry.get("target_family") or target_family_for_id(target)),
         signedness=str(entry.get("signedness") or signedness_for_semantics(semantic)),
-        output_contract=str(entry.get("output_contract") or output_contract_for_semantics(semantic)),
+        output_contract=str(
+            entry.get("output_contract") or output_contract_for_semantics(semantic)
+        ),
         export_selector=str(entry.get("export_selector") or "default"),
         limb_count=int(entry.get("limb_count") or 0),
     )
@@ -195,20 +201,26 @@ def boundary_blockers(differences: list[dict[str, Any]]) -> list[str]:
 
 def exact_cache_key_for(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
-    return boundary_matches(query, basis) and basis.m == query.m and basis.n == query.n and basis.k == query.k
+    return (
+        boundary_matches(query, basis)
+        and basis.m == query.m
+        and basis.n == query.n
+        and basis.k == query.k
+    )
 
 
 def same_family(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
-    return boundary_matches(query, basis) and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
+    return boundary_matches(query, basis) and shape_bucket(
+        basis.m, basis.n, basis.k
+    ) == shape_bucket(query.m, query.n, query.k)
 
 
 def loose_family_candidate(query: ShapeQuery, entry: dict[str, Any]) -> bool:
     basis = entry_query(entry)
-    return (
-        basis.semantic_contract == query.semantic_contract
-        and shape_bucket(basis.m, basis.n, basis.k) == shape_bucket(query.m, query.n, query.k)
-    )
+    return basis.semantic_contract == query.semantic_contract and shape_bucket(
+        basis.m, basis.n, basis.k
+    ) == shape_bucket(query.m, query.n, query.k)
 
 
 def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
@@ -223,7 +235,9 @@ def entry_distance(query: ShapeQuery, entry: dict[str, Any]) -> float:
     return sum(ratios) + timing_bias
 
 
-def rejected_boundary_candidates(query: ShapeQuery, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def rejected_boundary_candidates(
+    query: ShapeQuery, entries: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     rejected = []
     for entry in entries:
         if not loose_family_candidate(query, entry):
@@ -273,13 +287,20 @@ def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict
     exact = [entry for entry in entries if exact_cache_key_for(query, entry)]
     family = [entry for entry in entries if same_family(query, entry)]
     candidates = exact or family
-    candidate = min(candidates, key=lambda entry: entry_distance(query, entry)) if candidates else None
+    candidate = (
+        min(candidates, key=lambda entry: entry_distance(query, entry)) if candidates else None
+    )
     representative_entries = sorted(family, key=lambda entry: entry_distance(query, entry))
     blockers: list[str] = ["shape_family_shadow_only_no_routing_change"]
     if candidate is None:
         blockers.append("missing_same_family_reviewed_entry")
     elif not exact:
-        blockers.extend(["exact_query_not_reviewed", "representative_matrix_requires_same_target_layout_contract_review"])
+        blockers.extend(
+            [
+                "exact_query_not_reviewed",
+                "representative_matrix_requires_same_target_layout_contract_review",
+            ]
+        )
     else:
         blockers.append("exact_cache_hit_already_owned_by_current_AUTO_cache")
     if query.target_family == "unknown":
@@ -304,7 +325,11 @@ def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict
         "recommendation_boundary_status": boundary_status,
         "selector_explanation": "exact reviewed cache hit"
         if exact
-        else ("nearest same-family reviewed cache entry" if candidate else "no same-family reviewed cache entry"),
+        else (
+            "nearest same-family reviewed cache entry"
+            if candidate
+            else "no same-family reviewed cache entry"
+        ),
         "representative_matrix": {
             "reviewed_entry_count": len(representative_entries),
             "exact_entry_count": len(exact),
@@ -326,7 +351,9 @@ def recommendation_for(query: ShapeQuery, entries: list[dict[str, Any]]) -> dict
         }
         if basis
         else None,
-        "basis_end_to_end_median_us": candidate.get("measured_medians_us", {}).get("end_to_end") if candidate else None,
+        "basis_end_to_end_median_us": candidate.get("measured_medians_us", {}).get("end_to_end")
+        if candidate
+        else None,
         "rejected_boundary_candidates": rejected,
         "promotion_eligible": False,
         "promotion_blockers": blockers,
@@ -345,7 +372,12 @@ def family_summary(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "reviewed_entry_count": len(items),
                 "backends": sorted({str(item["selected_backend"]) for item in items}),
                 "targets": sorted({str(item["target_id"]) for item in items}),
-                "shapes": sorted({f"{item['shape']['m']}x{item['shape']['n']}x{item['shape']['k']}" for item in items}),
+                "shapes": sorted(
+                    {
+                        f"{item['shape']['m']}x{item['shape']['n']}x{item['shape']['k']}"
+                        for item in items
+                    }
+                ),
             }
         )
     return rows
@@ -401,7 +433,9 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache", type=Path, required=True, help="reviewed autotune cache JSON")
-    parser.add_argument("--query", action="append", default=[], help="semicolon/comma key=value shape query")
+    parser.add_argument(
+        "--query", action="append", default=[], help="semicolon/comma key=value shape query"
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

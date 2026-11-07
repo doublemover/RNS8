@@ -1,6 +1,7 @@
 #include "rns8_bench_support.hpp"
 
 #include <array>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -9,34 +10,47 @@
 #include <utility>
 
 #ifndef RNS8_CONFIGURED_HIP_ENABLED
-#  define RNS8_CONFIGURED_HIP_ENABLED 0
+#define RNS8_CONFIGURED_HIP_ENABLED 0
 #endif
 
 #if RNS8_CONFIGURED_HIP_ENABLED
-#  include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 #ifndef RNS8_GIT_COMMIT
-#  define RNS8_GIT_COMMIT "unknown"
+#define RNS8_GIT_COMMIT "unknown"
 #endif
 
 #ifndef RNS8_SOURCE_DIR
-#  define RNS8_SOURCE_DIR "."
+#define RNS8_SOURCE_DIR "."
 #endif
 
 namespace rns8::bench {
 
-uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end) {
-  return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+const HostClockCalibration& host_clock_calibration() {
+  static const HostClockCalibration calibration = [] {
+    std::array<double, 1001> overhead{};
+    for (auto& value : overhead) {
+      const auto start = std::chrono::steady_clock::now();
+      const auto end = std::chrono::steady_clock::now();
+      value = elapsed_us(start, end);
+    }
+    std::sort(overhead.begin(), overhead.end());
+    const double nominal_tick = duration_us(std::chrono::steady_clock::duration{1});
+    return HostClockCalibration{overhead[500], overhead[950],
+                                std::max(nominal_tick, 5 * overhead[950])};
+  }();
+  return calibration;
 }
 
 [[noreturn]] void usage_error(const std::string& message) {
   std::cerr << message << "\n";
   std::cerr
       << "usage: rns8-bench [--backend auto|cpu|hip-direct|hipblaslt|ck|rocwmma|amdgpu-builtins|wrap64-byte-limb|hip-vector-alu-int64|hip-vector-alu-int64-baseline]\n"
-      << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field]\n"
+      << "                  [--semantics bounded-i64|bounded-u64|wrap-u64|finite-u8-ring|finite-u8-field|\n"
+      << "                               exact-wide-signed|exact-wide-unsigned]\n"
       << "                  [--modulus M]\n"
-      << "                  [--device N] [--m M] [--n N] [--k K]\n"
+      << "                  [--device -1|NONNEGATIVE_INT_ORDINAL] [--m M] [--n N] [--k K]\n"
       << "                  [--output-ld-padding N]\n"
       << "                  [--tile-m M] [--tile-n N]\n"
       << "                  [--bound-mode global|per-tile]\n"
@@ -78,6 +92,7 @@ uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::st
       << "                  [--cpu-threads N]\n"
       << "                  [--cpu-parallel-threshold OPS]\n"
       << "                  [--cpu-reference-mode timed-baseline|correctness-anchor]\n"
+      << "                  [--verify-native-output] [--reference-cache-dir PATH] [--populate-reference-cache]\n"
       << "                  [--progress]\n"
       << "                  [--warmups W] [--repeats R] [--seed S]\n";
   std::exit(2);
@@ -102,24 +117,24 @@ std::string json_escape(const std::string& input) {
   std::ostringstream out;
   for (const char ch : input) {
     switch (ch) {
-      case '\\':
-        out << "\\\\";
-        break;
-      case '"':
-        out << "\\\"";
-        break;
-      case '\n':
-        out << "\\n";
-        break;
-      case '\r':
-        out << "\\r";
-        break;
-      case '\t':
-        out << "\\t";
-        break;
-      default:
-        out << ch;
-        break;
+    case '\\':
+      out << "\\\\";
+      break;
+    case '"':
+      out << "\\\"";
+      break;
+    case '\n':
+      out << "\\n";
+      break;
+    case '\r':
+      out << "\\r";
+      break;
+    case '\t':
+      out << "\\t";
+      break;
+    default:
+      out << ch;
+      break;
     }
   }
   return out.str();
@@ -137,11 +152,13 @@ std::string command_line(int argc, char** argv) {
 }
 
 std::string trim_ascii_whitespace(std::string value) {
-  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' || value.back() == '\t')) {
+  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
+                            value.back() == '\t')) {
     value.pop_back();
   }
   std::size_t first = 0;
-  while (first < value.size() && (value[first] == '\n' || value[first] == '\r' || value[first] == ' ' || value[first] == '\t')) {
+  while (first < value.size() && (value[first] == '\n' || value[first] == '\r' ||
+                                  value[first] == ' ' || value[first] == '\t')) {
     ++first;
   }
   if (first > 0) {
@@ -218,33 +235,11 @@ uint32_t benchmark_node_gpu_count() {
 }
 
 std::string runtime_git_commit() {
-#if defined(_WIN32)
-  const std::string command =
-      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>NUL";
-  FILE* pipe = _popen(command.c_str(), "r");
+#ifdef RNS8_COMPILED_COMMIT
+  return RNS8_COMPILED_COMMIT;
 #else
-  const std::string command =
-      std::string("git -C \"") + RNS8_SOURCE_DIR + "\" rev-parse --short=12 HEAD 2>/dev/null";
-  FILE* pipe = popen(command.c_str(), "r");
+  return RNS8_GIT_COMMIT;
 #endif
-  if (!pipe) {
-    return RNS8_GIT_COMMIT;
-  }
-  std::array<char, 64> buffer{};
-  std::string output;
-  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
-    output += buffer.data();
-  }
-#if defined(_WIN32)
-  const int close_status = _pclose(pipe);
-#else
-  const int close_status = pclose(pipe);
-#endif
-  output = trim_ascii_whitespace(output);
-  if (close_status != 0 || output.empty()) {
-    return RNS8_GIT_COMMIT;
-  }
-  return output;
 }
 
 std::string compiler_id() {
@@ -266,46 +261,49 @@ std::string compiler_version() {
   return std::to_string(__clang_major__) + "." + std::to_string(__clang_minor__) + "." +
          std::to_string(__clang_patchlevel__);
 #elif defined(__GNUC__)
-  return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
+  return std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." +
+         std::to_string(__GNUC_PATCHLEVEL__);
 #else
   return "unknown";
 #endif
 }
 
-void print_nullable_string(const char* value) {
+void print_nullable_string(std::ostream& output, const char* value) {
   if (value && value[0] != '\0') {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 
-void print_json_string_or_null(const char* value) {
+void print_json_string_or_null(std::ostream& output, const char* value) {
   if (value && value[0] != '\0') {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 
-void print_json_string_or_null(const std::string& value) {
+void print_json_string_or_null(std::ostream& output, const std::string& value) {
   if (!value.empty()) {
-    std::cout << "\"" << json_escape(value) << "\"";
+    output << "\"" << json_escape(value) << "\"";
   } else {
-    std::cout << "null";
+    output << "null";
   }
 }
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label) {
   const auto u_rows = static_cast<uint64_t>(rows);
   const auto u_cols = static_cast<uint64_t>(cols);
-  if (u_cols != 0 && u_rows > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_cols) {
+  if (u_cols != 0 &&
+      u_rows > static_cast<uint64_t>(std::numeric_limits<std::size_t>::max()) / u_cols) {
     usage_error(std::string("matrix size overflows size_t for ") + label);
   }
   return static_cast<std::size_t>(u_rows * u_cols);
 }
 
-std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count, const char* label) {
+std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count,
+                                  const char* label) {
   const std::size_t elements = checked_elements(rows, cols, label);
   if (limb_count == 0 || elements > std::numeric_limits<std::size_t>::max() / limb_count) {
     usage_error(std::string("limb output size overflows size_t for ") + label);
@@ -327,4 +325,4 @@ std::size_t checked_add_bytes(std::size_t lhs, std::size_t rhs, const char* labe
   return lhs + rhs;
 }
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

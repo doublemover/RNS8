@@ -1,30 +1,46 @@
 from __future__ import annotations
 
-from typing import Any
+from evidence_scalars import text_choice
 
-from .core_shared import *
+from .semantic_context import SemanticContext
 
-def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
-    if self.data.get("backend_selected") not in {
-        "cpu-reference",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma",
-        "amdgpu-builtins",
-    }:
+from .core_shared import (
+    _is_int,
+    _is_number,
+)
+from metadata_registry_constants import (
+    EXACT_WIDE_SIGNED_EXPORT_KERNELS,
+    EXACT_WIDE_UNSIGNED_EXPORT_KERNELS,
+)
+
+
+def validate_exact_wide_contract(self, ctx: SemanticContext) -> None:
+    from .wide_magnitude import validate_magnitude
+
+    for message in validate_magnitude(self.data):
+        self._error(message)
+    semantics = ctx.semantics
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    bound_mode = ctx.bound_mode
+    residue_chain_length = ctx.residue_chain_length
+    residue_output_mode = ctx.residue_output_mode
+    status_check = ctx.status_check
+    prefix_policy = ctx.prefix_policy
+    metadata = ctx.metadata
+    if not text_choice(
+        self.data.get("backend_selected"),
+        {
+            "cpu-reference",
+            "hip-direct",
+            "hipblaslt",
+            "ck",
+            "rocwmma",
+            "amdgpu-builtins",
+        },
+    ):
         self._error(
             "exact-wide captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
         )
@@ -47,10 +63,13 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
                 if semantics == "exact_wide_signed"
                 else "exact_wide_unsigned_limb_export"
             )
-            if self._benchmark_execution_mode() not in {
-                "residue_chain_final_host_export",
-                "residue_chain_independent_final_host_export",
-            }:
+            if not text_choice(
+                self._benchmark_execution_mode(),
+                {
+                    "residue_chain_final_host_export",
+                    "residue_chain_independent_final_host_export",
+                },
+            ):
                 self._error(
                     "exact-wide residue-chain final-export captures must use "
                     "benchmark_execution_mode=residue_chain_final_host_export or "
@@ -116,7 +135,9 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
                 f"{semantics} exact_output_contract.kernel_identity must be a registered exact-wide export kernel"
             )
         if export_kernel is not None and contract_kernel != export_kernel:
-            self._error("exact_output_contract.kernel_identity must match export_variant.selected_kernel")
+            self._error(
+                "exact_output_contract.kernel_identity must match export_variant.selected_kernel"
+            )
     reconstruction = self.data.get("reconstruction_variant")
     if isinstance(reconstruction, dict):
         reconstruction_kernel = reconstruction.get("kernel_identity")
@@ -125,15 +146,22 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
                 f"{semantics} reconstruction_variant.kernel_identity must be a registered exact-wide export kernel"
             )
         if export_kernel is not None and reconstruction_kernel != export_kernel:
-            self._error("reconstruction_variant.kernel_identity must match export_variant.selected_kernel")
+            self._error(
+                "reconstruction_variant.kernel_identity must match export_variant.selected_kernel"
+            )
     if isinstance(schedule, dict) and _is_int(prefix):
         if prefix_policy == "minimum_proven":
             if schedule.get("min_selected_prefix") != schedule.get("max_selected_prefix"):
                 self._error("exact-wide minimum_proven captures must use one selected prefix")
             if schedule.get("max_selected_prefix") > prefix:
                 self._error("exact-wide selected schedule prefix must be <= prefix")
-        elif schedule.get("min_selected_prefix") != prefix or schedule.get("max_selected_prefix") != prefix:
-            self._error("exact-wide captures must use fixed selected schedule prefix equal to prefix")
+        elif (
+            schedule.get("min_selected_prefix") != prefix
+            or schedule.get("max_selected_prefix") != prefix
+        ):
+            self._error(
+                "exact-wide captures must use fixed selected schedule prefix equal to prefix"
+            )
         if schedule.get("prefix_group_count") != 1:
             self._error("exact-wide captures must use one fixed prefix group")
         if schedule.get("adaptive_execution_applied") is True:
@@ -148,7 +176,9 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
         }
         selected_kernel = str(self.data.get("selected_kernel") or "")
         if backend == "amdgpu-builtins" and "sparse_a" in selected_kernel:
-            expected_epilogues["amdgpu-builtins"] = "amdgpu_builtin_sparse_a_fused_i32_to_centered_residue_rns_output"
+            expected_epilogues["amdgpu-builtins"] = (
+                "amdgpu_builtin_sparse_a_fused_i32_to_centered_residue_rns_output"
+            )
         expected_backend_epilogue = expected_epilogues.get(str(backend))
         if (
             expected_backend_epilogue is not None
@@ -163,8 +193,12 @@ def validate_exact_wide_contract(self, ctx: dict[str, Any]) -> None:
         if self.data.get("backend_selected") == "hip-direct":
             expected_scope = "direct_hip_default_stream_backend_operation_groups"
             if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                self._error(
+                    f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                )
         if self.data.get("backend_selected") == "hipblaslt":
             expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
             if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                self._error(
+                    f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                )

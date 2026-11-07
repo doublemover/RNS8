@@ -9,39 +9,54 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
-from metadata_registry_constants import GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES
+from report_inputs import load_validated_capture
+from grouped_task_contract import (
+    SINGLE_GROUPED_BUCKET_POLICY,
+    grouped_task_descriptor_contract,
+    grouped_task_descriptor_valid,
+)
+from diagnostic_companion import load_bindings
+from measurement_contract import (
+    host_observation_contract,
+    output_completion_boundary,
+    single_task_batch_contract,
+    task_scaling_contract,
+    uniform_task_sequence,
+)
+from observation_cohorts import (
+    ProductionCohortIndex,
+    aggregate_captures,
+    canonical_work,
+    comparison_environment,
+    comparison_noise_margin,
+    evidence,
+    phase_median,
+)
+from reference_verdict import CPUReferenceIndex
+from review_contract import release_capture_satisfied
 
 
 DEFAULT_OUT_DIR = Path("temp") / "many-small-grouped-reports"
-RELEASE_MIN_WARMUPS = 3
-RELEASE_MIN_REPEATS = 9
 REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
-REPORT_OUTPUT_NAMES = {"many-small-grouped-report.json", "review_report.json", "scenario_manifest.json"}
-SINGLE_GROUPED_DESCRIPTOR_LAYOUT = "same_shape_resident_task_triplets_v1"
-BUCKETED_GROUPED_DESCRIPTOR_LAYOUT = "same_contract_bucketed_resident_task_triplets_v1"
-SINGLE_GROUPED_BUCKET_POLICY = "single_same_shape_bucket"
-BUCKETED_GROUPED_BUCKET_POLICY = "same_contract_shape_buckets"
+REPORT_OUTPUT_NAMES = {
+    "many-small-grouped-report.json",
+    "review_report.json",
+    "scenario_manifest.json",
+}
 
 
 def expand_inputs(paths: list[Path]) -> list[Path]:
     expanded: list[Path] = []
     for path in paths:
         if path.is_dir():
-            expanded.extend(candidate for candidate in sorted(path.rglob("*.json")) if candidate.name not in REPORT_OUTPUT_NAMES)
+            expanded.extend(
+                candidate
+                for candidate in sorted(path.rglob("*.json"))
+                if candidate.name not in REPORT_OUTPUT_NAMES
+            )
         else:
             expanded.append(path)
     return expanded
-
-
-def load_validated_capture(path: Path) -> dict[str, Any]:
-    try:
-        capture = load_capture(path)
-        validate_capture(capture, path)
-    except BenchmarkSchemaError as exc:
-        raise SystemExit(str(exc)) from exc
-    capture["_path"] = str(path)
-    return capture
 
 
 def benchmark_execution_mode(capture: dict[str, Any]) -> str:
@@ -51,18 +66,22 @@ def benchmark_execution_mode(capture: dict[str, Any]) -> str:
     metadata = capture.get("timing_metadata")
     if isinstance(metadata, dict) and isinstance(metadata.get("benchmark_execution_mode"), str):
         return metadata["benchmark_execution_mode"]
-    return "persistent_resident"
+    return "persistent_resident_matrices"
 
 
 def is_grouped_dispatch(capture: dict[str, Any]) -> bool:
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    grouped = (
+        capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    )
     if grouped.get("requested") is True:
         return True
     return benchmark_execution_mode(capture) == "benchmark_grouped_dispatch_evidence"
 
 
 def is_host_api_batch(capture: dict[str, Any]) -> bool:
-    host_batch = capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+    host_batch = (
+        capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+    )
     if host_batch.get("enabled") is True:
         return True
     return benchmark_execution_mode(capture) == "benchmark_host_api_batch"
@@ -82,111 +101,32 @@ def backend_id(capture: dict[str, Any]) -> str:
 
 
 def task_count_for_capture(capture: dict[str, Any]) -> int:
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    grouped = (
+        capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    )
     if grouped.get("requested"):
         value = grouped.get("task_count")
-        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
-    host_batch = capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+        return (
+            int(value)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0
+            else 1
+        )
+    host_batch = (
+        capture.get("host_api_batch") if isinstance(capture.get("host_api_batch"), dict) else {}
+    )
     if host_batch.get("enabled"):
         value = host_batch.get("batch_size")
-        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+        return (
+            int(value)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0
+            else 1
+        )
     return 1
 
 
-def grouped_task_descriptor_contract(capture: dict[str, Any] | None) -> dict[str, Any]:
-    if capture is None:
-        return {}
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
-    contract = grouped.get("task_descriptor_contract") if isinstance(grouped, dict) else None
-    return contract if isinstance(contract, dict) else {}
-
-
-def expected_grouped_output_domain(capture: dict[str, Any]) -> str:
-    semantics = capture.get("semantics")
-    if semantics in {"finite_ring_u8", "finite_field_u8"}:
-        return "finite_u8_host"
-    if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-        return "exact_wide_limb_host"
-    return "native_i64_u64_host"
-
-
-def expected_grouped_shape_key(capture: dict[str, Any]) -> str:
-    selected_prefix = capture.get("selected_prefix", capture.get("prefix"))
-    return (
-        f"m={capture.get('m')};n={capture.get('n')};k={capture.get('k')};"
-        f"tile_m={capture.get('tile_m')};tile_n={capture.get('tile_n')};"
-        f"prefix={selected_prefix}"
-    )
-
-
-def expected_grouped_device_descriptor_policy(capture: dict[str, Any]) -> str:
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
-    strategy = grouped.get("execution_strategy")
-    return GROUPED_STRATEGY_DEVICE_DESCRIPTOR_POLICIES.get(strategy, "host_resident_task_loop")
-
-
-def grouped_task_descriptor_valid(capture: dict[str, Any]) -> bool:
-    contract = grouped_task_descriptor_contract(capture)
-    common_valid = (
-        contract.get("schema_version") == 1
-        and contract.get("task_count") == task_count_for_capture(capture)
-        and contract.get("semantics") == capture.get("semantics")
-        and contract.get("output_domain") == expected_grouped_output_domain(capture)
-        and contract.get("source_version_policy") == "per_task_monotonic_source_version_repack"
-        and contract.get("workspace_policy") == "one_workspace_per_task_shared_plan"
-        and contract.get("matrix_ownership_policy") == "benchmark_owns_all_task_triplets_until_capture_end"
-        and contract.get("descriptor_reuse_policy") == "reuse_after_shape_workspace_source_validation"
-        and contract.get("stride_policy") == "matrix_ld_matches_logical_shape_host_output_ld_explicit"
-        and contract.get("output_currentness_policy")
-        == "device_residue_current_after_grouped_gemm_host_output_after_export"
-        and contract.get("lifetime_policy") == "task_matrices_and_workspaces_destroyed_after_capture"
-        and contract.get("checksum_policy") == "combined_per_task_checksum_u64"
-        and contract.get("status_policy") == "fail_fast_per_task_operation_status"
-        and contract.get("device_descriptor_policy") == expected_grouped_device_descriptor_policy(capture)
-        and contract.get("promotion_eligible") is False
-    )
-    if not common_valid:
-        return False
-    if contract.get("bucket_policy") == SINGLE_GROUPED_BUCKET_POLICY:
-        return (
-            contract.get("descriptor_layout") == SINGLE_GROUPED_DESCRIPTOR_LAYOUT
-            and contract.get("bucket_count") == 1
-            and contract.get("same_shape_required") is True
-            and contract.get("shape_key") == expected_grouped_shape_key(capture)
-        )
-    if contract.get("bucket_policy") != BUCKETED_GROUPED_BUCKET_POLICY:
-        return False
-    if (
-        contract.get("descriptor_layout") != BUCKETED_GROUPED_DESCRIPTOR_LAYOUT
-        or not isinstance(contract.get("bucket_count"), int)
-        or contract.get("bucket_count") < 2
-        or contract.get("same_shape_required") is not False
-    ):
-        return False
-    buckets = contract.get("buckets")
-    if not isinstance(buckets, list) or len(buckets) != contract.get("bucket_count"):
-        return False
-    offset = 0
-    for index, bucket in enumerate(buckets):
-        if not isinstance(bucket, dict):
-            return False
-        bucket_task_count = bucket.get("task_count")
-        if (
-            bucket.get("bucket_index") != index
-            or bucket.get("task_offset") != offset
-            or not isinstance(bucket_task_count, int)
-            or bucket_task_count <= 1
-            or not isinstance(bucket.get("shape_key"), str)
-            or not bucket.get("shape_key")
-            or bucket.get("semantics") != capture.get("semantics")
-            or bucket.get("output_domain") != expected_grouped_output_domain(capture)
-        ):
-            return False
-        offset += bucket_task_count
-    return offset == task_count_for_capture(capture)
-
-
 def timing_summary_value(capture: dict[str, Any], phase: str, statistic: str) -> float | None:
+    if statistic == "median":
+        return phase_median(capture, phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -208,12 +148,7 @@ def median_per_task_end_to_end_us(capture: dict[str, Any]) -> float | None:
 
 
 def release_satisfied(capture: dict[str, Any]) -> bool:
-    return (
-        isinstance(capture.get("warmups"), int)
-        and isinstance(capture.get("repeats"), int)
-        and capture["warmups"] >= RELEASE_MIN_WARMUPS
-        and capture["repeats"] >= RELEASE_MIN_REPEATS
-    )
+    return release_capture_satisfied(capture)
 
 
 def gpu_backend(capture: dict[str, Any] | None) -> bool:
@@ -251,108 +186,91 @@ def checksum_matches(left: dict[str, Any] | None, right: dict[str, Any] | None) 
     return left_checksum == right_checksum
 
 
-def _nested(capture: dict[str, Any], path: str) -> Any:
-    value: Any = capture
-    for part in path.split("."):
-        if not isinstance(value, dict):
-            return None
-        value = value.get(part)
-    return value
-
-
-def _exact_output_status_policy(capture: dict[str, Any]) -> str | None:
-    status_policy = _nested(capture, "exact_output_contract.status_policy")
-    if status_policy is not None:
-        return str(status_policy)
-    status_check = capture.get("exact_wide_export_status_check")
-    if isinstance(status_check, str) and "elided" in status_check:
-        return "structurally_elided"
-    if status_check is not None:
-        return "required"
-    return None
-
-
-def _normalized_contract_value(capture: dict[str, Any], field: str) -> Any:
-    value = _nested(capture, field)
-    semantics = capture.get("semantics")
-    if field == "exact_output_contract.requested_final_output" and value is None:
-        if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-            return "exact_wide_limb_host"
-    if field == "exact_output_contract.limb_count" and value is None:
-        if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
-            return capture.get("exact_wide_limb_count")
-    if field == "exact_output_contract.status_policy":
-        return _exact_output_status_policy(capture)
-    if field == "export_variant.name" and value is None:
-        return "default"
-    if field == "reconstruction_variant.name" and value is None:
-        return "default_garner"
-    if field == "modulus_set.name" and value is None:
-        return "default"
-    if field == "residue_count_policy.policy" and value is None:
-        return capture.get("contract_prefix_policy")
-    if field == "tile_shape_variant.name" and value is None:
-        return "default"
-    if field == "tile_shape_variant.tile_m" and value is None:
-        return capture.get("tile_m")
-    if field == "tile_shape_variant.tile_n" and value is None:
-        return capture.get("tile_n")
-    if field == "tile_shape_variant.tile_k" and value is None:
-        return capture.get("k_block_size")
-    if field == "workload_proxy.family" and value is None:
-        return "not_requested"
-    if field == "workload_proxy.label" and value is None:
-        return "none"
-    return value
+def normalization(capture: dict[str, Any]) -> dict[str, Any]:
+    """Whitelist the native uniform-task producer, not arbitrary average task costs."""
+    if not is_grouped_dispatch(capture):
+        result = task_scaling_contract(capture)
+    else:
+        grouped = capture.get("grouped_dispatch") or {}
+        timing = capture.get("timing_metadata") or {}
+        descriptor = grouped_task_descriptor_contract(capture)
+        if (
+            not grouped_task_descriptor_valid(capture)
+            or uniform_task_sequence(capture) is None
+            or descriptor.get("bucket_policy") != SINGLE_GROUPED_BUCKET_POLICY
+            or grouped.get("capture_status") != "executed"
+            or grouped.get("setup_scope")
+            != "benchmark_grouped_dispatch_one_shared_plan_persistent_resident_tasks"
+            or benchmark_execution_mode(capture) != "benchmark_grouped_dispatch_evidence"
+            or not single_task_batch_contract(capture)
+            or timing.get("host_result_kind") != "single_operation"
+            or type(timing.get("inner_repetitions")) is not int
+            or timing.get("inner_repetitions") != 1
+            or timing.get("amortization_policy")
+            != "explicit_independent_task_batch_with_per_task_output"
+            or output_completion_boundary(capture) != "per_task_host_destinations"
+            or host_observation_contract(capture) != {"unit": "completed_call_or_task_batch"}
+        ):
+            raise ValueError("matched uniform grouped tasks and completed per-task output required")
+        result = dict(
+            tasks=descriptor["task_count"],
+            aggregate_units="microseconds_per_completed_task_batch",
+            normalized_units="microseconds_per_completed_task",
+            checksum_policy=descriptor["checksum_policy"],
+        )
+    return dict(result, scope="registered_uniform_host_task_throughput_scaling_v1")
 
 
 def normalized_contract_key(capture: dict[str, Any]) -> str:
-    fields = [
-        "semantics",
-        "bound_kind",
-        "bound_mode",
-        "bound",
-        "bound_source",
-        "m",
-        "n",
-        "k",
-        "prefix",
-        "selected_prefix",
-        "requested_max_prefix",
-        "contract_prefix_policy",
-        "residue_output_mode",
-        "tile_m",
-        "tile_n",
-        "k_block_size",
-        "finite_modulus",
-        "exact_output_contract.requested_final_output",
-        "exact_output_contract.limb_count",
-        "exact_output_contract.status_policy",
-        "output_policy.destination_layout",
-        "output_policy.status_handling",
-        "export_variant.name",
-        "reconstruction_variant.name",
-        "modulus_set.name",
-        "residue_count_policy.policy",
-        "tile_shape_variant.name",
-        "tile_shape_variant.tile_m",
-        "tile_shape_variant.tile_n",
-        "tile_shape_variant.tile_k",
-        "workload_proxy.family",
-        "workload_proxy.label",
-        "seed",
-        "input_distribution",
-    ]
-    return ";".join(f"{field}={_normalized_contract_value(capture, field)}" for field in fields)
+    contract = normalization(capture)
+    # Both native batch lanes draw consecutive task inputs from the same seeded
+    # generator. Only validated uniform composition permits this task-count scaling.
+    return json.dumps(
+        dict(
+            scope=contract["scope"],
+            task_work=json.loads(
+                canonical_work(
+                    capture,
+                    exclude=(
+                        "host_api_batch.work_contract",
+                        "checksum_policy",
+                        "grouped_dispatch.task_count",
+                        "grouped_dispatch.task_descriptor_contract",
+                    ),
+                )
+            ),
+            checksum_comparison="own_complete_task_set_plus_equal_batch_checksum",
+        ),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+
+
+def normalized_environment(capture: dict[str, Any]) -> str:
+    contract = normalization(capture)
+    environment = json.loads(comparison_environment(capture))
+    environment["comparison_scope"] = contract["scope"]
+    environment["host_batch_contract"] = {
+        key: contract[key] for key in ("aggregate_units", "normalized_units")
+    }
+    environment["timing"]["host_result_kind"] = "explicit_per_task_throughput"
+    environment["timing"]["inner_repetitions"] = "explicit_task_count_normalization"
+    return json.dumps(environment, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
     if capture is None:
         return None
-    grouped = capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    grouped = (
+        capture.get("grouped_dispatch") if isinstance(capture.get("grouped_dispatch"), dict) else {}
+    )
     descriptor = grouped_task_descriptor_contract(capture)
     return {
         "path": capture.get("_path"),
+        "measurement_cohort": evidence(capture),
+        "qualified_production": not capture.get("_many_small_admission", ["admission_missing"]),
+        "blockers": capture.get("_many_small_admission", ["admission_missing"]),
         "mode": mode_for_capture(capture),
         "backend": backend_id(capture),
         "task_count": task_count_for_capture(capture),
@@ -366,19 +284,37 @@ def capture_summary(capture: dict[str, Any] | None) -> dict[str, Any] | None:
         "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
         "grouped_task_descriptor_bucket_count": descriptor.get("bucket_count"),
         "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
-        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if is_grouped_dispatch(capture) else None,
+        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture)
+        if is_grouped_dispatch(capture)
+        else None,
     }
 
 
 def fastest(captures: list[dict[str, Any]]) -> dict[str, Any] | None:
-    valid = [capture for capture in captures if median_per_task_end_to_end_us(capture) is not None]
+    valid = [
+        capture
+        for capture in captures
+        if not capture.get("_many_small_admission", ["admission_missing"])
+        and median_per_task_end_to_end_us(capture) is not None
+        and median_per_task_end_to_end_us(capture) > 0
+    ]
     if not valid:
         return None
-    return min(valid, key=lambda capture: median_per_task_end_to_end_us(capture) or float("inf"))
+    return min(
+        valid,
+        key=lambda capture: (
+            median_per_task_end_to_end_us(capture),
+            evidence(capture)["implementation_key"],
+        ),
+    )
 
 
-def speedup(numerator_capture: dict[str, Any] | None, denominator_capture: dict[str, Any]) -> float | None:
-    numerator = median_per_task_end_to_end_us(numerator_capture) if numerator_capture is not None else None
+def speedup(
+    numerator_capture: dict[str, Any] | None, denominator_capture: dict[str, Any]
+) -> float | None:
+    numerator = (
+        median_per_task_end_to_end_us(numerator_capture) if numerator_capture is not None else None
+    )
     denominator = median_per_task_end_to_end_us(denominator_capture)
     if numerator is None or denominator in (None, 0.0):
         return None
@@ -391,9 +327,9 @@ def decision_for(
     best_independent: dict[str, Any] | None,
     same_backend_host_batch: dict[str, Any] | None,
 ) -> tuple[str, list[str]]:
-    blockers: list[str] = []
+    blockers: list[str] = list(candidate["_many_small_admission"])
     if best_independent is None:
-        return "missing_baseline", ["missing_independent_contract_baseline"]
+        blockers.append("missing_independent_contract_baseline")
     if same_backend_independent is None:
         blockers.append("missing_same_backend_independent_baseline")
     if same_backend_host_batch is None:
@@ -407,22 +343,23 @@ def decision_for(
         blockers.append("checksum_mismatch_same_backend_host_batch")
     if not grouped_task_descriptor_valid(candidate):
         blockers.append("invalid_grouped_task_descriptor_contract")
-    release_inputs = [candidate, best_independent, same_backend_independent, same_backend_host_batch]
+    release_inputs = [
+        candidate,
+        best_independent,
+        same_backend_independent,
+        same_backend_host_batch,
+    ]
     if any(capture is not None and not release_satisfied(capture) for capture in release_inputs):
         blockers.append("not_release_review")
-    for label, capture in [
-        ("grouped_dispatch", candidate),
-        ("best_independent", best_independent),
-        ("same_backend_independent", same_backend_independent),
-        ("same_backend_host_batch", same_backend_host_batch),
-    ]:
-        events = gpu_events_available(capture)
-        if events is False:
-            blockers.append(f"missing_{label}_gpu_events")
     if speedup(best_independent, candidate) is None:
         blockers.append("missing_end_to_end_timing")
     if blockers:
-        return "keep_experimental", blockers
+        missing = (
+            best_independent is None
+            or same_backend_independent is None
+            or same_backend_host_batch is None
+        )
+        return "missing_baseline" if missing else "keep_experimental", sorted(set(blockers))
     if speedup(best_independent, candidate) <= 1.0:
         return "deprioritize", ["grouped_not_faster_than_best_independent_per_task"]
     same_backend_speedup = speedup(same_backend_independent, candidate)
@@ -431,6 +368,14 @@ def decision_for(
     host_batch_speedup = speedup(same_backend_host_batch, candidate)
     if host_batch_speedup is not None and host_batch_speedup <= 1.0:
         return "deprioritize", ["grouped_not_faster_than_same_backend_host_batch_per_task"]
+    margins = [
+        comparison_noise_margin(baseline, candidate)
+        for baseline in (same_backend_independent, best_independent, same_backend_host_batch)
+    ]
+    if any(margin is None for margin in margins) or min(
+        speedup(best_independent, candidate), same_backend_speedup, host_batch_speedup
+    ) <= max(margins):
+        return "keep_experimental", ["speedup_not_separated_from_observed_noise"]
     return "candidate_win", []
 
 
@@ -443,12 +388,43 @@ def row_for_capture(
     mode = mode_for_capture(capture)
     descriptor = grouped_task_descriptor_contract(capture)
     if mode == "grouped_dispatch":
-        decision, blockers = decision_for(capture, same_backend_independent, best_independent, same_backend_host_batch)
+        decision, blockers = decision_for(
+            capture, same_backend_independent, best_independent, same_backend_host_batch
+        )
     elif mode == "host_api_batch":
         decision, blockers = "host_batch_baseline", []
     else:
         decision, blockers = "independent_baseline", []
+    if mode != "grouped_dispatch":
+        blockers = capture["_many_small_admission"]
+        if blockers:
+            decision = "unqualified_baseline"
+    comparable = not capture["_many_small_admission"] and all(
+        item is not None
+        for item in (same_backend_independent, best_independent, same_backend_host_batch)
+    )
+    if mode == "grouped_dispatch" and (
+        checksum_matches(capture, same_backend_host_batch) is not True
+        or task_count_for_capture(capture) != task_count_for_capture(same_backend_host_batch or {})
+    ):
+        comparable = False
+    margins = (
+        [
+            comparison_noise_margin(item, capture)
+            for item in (same_backend_independent, best_independent, same_backend_host_batch)
+        ]
+        if comparable
+        else []
+    )
     return {
+        "measurement_cohort": evidence(capture),
+        "comparison_scope": "per_task_throughput_scaling_not_equal_work_latency",
+        "comparison_environment": capture.get("_many_small_environment"),
+        "normalization": capture.get("_many_small_normalization"),
+        "numerical_reference": capture["_many_small_numerical_reference"],
+        "required_speedup_margin": max(margins)
+        if margins and all(value is not None for value in margins)
+        else None,
         "path": capture.get("_path"),
         "mode": mode,
         "backend": backend_id(capture),
@@ -479,78 +455,139 @@ def row_for_capture(
         "grouped_task_descriptor_bucket_policy": descriptor.get("bucket_policy"),
         "grouped_task_descriptor_bucket_count": descriptor.get("bucket_count"),
         "grouped_task_descriptor_device_policy": descriptor.get("device_descriptor_policy"),
-        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture) if mode == "grouped_dispatch" else None,
+        "grouped_task_descriptor_valid": grouped_task_descriptor_valid(capture)
+        if mode == "grouped_dispatch"
+        else None,
         "same_backend_independent": capture_summary(same_backend_independent),
         "best_independent": capture_summary(best_independent),
         "same_backend_host_batch": capture_summary(same_backend_host_batch),
         "checksum": checksum_value(capture),
-        "checksum_matches_same_backend_host_batch": checksum_matches(capture, same_backend_host_batch),
+        "checksum_matches_same_backend_host_batch": checksum_matches(
+            capture, same_backend_host_batch
+        ),
         "same_backend_host_batch_task_count_matches": (
             None
             if same_backend_host_batch is None
             else task_count_for_capture(capture) == task_count_for_capture(same_backend_host_batch)
         ),
-        "speedup_vs_same_backend_independent": speedup(same_backend_independent, capture),
-        "speedup_vs_best_independent": speedup(best_independent, capture),
-        "speedup_vs_same_backend_host_batch": speedup(same_backend_host_batch, capture),
+        "speedup_vs_same_backend_independent": speedup(same_backend_independent, capture)
+        if comparable
+        else None,
+        "speedup_vs_best_independent": speedup(best_independent, capture) if comparable else None,
+        "speedup_vs_same_backend_host_batch": speedup(same_backend_host_batch, capture)
+        if comparable
+        else None,
         "decision": decision,
         "blockers": blockers,
     }
 
 
-def build_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    by_contract: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for capture in captures:
-        by_contract[normalized_contract_key(capture)].append(capture)
+def build_report_from_captures(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    production = ProductionCohortIndex(captures, diagnostic_bindings)
+    references = CPUReferenceIndex(captures)
+    by_contract: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for capture in aggregate_captures(captures):
+        numerical = references.verdict(capture)
+        admission = production.blockers(capture) + list(numerical.blockers)
+        if not release_satisfied(capture):
+            admission.append("not_release_review")
+        try:
+            key = normalized_contract_key(capture)
+            environment = normalized_environment(capture)
+            capture["_many_small_normalization"] = normalization(capture)
+        except ValueError as error:
+            key = "unqualified:" + canonical_work(capture)
+            environment = comparison_environment(capture)
+            admission.append("task_scaling_contract_unqualified:" + str(error))
+        capture["_many_small_environment"] = environment
+        capture["_many_small_admission"] = sorted(set(admission))
+        capture["_many_small_numerical_reference"] = numerical.to_json()
+        by_contract[(key, environment)].append(capture)
 
     groups = []
-    for key, items in sorted(by_contract.items(), key=lambda item: item[0]):
-        independent = [capture for capture in items if mode_for_capture(capture) == "independent_call"]
-        host_batches = [capture for capture in items if mode_for_capture(capture) == "host_api_batch"]
+    for (key, environment), items in sorted(by_contract.items()):
+        independent = [
+            capture for capture in items if mode_for_capture(capture) == "independent_call"
+        ]
+        host_batches = [
+            capture for capture in items if mode_for_capture(capture) == "host_api_batch"
+        ]
         grouped = [capture for capture in items if mode_for_capture(capture) == "grouped_dispatch"]
-        best_independent = fastest(independent)
         best_host_batch = fastest(host_batches)
         best_grouped = fastest(grouped)
         rows = []
-        for capture in sorted(items, key=lambda item: (mode_for_capture(item), backend_id(item), str(item.get("_path")))):
+        for capture in sorted(
+            items,
+            key=lambda item: (
+                mode_for_capture(item),
+                backend_id(item),
+                evidence(item)["implementation_key"],
+            ),
+        ):
             backend = backend_id(capture)
-            same_backend_independent = fastest([item for item in independent if backend_id(item) == backend])
-            same_backend_host_batch = fastest([item for item in host_batches if backend_id(item) == backend])
-            rows.append(row_for_capture(capture, same_backend_independent, best_independent, same_backend_host_batch))
+            best_independent = fastest(
+                [item for item in independent if gpu_backend(item) == gpu_backend(capture)]
+            )
+            same_backend_independent = fastest(
+                [item for item in independent if backend_id(item) == backend]
+            )
+            same_backend_host_batch = fastest(
+                [
+                    item
+                    for item in host_batches
+                    if backend_id(item) == backend
+                    and task_count_for_capture(item) == task_count_for_capture(capture)
+                ]
+            )
+            rows.append(
+                row_for_capture(
+                    capture, same_backend_independent, best_independent, same_backend_host_batch
+                )
+            )
         groups.append(
             {
                 "contract_key": key,
+                "comparison_environment": environment,
                 "summary": {
                     "independent_count": len(independent),
                     "host_batch_count": len(host_batches),
                     "grouped_dispatch_count": len(grouped),
-                    "best_independent": capture_summary(best_independent),
+                    "best_independent": capture_summary(fastest(independent)),
                     "best_host_batch": capture_summary(best_host_batch),
                     "best_grouped_dispatch": capture_summary(best_grouped),
                 },
-                "rows": sorted(rows, key=lambda row: row.get("median_per_task_end_to_end_us") or float("inf")),
+                "rows": sorted(
+                    rows, key=lambda row: row.get("median_per_task_end_to_end_us") or float("inf")
+                ),
             }
         )
 
-    comparisons = [row for group in groups for row in group["rows"] if row["mode"] == "grouped_dispatch"]
+    comparisons = [
+        row for group in groups for row in group["rows"] if row["mode"] == "grouped_dispatch"
+    ]
     return {
         "schema_version": 2,
         "policy": "many_small_grouped_evidence_only_no_public_resident_lifetime_api",
         "summary": {
+            "submitted_captures": len(captures),
             "groups": len(groups),
             "grouped_dispatch_comparisons": len(comparisons),
             "candidate_wins": sum(1 for row in comparisons if row["decision"] == "candidate_win"),
             "deprioritized": sum(1 for row in comparisons if row["decision"] == "deprioritize"),
             "experimental": sum(1 for row in comparisons if row["decision"] == "keep_experimental"),
-            "missing_baselines": sum(1 for row in comparisons if row["decision"] == "missing_baseline"),
+            "missing_baselines": sum(
+                1 for row in comparisons if row["decision"] == "missing_baseline"
+            ),
         },
         "groups": groups,
     }
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
     captures = [load_validated_capture(path) for path in expand_inputs(paths)]
-    return build_report_from_captures(captures)
+    return build_report_from_captures(captures, diagnostic_bindings=diagnostic_bindings)
 
 
 def write_markdown(report: dict[str, Any], path: Path) -> None:
@@ -635,6 +672,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--out-json", type=Path)
     parser.add_argument("--out-md", type=Path)
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
@@ -646,12 +684,14 @@ def main() -> int:
         paths.extend(args.capture)
     if not paths:
         raise SystemExit("at least one capture file or directory is required")
-    report = build_report(paths)
+    report = build_report(paths, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     if args.out_json:
         args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     if args.out_md:
         args.out_md.parent.mkdir(parents=True, exist_ok=True)
         write_markdown(report, args.out_md)

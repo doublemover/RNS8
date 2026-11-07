@@ -1,0 +1,240 @@
+{
+  "schema": "rns8_implementation_validation_v1",
+  "date": "2026-11-07",
+  "implementation_source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+  "implementation_source_digest": "84f858b3dfebf899988af9c91efe7e3c5b2c643ad0923c6876cbd40f0c396ab1",
+  "status": "local_validation_recorded_with_HIP_event_clock_blocker",
+  "issue_inventory": {
+    "open_issues_reviewed": 70,
+    "remaining_source_items": 0,
+    "ledger": "metadata/implementation-frontload-20261104.json",
+    "execution": "solo"
+  },
+  "stack": {
+    "platform": "native Windows",
+    "gpu": "Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "sdk": "TheRock Core10.1",
+    "hip_runtime_api_version": 71626385,
+    "hip_compiler": "AMDClang24",
+    "host_compiler": "MSVC19.51.36260.0 / VS2026",
+    "python": "3.15.2",
+    "configuration": "Release",
+    "openmp": true,
+    "sanitizers": "none in these native lanes",
+    "cpp_standard": 17
+  },
+  "selected_packages": {
+    "vcpkg_baseline": "b42e8ed051d17a7f95b9d2a3140c1f9296423712",
+    "boost": "1.92.0",
+    "catch2": "3.16.1",
+    "nlohmann_json": "3.12.0",
+    "gmp": "6.3.0",
+    "mpfr": "4.2.2",
+    "flint": "3.6.0"
+  },
+  "lanes": {
+    "cpu_release": {
+      "configuration": "cpu-pinned",
+      "registered": 946,
+      "selected": 797,
+      "passed": 733,
+      "skipped": 64,
+      "failed": 0,
+      "failures": [],
+      "elapsed_seconds": 122.6,
+      "artifacts": [
+        {
+          "path": "temp/validation-20261107/cpu-pinned/cpu-pinned-prefix-final.xml",
+          "bytes": 477734,
+          "sha256": "645309915ec1929cbbca1551f7346de3ef26b5abcac26248868bd4b99f6b2304"
+        },
+        {
+          "path": "temp/nov7-cpu-prefix-final-tests.log",
+          "bytes": 193408,
+          "sha256": "167c7731a3122a744bab9595ad2a9a823cd120a07911e09c39934de5bbcec1af"
+        }
+      ],
+      "source_manifest": {
+        "source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+        "source_digest": "84f858b3dfebf899988af9c91efe7e3c5b2c643ad0923c6876cbd40f0c396ab1",
+        "source_dirty": false,
+        "dependency_digest": "5df3651eb78e30ee3d06c333fa28ac9bfd3f89b74870c298cde179a3857e6ae0"
+      }
+    },
+    "hip_release": {
+      "configuration": "hip-all",
+      "registered": 1446,
+      "selected": 1445,
+      "passed": 1401,
+      "skipped": 42,
+      "failed": 2,
+      "failures": [
+        {
+          "name": "workload_gram_native_diagnostics_each_hip",
+          "diagnostic": "{\"promotion_eligible\":false,\"reason\":\"native diagnostic events are incomplete; gram_five_compact_transform_v2:invalid_elapsed_time=0; gram_five_compact_recombine_v2:invalid_elapsed_time=0\",\"schema\":\"rns8_workload_observation_v1\",\"status\":\"failed\"}"
+        },
+        {
+          "name": "workload_gram_native_diagnostics_once_hip",
+          "diagnostic": "{\"promotion_eligible\":false,\"reason\":\"native diagnostic events are incomplete; gram_five_compact_transform_v2:invalid_elapsed_time=0\",\"schema\":\"rns8_workload_observation_v1\",\"status\":\"failed\"}"
+        }
+      ],
+      "elapsed_seconds": 416.19,
+      "artifacts": [
+        {
+          "path": "temp/validation-20261107/hip-all/hip-prefix-final.xml",
+          "bytes": 983134,
+          "sha256": "d547c44eb8fd2b06ce421f9683906dca2798109a4e92f531c8a98b1520df40aa"
+        },
+        {
+          "path": "temp/nov7-hip-prefix-final-tests.log",
+          "bytes": 341831,
+          "sha256": "facc51a15ff7bdf901a0c2ec6bf621ab1dd2995d487e02a03e3a8b091a6b2218"
+        }
+      ],
+      "source_manifest": {
+        "source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+        "source_digest": "84f858b3dfebf899988af9c91efe7e3c5b2c643ad0923c6876cbd40f0c396ab1",
+        "source_dirty": false,
+        "dependency_digest": "499a13c2f606eb2ab694e76895c349ba9a8e02262363b03150efb1f66c59bf17"
+      }
+    }
+  },
+  "execution_scope": {
+    "cpu": "797 cases selected outside the 149 shared host registrations; shared controls run in the full HIP batch, except the carried unchanged universal checker. CPU results establish no GPU execution.",
+    "hip": "All 1446 registered root cases except the already-passed unchanged universal WMMA checker. Includes ordinary exact/Boost differentials, enabled backend and CLI smoke controls, optional GMP/FLINT references, shared host tooling and installed consumers.",
+    "compiled_local_backends": [
+      "hip-direct",
+      "hipblaslt",
+      "ck",
+      "rocwmma",
+      "amdgpu-builtins"
+    ],
+    "unbuilt_optional_configurations": [
+      "experimental generated native WMMA and residue-dot flags",
+      "MPI/RCCL/rocSHMEM transports",
+      "host/device sanitizers"
+    ]
+  },
+  "source_quality": {
+    "pinned_lint_format_workflow": "passed",
+    "strict_typing_and_negative_controls": "passed; five explicitly migrated modules, not all Python",
+    "artifacts": [
+      {
+        "path": "temp/nov7-prefix-final-quality.log",
+        "bytes": 95991,
+        "sha256": "a8fa4663eb4f5ab0b86537c14d9e78313b1614bf25ba9aa2d1e112026ef14909"
+      },
+      {
+        "path": "temp/nov7-final-types-controls.log",
+        "bytes": 2204,
+        "sha256": "25695cac6cf5ce51162b1ef3c85be68973b2d2b6560508fd2cffc608fb24513d"
+      }
+    ]
+  },
+  "carried_evidence": [
+    {
+      "name": "native_wmma_logical_checker_self_test",
+      "result": "passed",
+      "elapsed_seconds": 292.27,
+      "source_commit": "29cf7a82",
+      "boundary": "Checker and its direct generator/lowering/promotion modules unchanged through this implementation cut; carried separately, excluded from the fresh 1445-case HIP count."
+    }
+  ],
+  "HIP_event_clock_blocker": {
+    "observation": "Negative hipEventElapsedTime results reproduce in a standalone HIP-runtime-only 32-byte device-to-device copy, without RNS8 kernels. Exact copied bytes compare successfully. Re-reading after synchronization and trying documented timing-event flags do not remove invalid elapsed values. No negative observation is clamped or admitted as valid timing.",
+    "flags": [
+      {
+        "event_flags": "0x0",
+        "samples": 64,
+        "negative_samples": 15,
+        "minimum_ms": -0.03853999823331833,
+        "maximum_ms": 0.1729000061750412
+      },
+      {
+        "event_flags": "0x40000000",
+        "samples": 64,
+        "negative_samples": 34,
+        "minimum_ms": -0.057760000228881836,
+        "maximum_ms": 0.17569999396800995
+      },
+      {
+        "event_flags": "0x20000000",
+        "samples": 64,
+        "negative_samples": 29,
+        "minimum_ms": -0.048659998923540115,
+        "maximum_ms": 0.164000004529953
+      }
+    ],
+    "related_upstream_report": "https://github.com/ROCm/rocm-systems/issues/12925",
+    "artifacts": [
+      {
+        "path": "temp/nov7-hip-event-flags.py",
+        "bytes": 1296,
+        "sha256": "eeeb06bd232cee6148c077987ce843c6f99f647b70f1e6289b6f1dfc67a59bd7"
+      },
+      {
+        "path": "temp/nov7-hip-event-flags-confirmed.log",
+        "bytes": 260,
+        "sha256": "58473f555a3d510d1cddf7e385c0bca852bc416beb00fcc0f8056de6e0d14614"
+      }
+    ],
+    "boundary": "Timing qualification remains blocked on this SDK/driver tuple. These diagnostics are failures, not passes or hardware skips."
+  },
+  "repairs_validated": [
+    "SDK-owned COMGR staging and module identity",
+    "comparator work bounds independent of Gram CLI admission",
+    "grouped active prefixes, mixed storage capacities, exact proofs and publication of only written planes",
+    "current CK physical kernel/workspace metadata",
+    "wrap64 direct-copy event reporting and distinct persistent/oneshot allocation controls",
+    "stream-overlap host allowance includes ownership records",
+    "literal-argv Visual Studio relay and selected compiler environment preservation"
+  ],
+  "remaining_qualification": [
+    "Resolve/requalify the native HIP event-clock fault and rerun the two rejected diagnostics.",
+    "Fresh selected-toolchain sanitizer/analyzer/fuzzer/coverage/mutation execution and broader configuration/package/ABI/CI matrices.",
+    "Native Linux, other GPU generations and Instinct, actual multi-GPU transports and supported AMX/I8MM/FP4/FP6/FP8 hosts.",
+    "Real hardware-failure recovery, matched strongest-control timing, whole-route profitability/overlap/traffic and release/promotion evidence.",
+    "External documentation links and GitHub form rendering."
+  ],
+  "performance_credit": "No new campaign or speedup credit. Stopped benchmark and hardware-fault campaigns remain stopped; prior measurements retain their original sources.",
+  "backend_discovery": {
+    "result": "all five compiled backends detected on gfx1100",
+    "artifact": {
+      "path": "temp/nov7-final-backend-inspection.log",
+      "bytes": 906,
+      "sha256": "4e55a206e8d78e4812fe5ab784afccab5f5ff8a136fd749808f78943c4401298"
+    }
+  },
+  "build_artifacts": [
+    {
+      "path": "temp/nov7-hip-prefix-final-build.log",
+      "bytes": 91406,
+      "sha256": "fa2494017de489e12d3b4284a2cf35d2f980e6e1342c2533a2ae445305158a01"
+    },
+    {
+      "path": "temp/nov7-cpu-prefix-final-build.log",
+      "bytes": 95782,
+      "sha256": "4b5c6e4b689484e51727dc965ad710100c5d47e8300810387f947c5c60bc9d06"
+    }
+  ],
+  "commands": {
+    "cpu_build": "python tools/windows_dev.py cmake --build temp/validation-20261107/cpu-pinned --parallel 8",
+    "hip_build": "python tools/windows_dev.py cmake --build temp/validation-20261107/hip-all --parallel 8",
+    "cpu_tests": "python tools/windows_dev.py ctest --test-dir temp/validation-20261107/cpu-pinned --tests-from-file C:/Users/sneak/Development/RNS8/temp/validation-20261107/cpu-pinned/native-tests.txt --parallel 4 --timeout 900 --no-tests=error --output-on-failure --output-junit cpu-pinned-prefix-final.xml",
+    "hip_tests": "python tools/windows_dev.py ctest --test-dir temp/validation-20261107/hip-all --exclude-regex native_wmma_logical_checker_self_test --parallel 4 --timeout 900 --no-tests=error --output-on-failure --output-junit hip-prefix-final.xml",
+    "selection": "Fresh ctest --show-only=json-v1 inventories; CPU excludes the 149 shared literal registrations in the standalone host harness. Selected interpreter is CPython3.15.2."
+  },
+  "documentation": {
+    "inventoried": 159,
+    "local_errors": 0,
+    "external_reachability": "not_requested",
+    "status_owner": "docs/roadmap.md",
+    "artifact": {
+      "path": "temp/nov7-closeout-documentation.log",
+      "bytes": 160,
+      "sha256": "8842e13ae37ff4539028fb1892f6a5992478ec55347d3b0c02cb64da9ef65bab"
+    },
+    "status_reconciliation": "Topic guides retain normative behavior and explicit external capability limits; docs/roadmap.md owns current execution status. Existing fenced code examples are unchanged."
+  }
+}

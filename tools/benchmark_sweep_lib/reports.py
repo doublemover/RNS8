@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,9 +8,12 @@ from typing import Any
 
 from .config import SweepCommand
 
+
 def scenario_manifest(entries: list[SweepCommand], args: argparse.Namespace) -> dict[str, Any]:
     scenario_entries = [entry for entry in entries if entry.scenario is not None]
-    families = sorted({str(entry.scenario["family"]) for entry in scenario_entries if entry.scenario})
+    families = sorted(
+        {str(entry.scenario["family"]) for entry in scenario_entries if entry.scenario}
+    )
     return {
         "schema_version": 1,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -32,7 +36,9 @@ def scenario_manifest(entries: list[SweepCommand], args: argparse.Namespace) -> 
     }
 
 
-def write_scenario_manifest(entries: list[SweepCommand], args: argparse.Namespace, out_root: Path) -> dict[str, str] | None:
+def write_scenario_manifest(
+    entries: list[SweepCommand], args: argparse.Namespace, out_root: Path
+) -> dict[str, str] | None:
     if not any(entry.scenario is not None for entry in entries):
         return None
     manifest = scenario_manifest(entries, args)
@@ -141,19 +147,35 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
                 shape = row.get("shape") if isinstance(row.get("shape"), dict) else {}
                 prepack = row.get("prepacked_reuse_review")
                 graph = row.get("hip_graph_replay_review")
-                prepack_e2e = prepack.get("setup_inclusive_median_end_to_end_us") if isinstance(prepack, dict) else ""
-                prepack_breakdown = prepack.get("prepack_setup_breakdown_us") if isinstance(prepack, dict) else None
+                prepack_e2e = (
+                    prepack.get("setup_inclusive_median_end_to_end_us")
+                    if isinstance(prepack, dict)
+                    else ""
+                )
+                prepack_breakdown = (
+                    prepack.get("prepack_setup_breakdown_us") if isinstance(prepack, dict) else None
+                )
                 if isinstance(prepack_breakdown, dict):
-                    prepack_breakdown_text = "A:{pack_a},B:{pack_b},cache:{runtime_cache},other:{unclassified}".format(
-                        pack_a=prepack_breakdown.get("pack_a"),
-                        pack_b=prepack_breakdown.get("pack_b"),
-                        runtime_cache=prepack_breakdown.get("runtime_cache"),
-                        unclassified=prepack_breakdown.get("unclassified"),
+                    prepack_breakdown_text = (
+                        "A:{pack_a},B:{pack_b},cache:{runtime_cache},other:{unclassified}".format(
+                            pack_a=prepack_breakdown.get("pack_a"),
+                            pack_b=prepack_breakdown.get("pack_b"),
+                            runtime_cache=prepack_breakdown.get("runtime_cache"),
+                            unclassified=prepack_breakdown.get("unclassified"),
+                        )
                     )
                 else:
                     prepack_breakdown_text = ""
-                graph_e2e = graph.get("setup_inclusive_median_end_to_end_us") if isinstance(graph, dict) else ""
-                blockers = row.get("promotion_blockers") if isinstance(row.get("promotion_blockers"), list) else []
+                graph_e2e = (
+                    graph.get("setup_inclusive_median_end_to_end_us")
+                    if isinstance(graph, dict)
+                    else ""
+                )
+                blockers = (
+                    row.get("promotion_blockers")
+                    if isinstance(row.get("promotion_blockers"), list)
+                    else []
+                )
                 lines.append(
                     "| {backend} | {shape} | {family} | {prepack_e2e} | {prepack_breakdown} | {graph_e2e} | {blockers} |".format(
                         backend=row.get("backend"),
@@ -176,46 +198,74 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- shape_family: `{group.get('shape_family') or 'unknown'}`")
         scenario_families = group.get("scenario_families") or []
         scenario_names = group.get("scenario_names") or []
-        lines.append(f"- scenario_families: `{','.join(scenario_families) if scenario_families else 'none'}`")
-        lines.append(f"- scenario_names: `{','.join(scenario_names) if scenario_names else 'none'}`")
+        lines.append(
+            f"- scenario_families: `{','.join(scenario_families) if scenario_families else 'none'}`"
+        )
+        lines.append(
+            f"- scenario_names: `{','.join(scenario_names) if scenario_names else 'none'}`"
+        )
         missing = group.get("missing_required_baselines") or []
         missing_targets = group.get("missing_gpu_targets") or []
         lines.append(f"- missing_required_baselines: `{','.join(missing) if missing else 'none'}`")
-        lines.append(f"- missing_gpu_targets: `{','.join(missing_targets) if missing_targets else 'none'}`")
+        lines.append(
+            f"- missing_gpu_targets: `{','.join(missing_targets) if missing_targets else 'none'}`"
+        )
         lines.append(f"- gpu_target_compatible: `{group.get('gpu_target_compatible')}`")
         missing_configured = group.get("missing_configured_gpu_targets") or []
         lines.append(
             f"- missing_configured_gpu_targets: `{','.join(missing_configured) if missing_configured else 'none'}`"
         )
-        lines.append(f"- configured_target_compatible: `{group.get('configured_target_compatible')}`")
+        lines.append(
+            f"- configured_target_compatible: `{group.get('configured_target_compatible')}`"
+        )
         missing_versions = group.get("missing_hip_toolchain_versions") or []
         lines.append(
             f"- missing_hip_toolchain_versions: `{','.join(missing_versions) if missing_versions else 'none'}`"
         )
-        lines.append(f"- hip_toolchain_version_compatible: `{group.get('hip_toolchain_version_compatible')}`")
+        lines.append(
+            f"- hip_toolchain_version_compatible: `{group.get('hip_toolchain_version_compatible')}`"
+        )
         missing_runtime = group.get("missing_hip_runtime_versions") or []
         lines.append(
             f"- missing_hip_runtime_versions: `{','.join(missing_runtime) if missing_runtime else 'none'}`"
         )
-        lines.append(f"- hip_runtime_version_compatible: `{group.get('hip_runtime_version_compatible')}`")
+        lines.append(
+            f"- hip_runtime_version_compatible: `{group.get('hip_runtime_version_compatible')}`"
+        )
         missing_driver = group.get("missing_hip_driver_versions") or []
-        lines.append(f"- missing_hip_driver_versions: `{','.join(missing_driver) if missing_driver else 'none'}`")
-        lines.append(f"- hip_driver_version_compatible: `{group.get('hip_driver_version_compatible')}`")
+        lines.append(
+            f"- missing_hip_driver_versions: `{','.join(missing_driver) if missing_driver else 'none'}`"
+        )
+        lines.append(
+            f"- hip_driver_version_compatible: `{group.get('hip_driver_version_compatible')}`"
+        )
         missing_compilers = group.get("missing_compiler_identities") or []
-        lines.append(f"- missing_compiler_identities: `{','.join(missing_compilers) if missing_compilers else 'none'}`")
-        lines.append(f"- compiler_identity_compatible: `{group.get('compiler_identity_compatible')}`")
+        lines.append(
+            f"- missing_compiler_identities: `{','.join(missing_compilers) if missing_compilers else 'none'}`"
+        )
+        lines.append(
+            f"- compiler_identity_compatible: `{group.get('compiler_identity_compatible')}`"
+        )
         missing_git = group.get("missing_git_commits") or []
         lines.append(f"- missing_git_commits: `{','.join(missing_git) if missing_git else 'none'}`")
-        lines.append(f"- git_commit_identity_compatible: `{group.get('git_commit_identity_compatible')}`")
+        lines.append(
+            f"- git_commit_identity_compatible: `{group.get('git_commit_identity_compatible')}`"
+        )
         missing_warmups = group.get("missing_warmup_counts") or []
-        lines.append(f"- missing_warmup_counts: `{','.join(missing_warmups) if missing_warmups else 'none'}`")
+        lines.append(
+            f"- missing_warmup_counts: `{','.join(missing_warmups) if missing_warmups else 'none'}`"
+        )
         lines.append(f"- warmup_count_compatible: `{group.get('warmup_count_compatible')}`")
         missing_repeats = group.get("missing_repeat_counts") or []
-        lines.append(f"- missing_repeat_counts: `{','.join(missing_repeats) if missing_repeats else 'none'}`")
+        lines.append(
+            f"- missing_repeat_counts: `{','.join(missing_repeats) if missing_repeats else 'none'}`"
+        )
         lines.append(f"- repeat_count_compatible: `{group.get('repeat_count_compatible')}`")
         duplicates = group.get("duplicate_backends") or []
         lines.append(f"- duplicate_backends: `{','.join(duplicates) if duplicates else 'none'}`")
-        lines.append(f"- checksum_reference_backend: `{group.get('checksum_reference_backend') or 'none'}`")
+        lines.append(
+            f"- checksum_reference_backend: `{group.get('checksum_reference_backend') or 'none'}`"
+        )
         lines.append(f"- checksum_consistent: `{group.get('checksum_consistent')}`")
         checksum_mismatches = group.get("checksum_mismatches") or []
         lines.append(
@@ -228,21 +278,31 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- release_review_satisfied: `{group.get('release_review_satisfied')}`")
         fastest = group.get("fastest_promotable")
         if fastest:
-            lines.append(f"- fastest_promotable: `{fastest['backend']}/{fastest['selected_kernel']}`")
+            lines.append(
+                f"- fastest_promotable: `{fastest['backend']}/{fastest['selected_kernel']}`"
+            )
             lines.append(f"- winner_rationale: `{fastest.get('promotion_reason')}`")
         else:
             lines.append("- fastest_promotable: `none`")
         production = group.get("fastest_production_route")
         if production:
-            lines.append(f"- fastest_production_route: `{production['backend']}/{production['selected_kernel']}`")
+            lines.append(
+                f"- fastest_production_route: `{production['backend']}/{production['selected_kernel']}`"
+            )
         else:
             lines.append("- fastest_production_route: `none`")
         accelerator = group.get("fastest_accelerator_route")
         if accelerator:
-            lines.append(f"- fastest_accelerator_route: `{accelerator['backend']}/{accelerator['selected_kernel']}`")
+            lines.append(
+                f"- fastest_accelerator_route: `{accelerator['backend']}/{accelerator['selected_kernel']}`"
+            )
         else:
             lines.append("- fastest_accelerator_route: `none`")
-        phase_ratio_rows = group.get("phase_ratio_summary") if isinstance(group.get("phase_ratio_summary"), list) else []
+        phase_ratio_rows = (
+            group.get("phase_ratio_summary")
+            if isinstance(group.get("phase_ratio_summary"), list)
+            else []
+        )
         if phase_ratio_rows:
             compact_phase_rows = []
             for row in phase_ratio_rows:
@@ -259,8 +319,14 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append("|---|---|---|---:|---|---|---|---|---|")
         for candidate in group.get("candidates", []):
             blockers = ",".join(candidate.get("promotion_blockers") or [])
-            source = candidate.get("source_metadata") if isinstance(candidate.get("source_metadata"), dict) else {}
-            bottleneck = candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+            source = (
+                candidate.get("source_metadata")
+                if isinstance(candidate.get("source_metadata"), dict)
+                else {}
+            )
+            bottleneck = (
+                candidate.get("bottleneck") if isinstance(candidate.get("bottleneck"), dict) else {}
+            )
             bottleneck_text = bottleneck.get("class") or "unknown"
             if bottleneck.get("phase"):
                 bottleneck_text += f"/{bottleneck.get('phase')}"
@@ -279,5 +345,3 @@ def write_markdown_report(report: dict[str, Any], path: Path) -> None:
             )
         lines.append("")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-

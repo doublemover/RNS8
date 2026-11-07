@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
-from metadata_registry_constants import DIRECT_HIP_EXPORT_STAGING_POLICIES, OUTPUT_DESTINATION_LAYOUTS
+from metadata_registry_constants import (
+    DIRECT_HIP_EXPORT_STAGING_POLICIES,
+    OUTPUT_DESTINATION_LAYOUTS,
+)
 
 
 def _is_int(value: Any) -> bool:
@@ -36,20 +41,22 @@ def validate_output_layout_metadata(self, metadata: dict[str, Any]) -> None:
         self._error("output_logical_ld must equal n + output_ld_padding")
 
     layout = metadata.get("benchmark_output_destination_layout")
-    if layout not in OUTPUT_DESTINATION_LAYOUTS:
+    if not text_choice(layout, OUTPUT_DESTINATION_LAYOUTS):
         self._error(
             f"timing_metadata.benchmark_output_destination_layout must be one of {sorted(OUTPUT_DESTINATION_LAYOUTS)}"
         )
     else:
         expected_layout = "contiguous_row_major" if padding == 0 else "padded_row_major"
         if layout != expected_layout:
-            self._error(f"timing_metadata.benchmark_output_destination_layout must be {expected_layout}")
+            self._error(
+                f"timing_metadata.benchmark_output_destination_layout must be {expected_layout}"
+            )
     if metadata.get("benchmark_output_logical_ld") != output_ld:
         self._error("timing_metadata.benchmark_output_logical_ld must match output_logical_ld")
     if metadata.get("benchmark_output_ld_padding") != padding:
         self._error("timing_metadata.benchmark_output_ld_padding must match output_ld_padding")
     staging_policy = metadata.get("direct_hip_export_staging_policy")
-    if staging_policy not in DIRECT_HIP_EXPORT_STAGING_POLICIES:
+    if not text_choice(staging_policy, DIRECT_HIP_EXPORT_STAGING_POLICIES):
         self._error(
             "timing_metadata.direct_hip_export_staging_policy must be one of "
             f"{sorted(DIRECT_HIP_EXPORT_STAGING_POLICIES)}"

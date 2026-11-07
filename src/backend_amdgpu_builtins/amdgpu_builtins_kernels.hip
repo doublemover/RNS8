@@ -1,4 +1,6 @@
 #include <hip/hip_runtime.h>
+#include "../backend_common/matrix_target.hpp"
+#include "../backend_common/indexed_modulus_planes.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -26,25 +28,18 @@ __device__ __constant__ int rns8_amdgpu_default_moduli[kRns8DefaultModulusCount]
     256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
     193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
 
-enum class rns8_amdgpu_arch_kind {
-  unsupported,
-  cdna3,
-  rdna3,
-  rdna4,
-};
+// q is uniform per plane. Keep its reciprocal out of per-output arithmetic,
+// including arbitrary byte channels admitted by the explicit-basis owner.
+__device__ __constant__ rns8::detail::finite_u8::ByteModulusReciprocals rns8_amdgpu_reciprocals{};
+
+using rns8_amdgpu_arch_kind = rns8::detail::BuiltinArch;
 
 __device__ __forceinline__ uint32_t pack_byte(uint8_t value, int byte_index) {
   return static_cast<uint32_t>(value) << static_cast<uint32_t>(byte_index * 8);
 }
 
-__device__ __forceinline__ int8_t load_centered_i8(
-    const int8_t* data,
-    int plane,
-    int rows,
-    int cols,
-    int ld,
-    int row,
-    int col) {
+__device__ __forceinline__ int8_t load_centered_i8(const int8_t* data, int plane, int rows,
+                                                   int cols, int ld, int row, int col) {
   if (row < 0 || col < 0 || row >= rows || col >= cols) {
     return 0;
   }
@@ -52,35 +47,32 @@ __device__ __forceinline__ int8_t load_centered_i8(
   return data[static_cast<int64_t>(plane) * plane_stride + static_cast<int64_t>(row) * ld + col];
 }
 
-__device__ __forceinline__ uint32_t pack4_centered_i8(
-    const int8_t* data,
-    int plane,
-    int rows,
-    int cols,
-    int ld,
-    int row,
-    int col_base) {
+__device__ __forceinline__ uint32_t pack4_centered_i8(const int8_t* data, int plane, int rows,
+                                                      int cols, int ld, int row, int col_base) {
   uint32_t packed = 0;
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 0)), 0);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 1)), 1);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 2)), 2);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 3)), 3);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 0)), 0);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 1)), 1);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 2)), 2);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row, col_base + 3)), 3);
   return packed;
 }
 
-__device__ __forceinline__ uint32_t pack4_centered_i8_column(
-    const int8_t* data,
-    int plane,
-    int rows,
-    int cols,
-    int ld,
-    int row_base,
-    int col) {
+__device__ __forceinline__ uint32_t pack4_centered_i8_column(const int8_t* data, int plane,
+                                                             int rows, int cols, int ld,
+                                                             int row_base, int col) {
   uint32_t packed = 0;
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 0, col)), 0);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 1, col)), 1);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 2, col)), 2);
-  packed |= pack_byte(static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 3, col)), 3);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 0, col)), 0);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 1, col)), 1);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 2, col)), 2);
+  packed |= pack_byte(
+      static_cast<uint8_t>(load_centered_i8(data, plane, rows, cols, ld, row_base + 3, col)), 3);
   return packed;
 }
 
@@ -88,19 +80,14 @@ __device__ __forceinline__ int8_t center_canonical_u8(uint8_t value, int modulus
   if (modulus == 256) {
     return static_cast<int8_t>(value);
   }
-  const uint32_t residue = static_cast<uint32_t>(value % static_cast<uint8_t>(modulus));
+  const uint32_t residue = rns8::detail::finite_u8::reduce_u32_small_modulus(
+      value, uint32_t(modulus), rns8_amdgpu_reciprocals.values[modulus]);
   return rns8::detail::finite_u8::center_unsigned_residue(residue, static_cast<uint32_t>(modulus));
 }
 
-__device__ __forceinline__ uint32_t sparse_pair_for_group(
-    const uint8_t* packed_values,
-    int plane,
-    int rows,
-    int groups_per_row,
-    int row,
-    int group,
-    bool finite,
-    int modulus) {
+__device__ __forceinline__ uint32_t sparse_pair_for_group(const uint8_t* packed_values, int plane,
+                                                          int rows, int groups_per_row, int row,
+                                                          int group, bool finite, int modulus) {
   if (row < 0 || row >= rows || group < 0 || group >= groups_per_row) {
     return 0;
   }
@@ -108,18 +95,16 @@ __device__ __forceinline__ uint32_t sparse_pair_for_group(
       (static_cast<int64_t>(plane) * rows + row) * static_cast<int64_t>(groups_per_row) + group;
   const uint8_t raw0 = packed_values[group_offset * 2 + 0];
   const uint8_t raw1 = packed_values[group_offset * 2 + 1];
-  const uint8_t v0 = static_cast<uint8_t>(finite ? center_canonical_u8(raw0, modulus) : static_cast<int8_t>(raw0));
-  const uint8_t v1 = static_cast<uint8_t>(finite ? center_canonical_u8(raw1, modulus) : static_cast<int8_t>(raw1));
+  const uint8_t v0 =
+      static_cast<uint8_t>(finite ? center_canonical_u8(raw0, modulus) : static_cast<int8_t>(raw0));
+  const uint8_t v1 =
+      static_cast<uint8_t>(finite ? center_canonical_u8(raw1, modulus) : static_cast<int8_t>(raw1));
   return pack_byte(v0, 0) | pack_byte(v1, 1);
 }
 
-__device__ __forceinline__ uint32_t sparse_index_for_group(
-    const uint8_t* packed_indices,
-    int plane,
-    int rows,
-    int groups_per_row,
-    int row,
-    int group) {
+__device__ __forceinline__ uint32_t sparse_index_for_group(const uint8_t* packed_indices, int plane,
+                                                           int rows, int groups_per_row, int row,
+                                                           int group) {
   if (row < 0 || row >= rows || group < 0 || group >= groups_per_row) {
     return 0;
   }
@@ -129,49 +114,31 @@ __device__ __forceinline__ uint32_t sparse_index_for_group(
 }
 
 __device__ __forceinline__ int8_t reduce_centered(int32_t value, int modulus) {
-  return rns8::detail::finite_u8::reduce_to_centered_static_byte_modulus_i32(value, static_cast<uint32_t>(modulus));
+  using namespace rns8::detail::finite_u8;
+  const auto q = static_cast<uint32_t>(modulus);
+  if (static_byte_modulus_supported(q))
+    return reduce_to_centered_static_byte_modulus_i32(value, q);
+  return reduce_to_centered_i32(value, q, rns8_amdgpu_reciprocals.values[q]);
 }
 
-__device__ __forceinline__ void store_rns_accumulator(
-    int32_t acc,
-    int8_t* c,
-    int plane,
-    int m,
-    int n,
-    int ldc,
-    int row,
-    int col) {
+__device__ __forceinline__ void store_rns_accumulator(int32_t acc, int8_t* c, int plane, int m,
+                                                      int n, int ldc, int row, int col) {
   if (row < m && col < n) {
     const int modulus = rns8_amdgpu_default_moduli[plane];
     c[(static_cast<int64_t>(plane) * m + row) * ldc + col] = reduce_centered(acc, modulus);
   }
 }
 
-__device__ __forceinline__ void store_finite_accumulator(
-    int32_t acc,
-    int8_t* c,
-    int modulus,
-    int m,
-    int n,
-    int ldc,
-    int row,
-    int col) {
+__device__ __forceinline__ void store_finite_accumulator(int32_t acc, int8_t* c, int modulus, int m,
+                                                         int n, int ldc, int row, int col) {
   if (row < m && col < n) {
     c[static_cast<int64_t>(row) * ldc + col] = reduce_centered(acc, modulus);
   }
 }
 
 template <bool Finite>
-__device__ __forceinline__ void store_accumulator(
-    int32_t acc,
-    int8_t* c,
-    int plane,
-    int modulus,
-    int m,
-    int n,
-    int ldc,
-    int row,
-    int col) {
+__device__ __forceinline__ void store_accumulator(int32_t acc, int8_t* c, int plane, int modulus,
+                                                  int m, int n, int ldc, int row, int col) {
   if constexpr (Finite) {
     store_finite_accumulator(acc, c, modulus, m, n, ldc, row, col);
   } else {
@@ -179,26 +146,38 @@ __device__ __forceinline__ void store_accumulator(
   }
 }
 
-template <bool Finite>
-__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
-    const int8_t* a,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx942__)
+template <bool Finite, class Basis>
+__device__ __forceinline__ void store_dense_accumulator(int32_t acc, int8_t* c, int plane,
+                                                        int modulus, int m, int n, int ldc, int row,
+                                                        int col, const Basis& basis) {
+  if constexpr (Basis::indexed)
+    store_finite_accumulator(acc, c + int64_t(plane) * m * ldc, basis.moduli[plane], m, n, ldc, row,
+                             col);
+  else
+    store_accumulator<Finite>(acc, c, plane, modulus, m, n, ldc, row, col);
+}
+
+template <bool Finite, bool Batched, class Basis>
+__device__ __forceinline__ void
+cdna3_dense_mfma_body(const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda,
+                      int ldb, int ldc, int plane_count_or_modulus, Basis basis) {
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
   const int k_group = lane >> 4;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched, "batched route is planar RNS only");
+  const int plane = Finite    ? 0
+                    : Batched ? static_cast<int>(blockIdx.z) % plane_count_or_modulus
+                              : static_cast<int>(blockIdx.z);
+  if constexpr (Batched) {
+    const uint64_t batch = uint64_t(blockIdx.z) / plane_count_or_modulus;
+    a += batch * plane_count_or_modulus * uint64_t(m) * lda;
+    b += batch * plane_count_or_modulus * uint64_t(k) * ldb;
+    c += batch * plane_count_or_modulus * uint64_t(m) * ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x4 acc = {0, 0, 0, 0};
@@ -211,21 +190,17 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
         (static_cast<uint64_t>(pack4_centered_i8(a, plane, m, k, lda, a_row, k_base + 4)) << 32u);
     const uint64_t packed_b =
         static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col)) |
-        (static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col)) << 32u);
-    acc = __builtin_amdgcn_mfma_i32_16x16x32_i8(
-        static_cast<long long>(packed_a),
-        static_cast<long long>(packed_b),
-        acc,
-        0,
-        0,
-        0);
+        (static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col))
+         << 32u);
+    acc = __builtin_amdgcn_mfma_i32_16x16x32_i8(static_cast<long long>(packed_a),
+                                                static_cast<long long>(packed_b), acc, 0, 0, 0);
   }
   const int row_base = tile_row + (lane >> 4) * 4;
   const int col = tile_col + lane_col;
-  store_accumulator<Finite>(acc[0], c, plane, modulus, m, n, ldc, row_base + 0, col);
-  store_accumulator<Finite>(acc[1], c, plane, modulus, m, n, ldc, row_base + 1, col);
-  store_accumulator<Finite>(acc[2], c, plane, modulus, m, n, ldc, row_base + 2, col);
-  store_accumulator<Finite>(acc[3], c, plane, modulus, m, n, ldc, row_base + 3, col);
+  store_dense_accumulator<Finite>(acc[0], c, plane, modulus, m, n, ldc, row_base + 0, col, basis);
+  store_dense_accumulator<Finite>(acc[1], c, plane, modulus, m, n, ldc, row_base + 1, col, basis);
+  store_dense_accumulator<Finite>(acc[2], c, plane, modulus, m, n, ldc, row_base + 2, col, basis);
+  store_dense_accumulator<Finite>(acc[3], c, plane, modulus, m, n, ldc, row_base + 3, col, basis);
 #else
   (void)a;
   (void)b;
@@ -237,29 +212,48 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(
   (void)ldb;
   (void)ldc;
   (void)plane_count_or_modulus;
+  (void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template <bool Finite, bool Batched = false>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel(const int8_t* a, const int8_t* b,
+                                                              int8_t* c, int m, int n, int k,
+                                                              int lda, int ldb, int ldc,
+                                                              int plane_count_or_modulus) {
+  cdna3_dense_mfma_body<Finite, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                         rns8::detail::DefaultDenseModuli{});
+}
+template <bool Batched = true>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_kernel_indexed(
+    const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc,
+    int plane_count_or_modulus, rns8::detail::IndexedDenseModuli basis) {
+  cdna3_dense_mfma_body<false, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                        basis);
+}
 
-template <bool Finite>
-__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
-    const int8_t* a,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx942__)
+template <bool Finite, bool Batched, class Basis>
+__device__ __forceinline__ void
+cdna3_dense_mfma_32x32x16_body(const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k,
+                               int lda, int ldb, int ldc, int plane_count_or_modulus, Basis basis) {
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 31;
   const int lane_col = lane & 31;
   const int lane_half = lane >> 5;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseCdnaWideTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseCdnaWideTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched, "batched route is planar RNS only");
+  const int plane = Finite    ? 0
+                    : Batched ? static_cast<int>(blockIdx.z) % plane_count_or_modulus
+                              : static_cast<int>(blockIdx.z);
+  if constexpr (Batched) {
+    const uint64_t batch = uint64_t(blockIdx.z) / plane_count_or_modulus;
+    a += batch * plane_count_or_modulus * uint64_t(m) * lda;
+    b += batch * plane_count_or_modulus * uint64_t(k) * ldb;
+    c += batch * plane_count_or_modulus * uint64_t(m) * ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x16 acc = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -272,19 +266,15 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
         (static_cast<uint64_t>(pack4_centered_i8(a, plane, m, k, lda, a_row, k_base + 4)) << 32u);
     const uint64_t packed_b =
         static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col)) |
-        (static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col)) << 32u);
-    acc = __builtin_amdgcn_mfma_i32_32x32x16_i8(
-        static_cast<long long>(packed_a),
-        static_cast<long long>(packed_b),
-        acc,
-        0,
-        0,
-        0);
+        (static_cast<uint64_t>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col))
+         << 32u);
+    acc = __builtin_amdgcn_mfma_i32_32x32x16_i8(static_cast<long long>(packed_a),
+                                                static_cast<long long>(packed_b), acc, 0, 0, 0);
   }
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 16; ++reg) {
     const int row = tile_row + 8 * (reg >> 2) + 4 * lane_half + (reg & 3);
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col, basis);
   }
 #else
   (void)a;
@@ -297,28 +287,48 @@ __global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(
   (void)ldb;
   (void)ldc;
   (void)plane_count_or_modulus;
+  (void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template <bool Finite, bool Batched = false>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel(const int8_t* a,
+                                                                       const int8_t* b, int8_t* c,
+                                                                       int m, int n, int k, int lda,
+                                                                       int ldb, int ldc,
+                                                                       int plane_count_or_modulus) {
+  cdna3_dense_mfma_32x32x16_body<Finite, Batched>(
+      a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus, rns8::detail::DefaultDenseModuli{});
+}
+template <bool Batched = true>
+__global__ __launch_bounds__(64) void cdna3_dense_mfma_32x32x16_kernel_indexed(
+    const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc,
+    int plane_count_or_modulus, rns8::detail::IndexedDenseModuli basis) {
+  cdna3_dense_mfma_32x32x16_body<false, Batched>(a, b, c, m, n, k, lda, ldb, ldc,
+                                                 plane_count_or_modulus, basis);
+}
 
-template <bool Finite>
-__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
-    const int8_t* a,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__)
+template <bool Finite, bool Batched, class Basis>
+__device__ __forceinline__ void
+rdna3_dense_wmma_body(const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda,
+                      int ldb, int ldc, int plane_count_or_modulus, Basis basis) {
+#if RNS8_BUILTIN_BODY_RDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched, "batched route is planar RNS only");
+  const int plane = Finite    ? 0
+                    : Batched ? static_cast<int>(blockIdx.z) % plane_count_or_modulus
+                              : static_cast<int>(blockIdx.z);
+  if constexpr (Batched) {
+    const uint64_t batch = uint64_t(blockIdx.z) / plane_count_or_modulus;
+    a += batch * plane_count_or_modulus * uint64_t(m) * lda;
+    b += batch * plane_count_or_modulus * uint64_t(k) * ldb;
+    c += batch * plane_count_or_modulus * uint64_t(m) * ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x8 acc = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -341,7 +351,7 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 8; ++reg) {
     const int row = tile_row + reg * 2 + half;
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row, col, basis);
   }
 #else
   (void)a;
@@ -354,29 +364,48 @@ __global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(
   (void)ldb;
   (void)ldc;
   (void)plane_count_or_modulus;
+  (void)basis;
 #endif
 }
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template <bool Finite, bool Batched = false>
+__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel(const int8_t* a, const int8_t* b,
+                                                              int8_t* c, int m, int n, int k,
+                                                              int lda, int ldb, int ldc,
+                                                              int plane_count_or_modulus) {
+  rdna3_dense_wmma_body<Finite, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                         rns8::detail::DefaultDenseModuli{});
+}
+template <bool Batched = true>
+__global__ __launch_bounds__(32) void rdna3_dense_wmma_kernel_indexed(
+    const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc,
+    int plane_count_or_modulus, rns8::detail::IndexedDenseModuli basis) {
+  rdna3_dense_wmma_body<false, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                        basis);
+}
 
-template <bool Finite>
-__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
-    const int8_t* a,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+template <bool Finite, bool Batched, class Basis>
+__device__ __forceinline__ void
+rdna4_dense_wmma_body(const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda,
+                      int ldb, int ldc, int plane_count_or_modulus, Basis basis) {
+#if RNS8_BUILTIN_BODY_RDNA4
   const int lane = static_cast<int>(threadIdx.x);
   const int half = lane >> 4;
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
   const int tile_row = static_cast<int>(blockIdx.y) * kRns8DenseTile;
   const int tile_col = static_cast<int>(blockIdx.x) * kRns8DenseTile;
-  const int plane = Finite ? 0 : static_cast<int>(blockIdx.z);
+  static_assert(!Finite || !Batched, "batched route is planar RNS only");
+  const int plane = Finite    ? 0
+                    : Batched ? static_cast<int>(blockIdx.z) % plane_count_or_modulus
+                              : static_cast<int>(blockIdx.z);
+  if constexpr (Batched) {
+    const uint64_t batch = uint64_t(blockIdx.z) / plane_count_or_modulus;
+    a += batch * plane_count_or_modulus * uint64_t(m) * lda;
+    b += batch * plane_count_or_modulus * uint64_t(k) * ldb;
+    c += batch * plane_count_or_modulus * uint64_t(m) * ldc;
+  }
   const int modulus = Finite ? plane_count_or_modulus : 0;
 
   i32x8 acc = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -395,7 +424,8 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
   const int row_base = tile_row + half * 8;
   const int col = tile_col + lane_col;
   for (int reg = 0; reg < 8; ++reg) {
-    store_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row_base + reg, col);
+    store_dense_accumulator<Finite>(acc[reg], c, plane, modulus, m, n, ldc, row_base + reg, col,
+                                    basis);
   }
 #else
   (void)a;
@@ -408,22 +438,34 @@ __global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(
   (void)ldb;
   (void)ldc;
   (void)plane_count_or_modulus;
+  (void)basis;
 #endif
+}
+// Keep the default kernel ABI and matrix body unchanged; the indexed family
+// shares the inlined arithmetic and differs only in its explicit store modulus.
+template <bool Finite, bool Batched = false>
+__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel(const int8_t* a, const int8_t* b,
+                                                              int8_t* c, int m, int n, int k,
+                                                              int lda, int ldb, int ldc,
+                                                              int plane_count_or_modulus) {
+  rdna4_dense_wmma_body<Finite, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                         rns8::detail::DefaultDenseModuli{});
+}
+template <bool Batched = true>
+__global__ __launch_bounds__(32) void rdna4_dense_wmma_kernel_indexed(
+    const int8_t* a, const int8_t* b, int8_t* c, int m, int n, int k, int lda, int ldb, int ldc,
+    int plane_count_or_modulus, rns8::detail::IndexedDenseModuli basis) {
+  rdna4_dense_wmma_body<false, Batched>(a, b, c, m, n, k, lda, ldb, ldc, plane_count_or_modulus,
+                                        basis);
 }
 
 template <bool Finite>
-__global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(
-    const uint8_t* a_values,
-    const uint8_t* a_indices,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx942__)
+__global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(const uint8_t* a_values,
+                                                                 const uint8_t* a_indices,
+                                                                 const int8_t* b, int8_t* c, int m,
+                                                                 int n, int k, int ldb, int ldc,
+                                                                 int plane_count_or_modulus) {
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 15;
   const int lane_col = lane & 15;
@@ -441,18 +483,26 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(
     const int a_row = tile_row + lane_row;
     const int b_col = tile_col + lane_col;
     const int group_base = kk / 4 + lane_group * 4;
-    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 0, Finite, modulus);
-    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 1, Finite, modulus);
-    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 2, Finite, modulus);
-    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 3, Finite, modulus);
+    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 0, Finite, modulus);
+    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 1, Finite, modulus);
+    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 2, Finite, modulus);
+    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 3, Finite, modulus);
     av[0] = static_cast<int>(pair0 | (pair1 << 16u));
     av[1] = static_cast<int>(pair2 | (pair3 << 16u));
 
     uint32_t sparse_idx = 0;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0) << 0u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1) << 4u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2) << 8u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3) << 12u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0)
+                  << 0u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1)
+                  << 4u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2)
+                  << 8u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3)
+                  << 12u;
 
     const int k_base = kk + lane_group * 16;
     bv[0] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col));
@@ -483,17 +533,9 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_kernel(
 
 template <bool Finite>
 __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_32x32x32_kernel(
-    const uint8_t* a_values,
-    const uint8_t* a_indices,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx942__)
+    const uint8_t* a_values, const uint8_t* a_indices, const int8_t* b, int8_t* c, int m, int n,
+    int k, int ldb, int ldc, int plane_count_or_modulus) {
+#if RNS8_BUILTIN_BODY_CDNA3
   const int lane = static_cast<int>(threadIdx.x);
   const int lane_row = lane & 31;
   const int lane_col = lane & 31;
@@ -511,18 +553,26 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_32x32x32_kernel(
     const int a_row = tile_row + lane_row;
     const int b_col = tile_col + lane_col;
     const int group_base = kk / 4 + lane_half * 4;
-    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 0, Finite, modulus);
-    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 1, Finite, modulus);
-    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 2, Finite, modulus);
-    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 3, Finite, modulus);
+    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 0, Finite, modulus);
+    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 1, Finite, modulus);
+    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 2, Finite, modulus);
+    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 3, Finite, modulus);
     av[0] = static_cast<int>(pair0 | (pair1 << 16u));
     av[1] = static_cast<int>(pair2 | (pair3 << 16u));
 
     uint32_t sparse_idx = 0;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0) << 0u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1) << 4u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2) << 8u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3) << 12u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0)
+                  << 0u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1)
+                  << 4u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2)
+                  << 8u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3)
+                  << 12u;
 
     const int k_base = kk + lane_half * 16;
     bv[0] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col));
@@ -551,18 +601,12 @@ __global__ __launch_bounds__(64) void cdna3_sparse_smfmac_32x32x32_kernel(
 }
 
 template <bool Finite>
-__global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(
-    const uint8_t* a_values,
-    const uint8_t* a_indices,
-    const int8_t* b,
-    int8_t* c,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-#if defined(__gfx1200__) || defined(__gfx1201__)
+__global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(const uint8_t* a_values,
+                                                                 const uint8_t* a_indices,
+                                                                 const int8_t* b, int8_t* c, int m,
+                                                                 int n, int k, int ldb, int ldc,
+                                                                 int plane_count_or_modulus) {
+#if RNS8_BUILTIN_BODY_RDNA4
   const int lane = static_cast<int>(threadIdx.x);
   const int half = lane >> 4;
   const int lane_row = lane & 15;
@@ -580,25 +624,34 @@ __global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(
     const int a_row = tile_row + lane_row;
     const int b_col = tile_col + lane_col;
     const int group_base = kk / 4 + half * 4;
-    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 0, Finite, modulus);
-    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 1, Finite, modulus);
-    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 2, Finite, modulus);
-    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row, group_base + 3, Finite, modulus);
+    const uint32_t pair0 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 0, Finite, modulus);
+    const uint32_t pair1 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 1, Finite, modulus);
+    const uint32_t pair2 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 2, Finite, modulus);
+    const uint32_t pair3 = sparse_pair_for_group(a_values, plane, m, groups_per_row, a_row,
+                                                 group_base + 3, Finite, modulus);
     av[0] = static_cast<int>(pair0 | (pair1 << 16u));
     av[1] = static_cast<int>(pair2 | (pair3 << 16u));
 
     uint32_t sparse_idx = 0;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0) << 0u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1) << 4u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2) << 8u;
-    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3) << 12u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 0)
+                  << 0u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 1)
+                  << 4u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 2)
+                  << 8u;
+    sparse_idx |= sparse_index_for_group(a_indices, plane, m, groups_per_row, a_row, group_base + 3)
+                  << 12u;
 
     const int k_base = kk + half * 16;
     bv[0] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 0, b_col));
     bv[1] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 4, b_col));
     bv[2] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 8, b_col));
     bv[3] = static_cast<int>(pack4_centered_i8_column(b, plane, k, n, ldb, k_base + 12, b_col));
-    acc = __builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(true, av, true, bv, acc, static_cast<short>(sparse_idx), false);
+    acc = __builtin_amdgcn_swmmac_i32_16x16x32_iu8_w32(true, av, true, bv, acc,
+                                                       static_cast<short>(sparse_idx), false);
   }
   const int row_base = tile_row + half * 8;
   const int col = tile_col + lane_col;
@@ -620,19 +673,7 @@ __global__ __launch_bounds__(32) void rdna4_sparse_swmmac_kernel(
 }
 
 rns8_amdgpu_arch_kind detect_arch_kind(const char* arch) {
-  if (!arch) {
-    return rns8_amdgpu_arch_kind::unsupported;
-  }
-  if (std::strncmp(arch, "gfx942", 6) == 0) {
-    return rns8_amdgpu_arch_kind::cdna3;
-  }
-  if (std::strncmp(arch, "gfx110", 6) == 0) {
-    return rns8_amdgpu_arch_kind::rdna3;
-  }
-  if (std::strncmp(arch, "gfx1200", 7) == 0 || std::strncmp(arch, "gfx1201", 7) == 0) {
-    return rns8_amdgpu_arch_kind::rdna4;
-  }
-  return rns8_amdgpu_arch_kind::unsupported;
+  return rns8::detail::builtin_arch(arch ? arch : "");
 }
 
 int active_device_arch_kind(int device_id, rns8_amdgpu_arch_kind& kind) {
@@ -668,20 +709,12 @@ bool use_cdna3_smfmac_32x32x32(int m, int n, int k) {
   return m >= 128 && n >= 128 && k >= 128;
 }
 
-template <bool Finite>
-int launch_dense(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus,
-    int dense_kernel_variant) {
+template <bool Finite, bool Batched = false, class Basis = rns8::detail::DefaultDenseModuli>
+int launch_dense(int device_id, const void* device_a_residues, const void* device_b_residues,
+                 void* device_c_residues, int m, int n, int k, int lda, int ldb, int ldc,
+                 int plane_count_or_modulus, int dense_kernel_variant, int batches = 1,
+                 hipStream_t stream = nullptr, bool asynchronous = false, Basis basis = {}) {
+  static_assert(!Finite || !Basis::indexed, "indexed operands are centered RNS bytes");
   rns8_amdgpu_arch_kind kind{};
   const int arch_status = active_device_arch_kind(device_id, kind);
   if (arch_status != 0) {
@@ -689,104 +722,152 @@ int launch_dense(
   }
   hipError_t err = hipSuccess;
   switch (kind) {
-    case rns8_amdgpu_arch_kind::cdna3:
-      if (use_cdna3_mfma_32x32x16(m, n, k, dense_kernel_variant)) {
-        const dim3 grid(
-            (static_cast<unsigned>(n) + 31u) / 32u,
-            (static_cast<unsigned>(m) + 31u) / 32u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-        hipLaunchKernelGGL(
-            (cdna3_dense_mfma_32x32x16_kernel<Finite>),
-            grid,
-            dim3(64),
-            0,
-            0,
-            static_cast<const int8_t*>(device_a_residues),
-            static_cast<const int8_t*>(device_b_residues),
-            static_cast<int8_t*>(device_c_residues),
-            m,
-            n,
-            k,
-            lda,
-            ldb,
-            ldc,
-            plane_count_or_modulus);
+  case rns8_amdgpu_arch_kind::cdna3:
+    if (use_cdna3_mfma_32x32x16(m, n, k, dense_kernel_variant)) {
+      const dim3 grid((static_cast<unsigned>(n) + 31u) / 32u,
+                      (static_cast<unsigned>(m) + 31u) / 32u,
+                      Finite ? 1u
+                             : static_cast<unsigned>(plane_count_or_modulus) *
+                                   (Batched ? static_cast<unsigned>(batches) : 1u));
+      if constexpr (Basis::indexed) {
+        hipLaunchKernelGGL((cdna3_dense_mfma_32x32x16_kernel_indexed<Batched>), grid, dim3(64), 0,
+                           stream, static_cast<const int8_t*>(device_a_residues),
+                           static_cast<const int8_t*>(device_b_residues),
+                           static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                           plane_count_or_modulus, basis);
       } else {
-        const dim3 grid(
-            (static_cast<unsigned>(n) + 15u) / 16u,
-            (static_cast<unsigned>(m) + 15u) / 16u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-        hipLaunchKernelGGL(
-            (cdna3_dense_mfma_kernel<Finite>),
-            grid,
-            dim3(64),
-            0,
-            0,
-            static_cast<const int8_t*>(device_a_residues),
-            static_cast<const int8_t*>(device_b_residues),
-            static_cast<int8_t*>(device_c_residues),
-            m,
-            n,
-            k,
-            lda,
-            ldb,
-            ldc,
-            plane_count_or_modulus);
+        hipLaunchKernelGGL((cdna3_dense_mfma_32x32x16_kernel<Finite, Batched>), grid, dim3(64), 0,
+                           stream, static_cast<const int8_t*>(device_a_residues),
+                           static_cast<const int8_t*>(device_b_residues),
+                           static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                           plane_count_or_modulus);
       }
-      break;
-    case rns8_amdgpu_arch_kind::rdna3:
-    {
-      // The same true WMMA kernel handles skinny and tiled shapes. Scalar
-      // shuffle candidates must not masquerade as matrix instructions or
-      // interpret a finite modulus as an RNS plane count.
-      const dim3 grid(
-          (static_cast<unsigned>(n) + 15u) / 16u,
-          (static_cast<unsigned>(m) + 15u) / 16u,
-          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-      hipLaunchKernelGGL(
-          (rdna3_dense_wmma_kernel<Finite>),
-          grid,
-          dim3(32),
-          0,
-          0,
-          static_cast<const int8_t*>(device_a_residues),
-          static_cast<const int8_t*>(device_b_residues),
-          static_cast<int8_t*>(device_c_residues),
-          m,
-          n,
-          k,
-          lda,
-          ldb,
-          ldc,
-          plane_count_or_modulus);
-      break;
+    } else {
+      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u,
+                      (static_cast<unsigned>(m) + 15u) / 16u,
+                      Finite ? 1u
+                             : static_cast<unsigned>(plane_count_or_modulus) *
+                                   (Batched ? static_cast<unsigned>(batches) : 1u));
+      if constexpr (Basis::indexed) {
+        hipLaunchKernelGGL((cdna3_dense_mfma_kernel_indexed<Batched>), grid, dim3(64), 0, stream,
+                           static_cast<const int8_t*>(device_a_residues),
+                           static_cast<const int8_t*>(device_b_residues),
+                           static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                           plane_count_or_modulus, basis);
+      } else {
+        hipLaunchKernelGGL((cdna3_dense_mfma_kernel<Finite, Batched>), grid, dim3(64), 0, stream,
+                           static_cast<const int8_t*>(device_a_residues),
+                           static_cast<const int8_t*>(device_b_residues),
+                           static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                           plane_count_or_modulus);
+      }
     }
-    case rns8_amdgpu_arch_kind::rdna4:
-    {
-      const dim3 grid(
-          (static_cast<unsigned>(n) + 15u) / 16u,
-          (static_cast<unsigned>(m) + 15u) / 16u,
-          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-      hipLaunchKernelGGL(
-          (rdna4_dense_wmma_kernel<Finite>),
-          grid,
-          dim3(32),
-          0,
-          0,
-          static_cast<const int8_t*>(device_a_residues),
-          static_cast<const int8_t*>(device_b_residues),
-          static_cast<int8_t*>(device_c_residues),
-          m,
-          n,
-          k,
-          lda,
-          ldb,
-          ldc,
-          plane_count_or_modulus);
-      break;
+    break;
+  case rns8_amdgpu_arch_kind::rdna3: {
+    // The same true WMMA kernel handles skinny and tiled shapes. Scalar
+    // shuffle candidates must not masquerade as matrix instructions or
+    // interpret a finite modulus as an RNS plane count.
+    const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u,
+                    Finite ? 1u
+                           : static_cast<unsigned>(plane_count_or_modulus) *
+                                 (Batched ? static_cast<unsigned>(batches) : 1u));
+    if constexpr (Basis::indexed) {
+      hipLaunchKernelGGL((rdna3_dense_wmma_kernel_indexed<Batched>), grid, dim3(32), 0, stream,
+                         static_cast<const int8_t*>(device_a_residues),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                         plane_count_or_modulus, basis);
+    } else {
+      hipLaunchKernelGGL((rdna3_dense_wmma_kernel<Finite, Batched>), grid, dim3(32), 0, stream,
+                         static_cast<const int8_t*>(device_a_residues),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                         plane_count_or_modulus);
     }
-    case rns8_amdgpu_arch_kind::unsupported:
-      return 2;
+    break;
+  }
+  case rns8_amdgpu_arch_kind::rdna4: {
+    const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u,
+                    Finite ? 1u
+                           : static_cast<unsigned>(plane_count_or_modulus) *
+                                 (Batched ? static_cast<unsigned>(batches) : 1u));
+    if constexpr (Basis::indexed) {
+      hipLaunchKernelGGL((rdna4_dense_wmma_kernel_indexed<Batched>), grid, dim3(32), 0, stream,
+                         static_cast<const int8_t*>(device_a_residues),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                         plane_count_or_modulus, basis);
+    } else {
+      hipLaunchKernelGGL((rdna4_dense_wmma_kernel<Finite, Batched>), grid, dim3(32), 0, stream,
+                         static_cast<const int8_t*>(device_a_residues),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, lda, ldb, ldc,
+                         plane_count_or_modulus);
+    }
+    break;
+  }
+  case rns8_amdgpu_arch_kind::unsupported:
+    return 2;
+  }
+  err = hipGetLastError();
+  if (err != hipSuccess) {
+    return 3;
+  }
+  if (asynchronous)
+    return 0;
+  err = hipDeviceSynchronize();
+  return err == hipSuccess ? 0 : 3;
+}
+
+template <bool Finite>
+int launch_sparse_a(int device_id, const void* device_a_packed_values,
+                    const void* device_a_packed_indices, const void* device_b_residues,
+                    void* device_c_residues, int m, int n, int k, int ldb, int ldc,
+                    int plane_count_or_modulus) {
+  rns8_amdgpu_arch_kind kind{};
+  const int arch_status = active_device_arch_kind(device_id, kind);
+  if (arch_status != 0) {
+    return arch_status;
+  }
+  hipError_t err = hipSuccess;
+  switch (kind) {
+  case rns8_amdgpu_arch_kind::cdna3:
+    if (use_cdna3_smfmac_32x32x32(m, n, k)) {
+      const dim3 grid((static_cast<unsigned>(n) + 31u) / 32u,
+                      (static_cast<unsigned>(m) + 31u) / 32u,
+                      Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+      hipLaunchKernelGGL((cdna3_sparse_smfmac_32x32x32_kernel<Finite>), grid, dim3(64), 0, 0,
+                         static_cast<const uint8_t*>(device_a_packed_values),
+                         static_cast<const uint8_t*>(device_a_packed_indices),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, ldb, ldc,
+                         plane_count_or_modulus);
+    } else {
+      const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u,
+                      (static_cast<unsigned>(m) + 15u) / 16u,
+                      Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+      hipLaunchKernelGGL((cdna3_sparse_smfmac_kernel<Finite>), grid, dim3(64), 0, 0,
+                         static_cast<const uint8_t*>(device_a_packed_values),
+                         static_cast<const uint8_t*>(device_a_packed_indices),
+                         static_cast<const int8_t*>(device_b_residues),
+                         static_cast<int8_t*>(device_c_residues), m, n, k, ldb, ldc,
+                         plane_count_or_modulus);
+    }
+    break;
+  case rns8_amdgpu_arch_kind::rdna4: {
+    const dim3 grid((static_cast<unsigned>(n) + 15u) / 16u, (static_cast<unsigned>(m) + 15u) / 16u,
+                    Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
+    hipLaunchKernelGGL((rdna4_sparse_swmmac_kernel<Finite>), grid, dim3(32), 0, 0,
+                       static_cast<const uint8_t*>(device_a_packed_values),
+                       static_cast<const uint8_t*>(device_a_packed_indices),
+                       static_cast<const int8_t*>(device_b_residues),
+                       static_cast<int8_t*>(device_c_residues), m, n, k, ldb, ldc,
+                       plane_count_or_modulus);
+    break;
+  }
+  case rns8_amdgpu_arch_kind::rdna3:
+  case rns8_amdgpu_arch_kind::unsupported:
+    return 2;
   }
   err = hipGetLastError();
   if (err != hipSuccess) {
@@ -796,235 +877,142 @@ int launch_dense(
   return err == hipSuccess ? 0 : 3;
 }
 
-template <bool Finite>
-int launch_sparse_a(
-    int device_id,
-    const void* device_a_packed_values,
-    const void* device_a_packed_indices,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
-    int plane_count_or_modulus) {
-  rns8_amdgpu_arch_kind kind{};
-  const int arch_status = active_device_arch_kind(device_id, kind);
-  if (arch_status != 0) {
-    return arch_status;
-  }
-  hipError_t err = hipSuccess;
-  switch (kind) {
-    case rns8_amdgpu_arch_kind::cdna3:
-      if (use_cdna3_smfmac_32x32x32(m, n, k)) {
-        const dim3 grid(
-            (static_cast<unsigned>(n) + 31u) / 32u,
-            (static_cast<unsigned>(m) + 31u) / 32u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-        hipLaunchKernelGGL(
-            (cdna3_sparse_smfmac_32x32x32_kernel<Finite>),
-            grid,
-            dim3(64),
-            0,
-            0,
-            static_cast<const uint8_t*>(device_a_packed_values),
-            static_cast<const uint8_t*>(device_a_packed_indices),
-            static_cast<const int8_t*>(device_b_residues),
-            static_cast<int8_t*>(device_c_residues),
-            m,
-            n,
-            k,
-            ldb,
-            ldc,
-            plane_count_or_modulus);
-      } else {
-        const dim3 grid(
-            (static_cast<unsigned>(n) + 15u) / 16u,
-            (static_cast<unsigned>(m) + 15u) / 16u,
-            Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-        hipLaunchKernelGGL(
-            (cdna3_sparse_smfmac_kernel<Finite>),
-            grid,
-            dim3(64),
-            0,
-            0,
-            static_cast<const uint8_t*>(device_a_packed_values),
-            static_cast<const uint8_t*>(device_a_packed_indices),
-            static_cast<const int8_t*>(device_b_residues),
-            static_cast<int8_t*>(device_c_residues),
-            m,
-            n,
-            k,
-            ldb,
-            ldc,
-            plane_count_or_modulus);
-      }
-      break;
-    case rns8_amdgpu_arch_kind::rdna4:
-    {
-      const dim3 grid(
-          (static_cast<unsigned>(n) + 15u) / 16u,
-          (static_cast<unsigned>(m) + 15u) / 16u,
-          Finite ? 1u : static_cast<unsigned>(plane_count_or_modulus));
-      hipLaunchKernelGGL(
-          (rdna4_sparse_swmmac_kernel<Finite>),
-          grid,
-          dim3(32),
-          0,
-          0,
-          static_cast<const uint8_t*>(device_a_packed_values),
-          static_cast<const uint8_t*>(device_a_packed_indices),
-          static_cast<const int8_t*>(device_b_residues),
-          static_cast<int8_t*>(device_c_residues),
-          m,
-          n,
-          k,
-          ldb,
-          ldc,
-          plane_count_or_modulus);
-      break;
-    }
-    case rns8_amdgpu_arch_kind::rdna3:
-    case rns8_amdgpu_arch_kind::unsupported:
-      return 2;
-  }
-  err = hipGetLastError();
-  if (err != hipSuccess) {
-    return 3;
-  }
-  err = hipDeviceSynchronize();
-  return err == hipSuccess ? 0 : 3;
-}
-
-bool common_dense_args_valid(
-    const void* a,
-    const void* b,
-    const void* c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc) {
+bool common_dense_args_valid(const void* a, const void* b, const void* c, int m, int n, int k,
+                             int lda, int ldb, int ldc) {
   return a && b && c && m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n;
 }
 
-bool common_sparse_args_valid(
-    const void* values,
-    const void* indices,
-    const void* b,
-    const void* c,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc) {
-  return values && indices && b && c && m > 0 && n > 0 && k > 0 && (k % 4) == 0 && ldb >= n && ldc >= n;
+bool common_sparse_args_valid(const void* values, const void* indices, const void* b, const void* c,
+                              int m, int n, int k, int ldb, int ldc) {
+  return values && indices && b && c && m > 0 && n > 0 && k > 0 && (k % 4) == 0 && ldb >= n &&
+         ldc >= n;
 }
 
-}  // namespace
+} // namespace
 
-extern "C" int rns8_amdgpu_builtin_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int prefix,
-    int dense_kernel_variant) {
-  if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
+extern "C" int rns8_amdgpu_builtin_gemm_rns_device(int device_id, const void* device_a_residues,
+                                                   const void* device_b_residues,
+                                                   void* device_c_residues, int m, int n, int k,
+                                                   int lda, int ldb, int ldc, int prefix,
+                                                   int dense_kernel_variant) {
+  if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k,
+                               lda, ldb, ldc) ||
       prefix <= 0 || prefix > kRns8DefaultModulusCount) {
     return 1;
   }
-  return launch_dense<false>(
-      device_id,
-      device_a_residues,
-      device_b_residues,
-      device_c_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc,
-      prefix,
-      dense_kernel_variant);
+  return launch_dense<false>(device_id, device_a_residues, device_b_residues, device_c_residues, m,
+                             n, k, lda, ldb, ldc, prefix, dense_kernel_variant);
 }
 
-extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    int dense_kernel_variant) {
-  if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k, lda, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+extern "C" int rns8_amdgpu_builtin_gemm_rns_batch_device(int device_id, const void* a,
+                                                         const void* b, void* c, int m, int n,
+                                                         int k, int lda, int ldb, int ldc,
+                                                         int prefix, int batches,
+                                                         int dense_kernel_variant, void* stream) {
+  if (!common_dense_args_valid(a, b, c, m, n, k, lda, ldb, ldc) || prefix < 1 || prefix > 20 ||
+      batches < 1 || batches > 64)
+    return 1;
+  return launch_dense<false, true>(device_id, a, b, c, m, n, k, lda, ldb, ldc, prefix,
+                                   dense_kernel_variant, batches, static_cast<hipStream_t>(stream),
+                                   stream != nullptr);
+}
+
+extern "C" int rns8_amdgpu_builtin_gemm_indexed_batch_device(
+    int device_id, const void* a, const void* b, void* c, int m, int n, int k, int lda, int ldb,
+    int ldc, rns8::detail::IndexedModulusPlanes planes, int batches, int variant, void* stream) {
+  if (!common_dense_args_valid(a, b, c, m, n, k, lda, ldb, ldc) || k > 65536 || batches < 1 ||
+      batches > 64 || !rns8::detail::valid_indexed_modulus_planes(planes) || !planes.eligible_count)
+    return 1;
+  rns8::detail::IndexedDenseModuli basis;
+  for (uint32_t compact = 0; compact < planes.eligible_count; ++compact)
+    basis.moduli[compact] = planes.moduli[compact];
+  return launch_dense<false, true>(device_id, a, b, c, m, n, k, lda, ldb, ldc,
+                                   int(planes.eligible_count), variant, batches,
+                                   static_cast<hipStream_t>(stream), stream != nullptr, basis);
+}
+
+extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_device(int device_id,
+                                                         const void* device_a_residues,
+                                                         const void* device_b_residues,
+                                                         void* device_c_residues, int m, int n,
+                                                         int k, int lda, int ldb, int ldc,
+                                                         int modulus, int dense_kernel_variant) {
+  if (!common_dense_args_valid(device_a_residues, device_b_residues, device_c_residues, m, n, k,
+                               lda, ldb, ldc) ||
+      (modulus < 2 || modulus > 256)) {
     return 1;
   }
-  return launch_dense<true>(
-      device_id,
-      device_a_residues,
-      device_b_residues,
-      device_c_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc,
-      modulus,
-      dense_kernel_variant);
+  return launch_dense<true>(device_id, device_a_residues, device_b_residues, device_c_residues, m,
+                            n, k, lda, ldb, ldc, modulus, dense_kernel_variant);
 }
 
-extern "C" int rns8_amdgpu_builtin_gemm_rns_sparse_a_device(
-    int device_id,
-    const void* device_a_packed_values,
-    const void* device_a_packed_indices,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
-    int prefix) {
-  if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc) ||
+extern "C" int rns8_amdgpu_builtin_gemm_rns_sparse_a_device(int device_id,
+                                                            const void* device_a_packed_values,
+                                                            const void* device_a_packed_indices,
+                                                            const void* device_b_residues,
+                                                            void* device_c_residues, int m, int n,
+                                                            int k, int ldb, int ldc, int prefix) {
+  if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues,
+                                device_c_residues, m, n, k, ldb, ldc) ||
       prefix <= 0 || prefix > kRns8DefaultModulusCount) {
     return 1;
   }
-  return launch_sparse_a<false>(
-      device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, prefix);
+  return launch_sparse_a<false>(device_id, device_a_packed_values, device_a_packed_indices,
+                                device_b_residues, device_c_residues, m, n, k, ldb, ldc, prefix);
 }
 
 extern "C" int rns8_amdgpu_builtin_gemm_finite_u8_sparse_a_device(
-    int device_id,
-    const void* device_a_packed_values,
-    const void* device_a_packed_indices,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int m,
-    int n,
-    int k,
-    int ldb,
-    int ldc,
+    int device_id, const void* device_a_packed_values, const void* device_a_packed_indices,
+    const void* device_b_residues, void* device_c_residues, int m, int n, int k, int ldb, int ldc,
     int modulus) {
-  if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc) ||
-      !rns8::detail::finite_u8::static_byte_modulus_supported(static_cast<uint32_t>(modulus))) {
+  if (!common_sparse_args_valid(device_a_packed_values, device_a_packed_indices, device_b_residues,
+                                device_c_residues, m, n, k, ldb, ldc) ||
+      (modulus < 2 || modulus > 256)) {
     return 1;
   }
-  return launch_sparse_a<true>(
-      device_id, device_a_packed_values, device_a_packed_indices, device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
+  return launch_sparse_a<true>(device_id, device_a_packed_values, device_a_packed_indices,
+                               device_b_residues, device_c_residues, m, n, k, ldb, ldc, modulus);
+}
+
+// Allocation/timing-free stream entry. The prepared owner admitted the exact
+// target, shape, prefix/modulus and workspace before any enqueue.
+extern "C" int rns8_amdgpu_builtin_enqueue_dense(int device_id, const void* a, const void* b,
+                                                 void* c, int m, int n, int k, int lda, int ldb,
+                                                 int ldc, unsigned value, bool finite,
+                                                 void* stream) {
+  if (!stream || !common_dense_args_valid(a, b, c, m, n, k, lda, ldb, ldc) || k > 65536 ||
+      (finite ? (value < 2 || value > 256) : value < 1 || value > 20))
+    return 1;
+  return finite ? launch_dense<true>(device_id, a, b, c, m, n, k, lda, ldb, ldc, int(value), 0, 1,
+                                     static_cast<hipStream_t>(stream), true)
+                : launch_dense<false>(device_id, a, b, c, m, n, k, lda, ldb, ldc, int(value), 0, 1,
+                                      static_cast<hipStream_t>(stream), true);
+}
+
+// Query the selected symbol before creating a public arithmetic owner. This
+// rejects missing code objects without launching a write or trusting a family label.
+extern "C" int rns8_amdgpu_builtin_dense_available(int device_id) {
+  rns8_amdgpu_arch_kind kind;
+  const int status = active_device_arch_kind(device_id, kind);
+  if (status)
+    return status;
+  hipFuncAttributes attributes{};
+  hipError_t error = hipErrorInvalidDeviceFunction;
+  switch (kind) {
+  case rns8_amdgpu_arch_kind::cdna3:
+    error = hipFuncGetAttributes(
+        &attributes, reinterpret_cast<const void*>(&cdna3_dense_mfma_kernel<false, false>));
+    break;
+  case rns8_amdgpu_arch_kind::rdna3:
+    error = hipFuncGetAttributes(
+        &attributes, reinterpret_cast<const void*>(&rdna3_dense_wmma_kernel<false, false>));
+    break;
+  case rns8_amdgpu_arch_kind::rdna4:
+    error = hipFuncGetAttributes(
+        &attributes, reinterpret_cast<const void*>(&rdna4_dense_wmma_kernel<false, false>));
+    break;
+  default:
+    return 2;
+  }
+  return error == hipSuccess ? 0 : 2;
 }

@@ -1,0 +1,99 @@
+{
+  "schema": "rns8_python_production_mutations_v1",
+  "owner_issue": 103,
+  "scope": "isolated actual production modules and existing real tests; no test flags or GPU faults",
+  "qualification": "source_authored_no_mutation_or_baseline_executed",
+  "seeds": [
+    {
+      "id": "ignore-executable-library-mismatch",
+      "module": "compiled_binary_identity",
+      "function": "validate_document",
+      "before": "if not same_evidence_value(executable, library):",
+      "after": "if not same_evidence_value(executable, executable):",
+      "test_module": "test_compiled_binary_identity",
+      "required_test": "test_compiled_binary_identity.CompiledBinaryIdentity.test_manifests_must_be_real_complete_and_equal",
+      "assertion_marker": "ValueError not raised",
+      "source": "tools/compiled_binary_identity.py",
+      "source_sha256": "a65e866396018f111d82161408a9994958ae9ada8e0346b36354b3a34217061a",
+      "mandatory": true
+    },
+    {
+      "id": "ignore-request-environment-seal",
+      "module": "benchmark_request",
+      "function": "request_environment_identity",
+      "before": "if request[\"identity_sha256\"] != expected:",
+      "after": "if request[\"identity_sha256\"] != request[\"identity_sha256\"]:",
+      "test_module": "test_execution_environment_identity",
+      "required_test": "test_execution_environment_identity.EnvironmentIdentity.test_tampering_and_unbound_claimed_digest_cannot_override_actual_object",
+      "assertion_marker": "execution_request_identity_mismatch",
+      "source": "tools/benchmark_request.py",
+      "source_sha256": "e70425288261ee65c01a54db3bc5119fd41f6d189875c45fb92d2db6f2bf80a5",
+      "mandatory": true
+    },
+    {
+      "id": "omit-mandatory-native-test-admission",
+      "module": "execution_inventory",
+      "function": "reconcile",
+      "before": "if name not in states[\"passed\"]:",
+      "after": "if name not in required:",
+      "test_module": "test_execution_inventory",
+      "required_test": "test_execution_inventory.NativeInventory.test_missing_extra_failed_disabled_and_mandatory_are_blockers",
+      "assertion_marker": "mandatory_test_did_not_pass:mandatory",
+      "source": "tools/execution_inventory.py",
+      "source_sha256": "06bb9efba9c21ca14a8103fb919fc2009c270545301ebde96d4fe43993970edc",
+      "mandatory": true
+    },
+    {
+      "id": "admit-instrumented-production-builds",
+      "module": "build_instrumentation",
+      "function": "instrumentation_reasons",
+      "before": "return sorted(reasons)",
+      "after": "return []",
+      "test_module": "test_build_instrumentation",
+      "required_test": "test_build_instrumentation.InstrumentationAdmission.test_declared_and_actual_flags_never_supply_production_latency",
+      "assertion_marker": "is not true",
+      "source": "tools/build_instrumentation.py",
+      "source_sha256": "0ebb3971c1d5ce04013dd42396e18d15fa741670b47cba3eeef17a2320821cb6",
+      "mandatory": true
+    },
+    {
+      "id": "admit-incomplete-exact-reference",
+      "module": "reference_verdict",
+      "function": "numerical_observation",
+      "before": "full_output_reference_covered=bool(coverage),",
+      "after": "full_output_reference_covered=True,",
+      "test_module": "test_reference_verdict",
+      "required_test": "test_reference_verdict.ReferenceVerdictTest.test_partial_unbound_unknown_or_timed_reference_claims_remain_pending",
+      "assertion_marker": "is not false",
+      "source": "tools/reference_verdict.py",
+      "source_sha256": "9b2cba629b267b980af128d49a48a99ca3123ff182aae391f773fcd072b809a7",
+      "mandatory": true
+    },
+    {
+      "id": "admit-stale-qualification-artifact",
+      "module": "target_qualification",
+      "function": "EvidenceStore.verify",
+      "before": "if file_digest(path) != expected:",
+      "after": "if file_digest(path) != file_digest(path):",
+      "test_module": "test_target_qualification",
+      "required_test": "test_target_qualification.TargetQualification.test_stale_artifact_is_rejected_before_entering_the_verified_store",
+      "assertion_marker": "ValueError not raised",
+      "source": "tools/target_qualification.py",
+      "source_sha256": "d8c9a5535ba83587a75aee8b702dfd39d20c4d5aac33b0e1fe62c72667abea24",
+      "mandatory": true
+    },
+    {
+      "id": "admit-stale-candidate-qualification",
+      "module": "target_qualification",
+      "function": "candidate_verdict",
+      "before": "eligible=bool(qualified) and not blockers,",
+      "after": "eligible=True,",
+      "test_module": "test_target_qualification",
+      "required_test": "test_target_qualification.TargetQualification.test_stale_result_and_forged_ready_snapshot_are_rejected_at_consumption",
+      "assertion_marker": "is not false",
+      "source": "tools/target_qualification.py",
+      "source_sha256": "d8c9a5535ba83587a75aee8b702dfd39d20c4d5aac33b0e1fe62c72667abea24",
+      "mandatory": true
+    }
+  ]
+}

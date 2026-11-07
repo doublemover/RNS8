@@ -9,9 +9,10 @@
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
 #include <hip/hip_runtime_api.h>
 
-extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(
-    const int8_t* a_residues, const int8_t* b_residues, int8_t* c_residues,
-    int m, int n, int k, int prefix);
+extern "C" int rns8_hip_direct_persistent_small_gemm_rns_device(const int8_t* a_residues,
+                                                                const int8_t* b_residues,
+                                                                int8_t* c_residues, int m, int n,
+                                                                int k, int prefix);
 
 #define HIP_CHECK(call) do { hipError_t _e = (call); REQUIRE(_e == hipSuccess); } while(0)
 
@@ -24,7 +25,9 @@ static bool hip_available() {
 
 TEST_CASE("persistent small GEMM matches CPU reference for 16x16") {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!hip_available()) { SKIP("no HIP device"); }
+  if (!hip_available()) {
+    SKIP("no HIP device");
+  }
 
   constexpr int m = 16, n = 16, k = 16, prefix = 9;
 
@@ -46,7 +49,8 @@ TEST_CASE("persistent small GEMM matches CPU reference for 16x16") {
 
   // CPU reference
   for (int p = 0; p < prefix; ++p) {
-    constexpr int mods[] = {256,255,253,251,247,239,233,229,227,223,217,211,199,197,193,191,181,179,173,167,163,157,151,149,139,137,131,127};
+    constexpr int mods[] = {256, 255, 253, 251, 247, 239, 233, 229, 227, 223, 217, 211, 199, 197,
+                            193, 191, 181, 179, 173, 167, 163, 157, 151, 149, 139, 137, 131, 127};
     const int mod = mods[p];
     const int8_t* ap = a_host.data() + static_cast<size_t>(p) * m * k;
     const int8_t* bp = b_host.data() + static_cast<size_t>(p) * k * n;
@@ -55,18 +59,19 @@ TEST_CASE("persistent small GEMM matches CPU reference for 16x16") {
       for (int col = 0; col < n; ++col) {
         int32_t acc = 0;
         for (int ki = 0; ki < k; ++ki)
-          acc += static_cast<int32_t>(ap[row * k + ki]) *
-                 static_cast<int32_t>(bp[ki * n + col]);
+          acc += static_cast<int32_t>(ap[row * k + ki]) * static_cast<int32_t>(bp[ki * n + col]);
         int32_t reduced = acc % mod;
-        if (reduced < 0) reduced += mod;
-        cp[row * n + col] = static_cast<int8_t>(
-            reduced > mod / 2 ? reduced - mod : reduced);
+        if (reduced < 0)
+          reduced += mod;
+        cp[row * n + col] = static_cast<int8_t>(reduced > mod / 2 ? reduced - mod : reduced);
       }
     }
   }
 
   // GPU path
-  void* d_a = nullptr; void* d_b = nullptr; void* d_c = nullptr;
+  void* d_a = nullptr;
+  void* d_b = nullptr;
+  void* d_c = nullptr;
   size_t ab = static_cast<size_t>(prefix) * m * k;
   size_t bb = static_cast<size_t>(prefix) * k * n;
   size_t cb = static_cast<size_t>(prefix) * m * n;
@@ -78,9 +83,7 @@ TEST_CASE("persistent small GEMM matches CPU reference for 16x16") {
   HIP_CHECK(hipMemset(d_c, 0, cb));
 
   int code = rns8_hip_direct_persistent_small_gemm_rns_device(
-      static_cast<const int8_t*>(d_a),
-      static_cast<const int8_t*>(d_b),
-      static_cast<int8_t*>(d_c),
+      static_cast<const int8_t*>(d_a), static_cast<const int8_t*>(d_b), static_cast<int8_t*>(d_c),
       m, n, k, prefix);
   REQUIRE(code == static_cast<int>(hipSuccess));
 

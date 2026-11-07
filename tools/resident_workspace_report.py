@@ -15,13 +15,10 @@ DEFAULT_OUT_DIR = Path("temp") / "resident-workspace-reports"
 
 
 def _counter_nonzero(counter: Any) -> bool:
-    return (
-        isinstance(counter, dict)
-        and (
-            int(counter.get("allocate_calls") or 0) != 0
-            or int(counter.get("free_calls") or 0) != 0
-            or int(counter.get("allocated_bytes") or 0) != 0
-        )
+    return isinstance(counter, dict) and (
+        int(counter.get("allocate_calls") or 0) != 0
+        or int(counter.get("free_calls") or 0) != 0
+        or int(counter.get("allocated_bytes") or 0) != 0
     )
 
 
@@ -34,7 +31,9 @@ def _target_id(capture: dict[str, Any]) -> str | None:
     return None
 
 
-def arena_blockers(capture: dict[str, Any], arena: dict[str, Any], resident: dict[str, Any]) -> list[str]:
+def arena_blockers(
+    capture: dict[str, Any], arena: dict[str, Any], resident: dict[str, Any]
+) -> list[str]:
     blockers = ["resident_workspace_report_evidence_only"]
     if not arena.get("enabled", False):
         blockers.append("workspace_arena_not_enabled")
@@ -60,8 +59,16 @@ def arena_blockers(capture: dict[str, Any], arena: dict[str, Any], resident: dic
 def build_report(paths: list[Path]) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for capture in load_report_captures(paths):
-        resident = capture.get("resident_lifetime") if isinstance(capture.get("resident_lifetime"), dict) else {}
-        arena = capture.get("workspace_arena") if isinstance(capture.get("workspace_arena"), dict) else {}
+        resident = (
+            capture.get("resident_lifetime")
+            if isinstance(capture.get("resident_lifetime"), dict)
+            else {}
+        )
+        arena = (
+            capture.get("workspace_arena")
+            if isinstance(capture.get("workspace_arena"), dict)
+            else {}
+        )
         blockers = arena_blockers(capture, arena, resident)
         rows.append(
             {

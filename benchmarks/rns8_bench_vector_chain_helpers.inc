@@ -1,10 +1,6 @@
 template <typename T>
-void fill_vector_to_rns_chain_inputs(
-    const Args& args,
-    std::vector<T>& A,
-    std::vector<T>& B,
-    std::vector<T>& D,
-    std::mt19937_64& rng) {
+void fill_vector_to_rns_chain_inputs(const Args& args, std::vector<T>& A, std::vector<T>& B,
+                                     std::vector<T>& D, std::mt19937_64& rng) {
   if constexpr (std::is_same_v<T, int64_t>) {
     fill_bounded_i64_inputs(args, A, B, rng);
     std::uniform_int_distribution<int64_t> dist(-16, 16);
@@ -21,12 +17,8 @@ void fill_vector_to_rns_chain_inputs(
 }
 
 template <typename T>
-rns8_status pack_vector_to_rns_chain_operand(
-    rns8_context* ctx,
-    rns8_matrix* matrix,
-    const T* data,
-    int64_t ld,
-    uint64_t source_version) {
+rns8_status pack_vector_to_rns_chain_operand(rns8_context* ctx, rns8_matrix* matrix, const T* data,
+                                             int64_t ld, uint64_t source_version) {
   if constexpr (std::is_same_v<T, int64_t>) {
     return rns8_pack_i64(ctx, matrix, data, ld, source_version);
   } else {
@@ -35,12 +27,8 @@ rns8_status pack_vector_to_rns_chain_operand(
 }
 
 template <typename T>
-rns8_status export_vector_to_rns_chain_output(
-    rns8_context* ctx,
-    rns8_plan* plan,
-    rns8_matrix* matrix,
-    T* data,
-    int64_t ld) {
+rns8_status export_vector_to_rns_chain_output(rns8_context* ctx, rns8_plan* plan,
+                                              rns8_matrix* matrix, T* data, int64_t ld) {
   if constexpr (std::is_same_v<T, int64_t>) {
     return rns8_export_i64(ctx, plan, matrix, data, ld);
   } else {
@@ -49,12 +37,8 @@ rns8_status export_vector_to_rns_chain_output(
 }
 
 template <typename T>
-BenchmarkResult run_vector_to_rns_chain(
-    rns8_context* vector_ctx,
-    rns8_context* direct_ctx,
-    const Args& args,
-    uint64_t final_bound,
-    const char* label) {
+BenchmarkResult run_vector_to_rns_chain(rns8_context* vector_ctx, rns8_context* direct_ctx,
+                                        const Args& args, uint64_t final_bound, const char* label) {
 #if !RNS8_CONFIGURED_HIP_ENABLED
   (void)vector_ctx;
   (void)direct_ctx;
@@ -92,10 +76,12 @@ BenchmarkResult run_vector_to_rns_chain(
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* vector_plan = nullptr;
   rns8_status status = rns8_create_plan(vector_ctx, &vector_desc, &vector_plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-to-RNS producer)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(vector-to-RNS producer)", status);
   rns8_plan* direct_plan = nullptr;
   status = rns8_create_plan(direct_ctx, &direct_desc, &direct_plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(vector-to-RNS consumer)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(vector-to-RNS consumer)", status);
   capture_schedule_info(direct_plan, result);
   capture_backend_info(direct_plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(direct_args, result);
@@ -105,10 +91,12 @@ BenchmarkResult run_vector_to_rns_chain(
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* vector_workspace = nullptr;
   status = rns8_create_workspace(vector_ctx, vector_plan, &vector_workspace);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace(vector-to-RNS producer)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_workspace(vector-to-RNS producer)", status);
   rns8_workspace* direct_workspace = nullptr;
   status = rns8_create_workspace(direct_ctx, direct_plan, &direct_workspace);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace(vector-to-RNS consumer)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_workspace(vector-to-RNS consumer)", status);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
 
@@ -127,17 +115,23 @@ BenchmarkResult run_vector_to_rns_chain(
   auto direct_b_desc = matrix_desc(args.n, args.n, direct_args, direct_matrix_prefix);
   auto direct_c_desc = matrix_desc(args.m, args.n, direct_args, direct_matrix_prefix);
   status = rns8_create_matrix(vector_ctx, &vector_a_desc, &vector_a);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer A)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain producer A)", status);
   status = rns8_create_matrix(vector_ctx, &vector_b_desc, &vector_b);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer B)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain producer B)", status);
   status = rns8_create_matrix(vector_ctx, &vector_c_desc, &vector_c);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain producer C)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain producer C)", status);
   status = rns8_create_matrix(direct_ctx, &direct_a_desc, &direct_a);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct A)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain direct A)", status);
   status = rns8_create_matrix(direct_ctx, &direct_b_desc, &direct_b);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct B)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain direct B)", status);
   status = rns8_create_matrix(direct_ctx, &direct_c_desc, &direct_c);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(vector chain direct C)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(vector chain direct C)", status);
   const auto alloc_end = std::chrono::steady_clock::now();
   result.matrix_alloc_us = elapsed_us(alloc_start, alloc_end);
 
@@ -146,38 +140,46 @@ BenchmarkResult run_vector_to_rns_chain(
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
     PackOperandTiming setup_pack_timing{};
     status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, 1);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain reused direct B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack(vector chain reused direct B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     setup_pack_timing.b_us = elapsed_us(prepack_start, pack_b_end);
     const auto prepack_end = std::chrono::steady_clock::now();
-    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, 0);
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing,
+                                0);
   }
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     const auto pack_start = repeat_start;
-    uint64_t pack_a_us = 0;
-    uint64_t pack_b_us = 0;
+    double pack_a_us = 0;
+    double pack_b_us = 0;
     begin_gpu_event_phase(collect_gpu_events);
     auto operand_pack_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_a_h2d", [&]() {
-      return pack_vector_to_rns_chain_operand(vector_ctx, vector_a, A.data(), args.k, source_version);
+      return pack_vector_to_rns_chain_operand(vector_ctx, vector_a, A.data(), args.k,
+                                              source_version);
     });
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack(vector chain producer A)", status);
     auto operand_pack_end = std::chrono::steady_clock::now();
     pack_a_us += elapsed_us(operand_pack_start, operand_pack_end);
     operand_pack_start = std::chrono::steady_clock::now();
     status = run_timed_status_operation("vector_alu_pack_b_h2d", [&]() {
-      return pack_vector_to_rns_chain_operand(vector_ctx, vector_b, B.data(), args.n, source_version);
+      return pack_vector_to_rns_chain_operand(vector_ctx, vector_b, B.data(), args.n,
+                                              source_version);
     });
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain producer B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack(vector chain producer B)", status);
     operand_pack_end = std::chrono::steady_clock::now();
     pack_b_us += elapsed_us(operand_pack_start, operand_pack_end);
     if (!args.reuse_packed_b) {
       operand_pack_start = std::chrono::steady_clock::now();
-      status = pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
-      if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain direct B)", status);
+      status =
+          pack_vector_to_rns_chain_operand(direct_ctx, direct_b, D.data(), args.n, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_pack(vector chain direct B)", status);
       operand_pack_end = std::chrono::steady_clock::now();
       pack_b_us += elapsed_us(operand_pack_start, operand_pack_end);
     }
@@ -190,21 +192,28 @@ BenchmarkResult run_vector_to_rns_chain(
     const auto gemm_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = rns8_gemm_rns(vector_ctx, vector_plan, vector_a, vector_b, vector_c, vector_workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain producer)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(vector chain producer)", status);
     if (vector_to_rns_chain_host_repack_control_requested(args)) {
-      status = export_vector_to_rns_chain_output(vector_ctx, vector_plan, vector_c, produced_host.data(), args.n);
-      if (status != RNS8_SUCCESS) fail_status("rns8_export(vector chain produced host control)", status);
+      status = export_vector_to_rns_chain_output(vector_ctx, vector_plan, vector_c,
+                                                 produced_host.data(), args.n);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_export(vector chain produced host control)", status);
       status = run_timed_status_operation("vector_to_rns_host_repack_a", [&]() {
-        return pack_vector_to_rns_chain_operand(
-            direct_ctx, direct_a, produced_host.data(), args.n, source_version);
+        return pack_vector_to_rns_chain_operand(direct_ctx, direct_a, produced_host.data(), args.n,
+                                                source_version);
       });
-      if (status != RNS8_SUCCESS) fail_status("rns8_pack(vector chain host-repacked direct A)", status);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_pack(vector chain host-repacked direct A)", status);
     } else {
-      status = rns8::detail::materialize_native_matrix_as_direct_rns(direct_ctx, direct_plan, vector_c, direct_a);
-      if (status != RNS8_SUCCESS) fail_status("materialize_native_matrix_as_direct_rns(vector chain)", status);
+      status = rns8::detail::materialize_native_matrix_as_direct_rns(direct_ctx, direct_plan,
+                                                                     vector_c, direct_a);
+      if (status != RNS8_SUCCESS)
+        fail_status("materialize_native_matrix_as_direct_rns(vector chain)", status);
     }
     status = rns8_gemm_rns(direct_ctx, direct_plan, direct_a, direct_b, direct_c, direct_workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(vector chain consumer)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(vector chain consumer)", status);
     if (collect_gpu_events) {
       if (vector_to_rns_chain_host_repack_control_requested(args)) {
         collect_vector_to_rns_chain_host_repack_control_gemm_gpu_events(args, result.gpu_events);
@@ -218,7 +227,8 @@ BenchmarkResult run_vector_to_rns_chain(
     const auto export_start = std::chrono::steady_clock::now();
     begin_gpu_event_phase(collect_gpu_events);
     status = export_vector_to_rns_chain_output(direct_ctx, direct_plan, direct_c, C.data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export(vector chain direct output)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export(vector chain direct output)", status);
     if (collect_gpu_events) {
       collect_export_gpu_events(args, RNS8_BACKEND_HIP_DIRECT, result, result.gpu_events);
     }
@@ -235,9 +245,13 @@ BenchmarkResult run_vector_to_rns_chain(
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
   }
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
   }
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, label);
@@ -252,36 +266,48 @@ BenchmarkResult run_vector_to_rns_chain(
   rns8_destroy_workspace(vector_workspace);
   rns8_destroy_plan(direct_plan);
   rns8_destroy_plan(vector_plan);
+  if (args.verify_native_output || args.sustained_batches || args.streaming_overlap ||
+      !args.reference_cache_directory.empty()) {
+    using namespace rns8::bench;
+    ReferenceContract contract{ReferenceSemantics::bounded_i64};
+    switch (args.semantics) {
+    case BenchSemantics::BoundedI64:
+      contract.semantics = ReferenceSemantics::bounded_i64;
+      break;
+    case BenchSemantics::BoundedU64:
+      contract.semantics = ReferenceSemantics::bounded_u64;
+      break;
+    default:
+      throw std::invalid_argument("vector-to-RNS chain reference requires bounded semantics");
+    }
+    append_integer_reference(result.native_reference,
+                             verify_bounded_chain_reference(
+                                 args.m, args.n, args.k, ldc, A, B, D, C, contract,
+                                 args.reference_cache_directory, args.populate_reference_cache));
+  }
+
   return result;
 #endif
 }
 
-BenchmarkResult run_vector_to_rns_chain_i64(
-    rns8_context* vector_ctx,
-    rns8_context* direct_ctx,
-    const Args& args,
-    uint64_t bound) {
+BenchmarkResult run_vector_to_rns_chain_i64(rns8_context* vector_ctx, rns8_context* direct_ctx,
+                                            const Args& args, uint64_t bound) {
   return run_vector_to_rns_chain<int64_t>(vector_ctx, direct_ctx, args, bound, "vector chain C");
 }
 
-BenchmarkResult run_vector_to_rns_chain_u64(
-    rns8_context* vector_ctx,
-    rns8_context* direct_ctx,
-    const Args& args,
-    uint64_t bound) {
+BenchmarkResult run_vector_to_rns_chain_u64(rns8_context* vector_ctx, rns8_context* direct_ctx,
+                                            const Args& args, uint64_t bound) {
   return run_vector_to_rns_chain<uint64_t>(vector_ctx, direct_ctx, args, bound, "vector chain C");
 }
 
-BenchmarkResult initialize_bounded_oneshot_result(
-    rns8_context* ctx,
-    const Args& args,
-    uint64_t bound,
-    const rns8_gemm_desc& desc,
-    BenchmarkResult result = {}) {
+BenchmarkResult initialize_bounded_oneshot_result(rns8_context* ctx, const Args& args,
+                                                  uint64_t bound, const rns8_gemm_desc& desc,
+                                                  BenchmarkResult result = {}) {
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(oneshot metadata)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(oneshot metadata)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -291,11 +317,11 @@ BenchmarkResult initialize_bounded_oneshot_result(
   const rns8_backend_kind selected_backend = selected_backend_for_events(args, result);
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   status = rns8_destroy_plan(plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_destroy_plan(oneshot metadata)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_destroy_plan(oneshot metadata)", status);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
   result.matrix_alloc_us = 0;
   (void)bound;
   return result;
 }
-

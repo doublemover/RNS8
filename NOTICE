@@ -9,3 +9,13 @@ algebra research systems. Optional CK and rocWMMA accelerator sources are
 referenced through pinned Git submodules under `third_party/rocm`; vcpkg
 packages and external SDKs remain under their respective licenses.
 
+The rank48 mathematical coefficient matrices and canonical linear programs in
+third_party/rank48 are from
+Jean-Guillaume Dumas and the PLinOpt contributors, revision
+7c2006504a67caf3071ed4bd34ed772f6ed1a1a6, under CeCILL-B1.0. The unmodified
+matrices, programs, license and exact provenance are retained there. The generated
+rank48_program.hpp and rank48_slp.hpp tables derive from those artifacts.
+RNS8's strict arithmetic importer, independent tensor checker, live-slot lowering
+and execution kernels are original code. Upstream program text is parsed as
+licensed arithmetic data; no PLinOpt executable or general code is executed.
+

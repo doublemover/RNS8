@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "3b6bc72eaa83e8b2e2041a127caa16389f8dd0f3",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-followup-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-followup-20261026/full-implementation-validation-20261027-3b6bc72.zip",
+  "bytes": 464288,
+  "sha256": "42441dbacf9de2eea2b07c2ff177da4365f5f36c6cac616dc0e92612588af3a4",
+  "index_member": "archive-index.json",
+  "scope": "Full 40-issue implementation audit and post-source validation: 31 indexed logs, JUnit results, manifests, requirement snapshots and receipts. No executable binaries, build objects or SDK payloads.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/full-implementation-validation-archive-20261027.json --output temp/restored-full-implementation-validation"
+}

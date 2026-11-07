@@ -1,66 +1,120 @@
+# Shared by the ordinary build and the doctor's explicit compile/link probe.
+# Early discovery supplies coherent absolute paths; never replace an explicit
+# component root with an unrelated installation here.
 set(_RNS8_THIRD_PARTY_HINTS)
 rns8_append_windows_vcpkg_hints(_RNS8_THIRD_PARTY_HINTS)
-if(RNS8_HIP_ROOT)
-  list(APPEND _RNS8_THIRD_PARTY_HINTS "${RNS8_HIP_ROOT}")
-endif()
-if(DEFINED ENV{ROCM_PATH})
-  list(APPEND _RNS8_THIRD_PARTY_HINTS "$ENV{ROCM_PATH}")
+list(APPEND _RNS8_THIRD_PARTY_HINTS "${RNS8_HIP_ROOT}")
+
+function(_rns8_find_exact_component name header)
+  set(_hints ${_RNS8_THIRD_PARTY_HINTS})
+  set(_policy)
+  if(RNS8_${name}_ROOT)
+    set(_hints "${RNS8_${name}_ROOT}")
+    set(_policy NO_DEFAULT_PATH)
+  endif()
+  string(TOLOWER "${name}" _library)
+  find_path(RNS8_${name}_INCLUDE_DIR NAMES "${header}"
+    HINTS ${_hints} PATH_SUFFIXES include "include/${CMAKE_LIBRARY_ARCHITECTURE}" ${_policy})
+  find_library(RNS8_${name}_LIBRARY NAMES "${_library}" "lib${_library}"
+    HINTS ${_hints} PATH_SUFFIXES lib lib64 "lib/${CMAKE_LIBRARY_ARCHITECTURE}" ${_policy})
+  set(RNS8_${name}_FOUND FALSE PARENT_SCOPE)
+  if(RNS8_${name}_INCLUDE_DIR AND RNS8_${name}_LIBRARY)
+    rns8_assert_no_linux_windows_vcpkg_paths("${name} include directory" "${RNS8_${name}_INCLUDE_DIR}")
+    rns8_assert_no_linux_windows_vcpkg_paths("${name} library" "${RNS8_${name}_LIBRARY}")
+    if(NOT EXISTS "${RNS8_${name}_INCLUDE_DIR}/${header}" OR NOT EXISTS "${RNS8_${name}_LIBRARY}")
+      message(FATAL_ERROR "Selected ${name} header/library disappeared; choose a coherent dependency prefix")
+    endif()
+    if(RNS8_${name}_ROOT)
+      file(REAL_PATH "${RNS8_${name}_ROOT}" _selected_root)
+      foreach(_path IN ITEMS "${RNS8_${name}_INCLUDE_DIR}/${header}" "${RNS8_${name}_LIBRARY}")
+        file(REAL_PATH "${_path}" _selected_path)
+        cmake_path(IS_PREFIX _selected_root "${_selected_path}" NORMALIZE _inside)
+        if(NOT _inside)
+          message(FATAL_ERROR "Selected ${name} input escapes its explicit root: ${_path}")
+        endif()
+      endforeach()
+    endif()
+    set(RNS8_${name}_FOUND TRUE PARENT_SCOPE)
+    if(TARGET RNS8::${name})
+      get_target_property(_existing_library RNS8::${name} IMPORTED_LOCATION)
+      get_target_property(_existing_include RNS8::${name} INTERFACE_INCLUDE_DIRECTORIES)
+      if(NOT _existing_library STREQUAL RNS8_${name}_LIBRARY OR
+         NOT _existing_include STREQUAL RNS8_${name}_INCLUDE_DIR)
+        message(FATAL_ERROR "Existing RNS8::${name} target conflicts with the selected reference inputs")
+      endif()
+    else()
+      add_library(RNS8::${name} UNKNOWN IMPORTED GLOBAL)
+      set_target_properties(RNS8::${name} PROPERTIES
+        IMPORTED_LOCATION "${RNS8_${name}_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${RNS8_${name}_INCLUDE_DIR}")
+    endif()
+  endif()
+endfunction()
+
+_rns8_find_exact_component(GMP gmp.h)
+if(RNS8_ENABLE_FLINT)
+  _rns8_find_exact_component(MPFR mpfr.h)
+  _rns8_find_exact_component(FLINT flint/flint.h)
+  if(NOT RNS8_GMP_FOUND OR NOT RNS8_MPFR_FOUND OR NOT RNS8_FLINT_FOUND)
+    message(FATAL_ERROR "RNS8_ENABLE_FLINT requires native FLINT, GMP and MPFR development headers/libraries. Set RNS8_FLINT_ROOT, RNS8_GMP_ROOT and RNS8_MPFR_ROOT or CMAKE_PREFIX_PATH; inventory alone is not link compatibility.")
+  endif()
+  set_property(TARGET RNS8::MPFR PROPERTY INTERFACE_LINK_LIBRARIES RNS8::GMP)
+  set(_rns8_flint_links RNS8::MPFR RNS8::GMP)
+  if(MSVC)
+    # Upstream's supported Windows build uses POSIX threads, not Win32
+    # Threads::Threads. Require its complete package interface for raw FLINT.
+    find_package(PThreads4W QUIET)
+    if(NOT TARGET PThreads4W::PThreads4W)
+      message(FATAL_ERROR "Native MSVC FLINT requires the PThreads4W package exporting PThreads4W::PThreads4W. Supply its native prefix in CMAKE_PREFIX_PATH; RNS8 does not fabricate a pthread import target.")
+    endif()
+    list(APPEND _rns8_flint_links PThreads4W::PThreads4W)
+  else()
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+    find_package(Threads REQUIRED)
+    list(APPEND _rns8_flint_links Threads::Threads m)
+  endif()
+  set_property(TARGET RNS8::FLINT PROPERTY INTERFACE_LINK_LIBRARIES "${_rns8_flint_links}")
 endif()
 
-find_path(
-  RNS8_GMP_INCLUDE_DIR
-  NAMES gmp.h
-  HINTS ${_RNS8_THIRD_PARTY_HINTS}
-  PATH_SUFFIXES include
-)
-find_library(
-  RNS8_GMP_LIBRARY
-  NAMES gmp libgmp
-  HINTS ${_RNS8_THIRD_PARTY_HINTS}
-  PATH_SUFFIXES lib lib64
-)
-set(RNS8_GMP_FOUND FALSE)
-if(RNS8_GMP_INCLUDE_DIR AND RNS8_GMP_LIBRARY)
-  rns8_assert_no_linux_windows_vcpkg_paths("GMP include directory" "${RNS8_GMP_INCLUDE_DIR}")
-  rns8_assert_no_linux_windows_vcpkg_paths("GMP library" "${RNS8_GMP_LIBRARY}")
-  set(RNS8_GMP_FOUND TRUE)
-  if(NOT TARGET RNS8::GMP)
-    add_library(RNS8::GMP UNKNOWN IMPORTED)
-    set_target_properties(
-      RNS8::GMP
-      PROPERTIES
-        IMPORTED_LOCATION "${RNS8_GMP_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${RNS8_GMP_INCLUDE_DIR}"
-    )
+# Compile/link the same arithmetic and version/limb ABI checks as the runtime
+# smoke, including when project tests are disabled. Never execute at configure.
+set(_RNS8_EXACT_PROBE_LIBRARIES)
+set(_RNS8_EXACT_PROBE_DEFINITIONS)
+if(RNS8_ENABLE_GMP AND RNS8_GMP_FOUND)
+  list(APPEND _RNS8_EXACT_PROBE_LIBRARIES RNS8::GMP)
+  list(APPEND _RNS8_EXACT_PROBE_DEFINITIONS -DRNS8_ENABLE_GMP=1)
+elseif(RNS8_ENABLE_GMP)
+  message(FATAL_ERROR "RNS8_ENABLE_GMP requires a coherent native GMP development prefix")
+endif()
+if(RNS8_ENABLE_FLINT)
+  list(PREPEND _RNS8_EXACT_PROBE_LIBRARIES RNS8::FLINT)
+  list(APPEND _RNS8_EXACT_PROBE_DEFINITIONS -DRNS8_ENABLE_FLINT=1)
+endif()
+set(RNS8_EXACT_REFERENCE_LINK_PROBE "not_run")
+if(_RNS8_EXACT_PROBE_LIBRARIES)
+  set(_rns8_previous_try_compile_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+  unset(_RNS8_EXACT_REFERENCE_LINK_PASSED CACHE)
+  try_compile(_RNS8_EXACT_REFERENCE_LINK_PASSED
+    "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe"
+    SOURCES "${CMAKE_CURRENT_LIST_DIR}/../../tests/unit/test_optional_exact_libs.cpp"
+    CXX_STANDARD 17
+    COMPILE_DEFINITIONS ${_RNS8_EXACT_PROBE_DEFINITIONS}
+    LINK_LIBRARIES ${_RNS8_EXACT_PROBE_LIBRARIES}
+    COPY_FILE "${CMAKE_CURRENT_BINARY_DIR}/rns8-exact-reference-probe${CMAKE_EXECUTABLE_SUFFIX}"
+    OUTPUT_VARIABLE RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT)
+  if(_rns8_previous_try_compile_type)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_rns8_previous_try_compile_type}")
+  else()
+    unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+  endif()
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe.log"
+    "${RNS8_EXACT_REFERENCE_LINK_PROBE_OUTPUT}")
+  if(_RNS8_EXACT_REFERENCE_LINK_PASSED)
+    set(RNS8_EXACT_REFERENCE_LINK_PROBE "passed")
+  else()
+    set(RNS8_EXACT_REFERENCE_LINK_PROBE "failed")
+    message(FATAL_ERROR "Selected optional exact-reference headers/libraries failed the compiler/link API probe. See ${CMAKE_CURRENT_BINARY_DIR}/exact-reference-link-probe.log; select a coherent compiler/ABI/dependency prefix.")
   endif()
 endif()
-
-find_path(
-  RNS8_FLINT_INCLUDE_DIR
-  NAMES flint/flint.h
-  HINTS ${_RNS8_THIRD_PARTY_HINTS}
-  PATH_SUFFIXES include
-)
-find_library(
-  RNS8_FLINT_LIBRARY
-  NAMES flint libflint
-  HINTS ${_RNS8_THIRD_PARTY_HINTS}
-  PATH_SUFFIXES lib lib64
-)
-set(RNS8_FLINT_FOUND FALSE)
-if(RNS8_FLINT_INCLUDE_DIR AND RNS8_FLINT_LIBRARY)
-  rns8_assert_no_linux_windows_vcpkg_paths("FLINT include directory" "${RNS8_FLINT_INCLUDE_DIR}")
-  rns8_assert_no_linux_windows_vcpkg_paths("FLINT library" "${RNS8_FLINT_LIBRARY}")
-  set(RNS8_FLINT_FOUND TRUE)
-  if(NOT TARGET RNS8::FLINT)
-    add_library(RNS8::FLINT UNKNOWN IMPORTED)
-    set_target_properties(
-      RNS8::FLINT
-      PROPERTIES
-        IMPORTED_LOCATION "${RNS8_FLINT_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${RNS8_FLINT_INCLUDE_DIR}"
-    )
-  endif()
-endif()
-
 set(RNS8ThirdParty_FOUND TRUE)

@@ -11,14 +11,20 @@ TEST_CASE("public one-shot APIs reject invalid leading dimensions before access"
   uint8_t c_u8[] = {77, 77, 77, 77};
 
   auto i64_desc = bounded_gemm_desc(RNS8_BOUNDED_I64, 2, 2, 2);
-  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 1, b_i64, 2, c_i64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 1, c_i64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 2, c_i64, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 1, b_i64, 2, c_i64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 1, c_i64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(cpu, &i64_desc, a_i64, 2, b_i64, 2, c_i64, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto u64_desc = bounded_gemm_desc(RNS8_BOUNDED_U64, 2, 2, 2);
-  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 1, b_u64, 2, c_u64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 1, c_u64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 2, c_u64, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 1, b_u64, 2, c_u64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 1, c_u64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(cpu, &u64_desc, a_u64, 2, b_u64, 2, c_u64, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto ring_desc = finite_gemm_desc(RNS8_FINITE_RING_U8, 2, 2, 2, 251);
   CHECK(rns8_gemm_finite_ring_u8_oneshot(cpu, &ring_desc, 251, a_u8, 1, b_u8, 2, c_u8, 2) ==
@@ -34,9 +40,12 @@ TEST_CASE("public one-shot APIs reject invalid leading dimensions before access"
 
   rns8_context* wrap = create_wrap_context();
   auto wrap_desc = wrap_gemm_desc(2, 2, 2);
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 1, b_u64, 2, c_u64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 1, c_u64, 2) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 2, c_u64, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 1, b_u64, 2, c_u64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 1, c_u64, 2) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_wrap_u64_oneshot(wrap, &wrap_desc, a_u64, 2, b_u64, 2, c_u64, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   CHECK(c_i64[0] == -1);
   CHECK(c_u64[0] == 99);
@@ -102,4 +111,3 @@ TEST_CASE("public APIs reject overflow dimensions before allocation or access") 
   rns8_destroy_context(wrap);
   rns8_destroy_context(cpu);
 }
-

@@ -1,22 +1,47 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
 import os
+import hashlib
 import platform
 import re
-import shutil
-import subprocess
+import secrets
 import sys
 from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .config import *
-from .discovery import *
-from .system import *
+from check_dependencies_lib.config import (
+    ACCELERATOR_ENABLE_FLAGS,
+    ACCELERATOR_ENABLE_POLICY,
+    ACCELERATOR_NAMES,
+    ACCELERATOR_PRIMITIVE_PROBE_SOURCES,
+    ACCELERATOR_PROBE_SOURCES,
+    CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+)
+from check_dependencies_lib.discovery import (
+    command_line_for_report,
+    command_with_windows_developer_environment,
+    find_under_roots,
+    first_existing,
+    hip_roots,
+    msvc_probe_command,
+    repo_local_accelerator_roots,
+    repo_local_dependency_report,
+    vcpkg_roots,
+)
+from check_dependencies_lib.resolution import (
+    ACTIVE_RESOLUTION,
+    compiler_environment as selected_hip_environment,
+)
+from compiler_context import compiler_environment
+from process_progress import capture_succeeded, run_capture
+from .probe_artifacts import snapshot, write_process
+from check_dependencies_lib.system import (
+    compact_output,
+    find_command,
+    repo_root,
+    run,
+)
+
 
 def accelerator_components() -> dict[str, dict[str, object]]:
     roots = hip_roots() + vcpkg_roots()
@@ -29,7 +54,9 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             repo_root() / "src" / "backend_amdgpu_builtins" / "amdgpu_builtins_backend.cpp",
         ]
     )
-    hipblaslt_header = find_under_roots(roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"])
+    hipblaslt_header = find_under_roots(
+        roots, ["include/hipblaslt/hipblaslt.h", "include/hipblaslt.h"]
+    )
     hipblaslt_cmake_config = find_under_roots(
         roots,
         [
@@ -37,13 +64,19 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             "lib64/cmake/hipblaslt/hipblaslt-config.cmake",
         ],
     )
-    hipblaslt_msvc_import_library = find_under_roots(roots, ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"])
+    hipblaslt_msvc_import_library = find_under_roots(
+        roots, ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"]
+    )
     hipblaslt_import_archive = find_under_roots(
         roots,
         ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
     )
-    hipblaslt_shared_library = find_under_roots(roots, ["lib/libhipblaslt.so", "lib64/libhipblaslt.so"])
-    hipblaslt_runtime_library = find_under_roots(roots, ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"])
+    hipblaslt_shared_library = find_under_roots(
+        roots, ["lib/libhipblaslt.so", "lib64/libhipblaslt.so"]
+    )
+    hipblaslt_runtime_library = find_under_roots(
+        roots, ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"]
+    )
     hipblaslt_library = (
         hipblaslt_msvc_import_library
         or hipblaslt_import_archive
@@ -131,6 +164,46 @@ def accelerator_components() -> dict[str, dict[str, object]]:
             ),
         },
     }
+    selection = ACTIVE_RESOLUTION.get()
+    if selection:
+        for name in ("ck", "rocwmma", "hipblaslt"):
+            chosen = selection["optional_components"][name].get("selected")
+            item = components[name]
+            if chosen:
+                include = Path(chosen["paths"]["include"])
+                names = {
+                    "ck": ("ck/ck.hpp",),
+                    "rocwmma": ("rocwmma/rocwmma.hpp",),
+                    "hipblaslt": ("hipblaslt/hipblaslt.h", "hipblaslt.h"),
+                }[name]
+                item["header"] = first_existing([include / value for value in names])
+                item["library"] = chosen["paths"].get("library")
+            else:
+                item["header"] = None
+                item["library"] = None
+            if name == "hipblaslt":
+                roots_selected = [Path(chosen["canonical_root"])] if chosen else []
+                for field, paths in {
+                    "cmake_config": [
+                        "lib/cmake/hipblaslt/hipblaslt-config.cmake",
+                        "lib64/cmake/hipblaslt/hipblaslt-config.cmake",
+                    ],
+                    "msvc_import_library": ["lib/hipblaslt.lib", "lib64/hipblaslt.lib"],
+                    "import_archive": ["lib/libhipblaslt.dll.a", "lib64/libhipblaslt.dll.a"],
+                    "runtime_library": ["bin/libhipblaslt.dll", "bin/hipblaslt.dll"],
+                    "tool": ["bin/hipblaslt-bench.exe", "bin/hipblaslt-bench"],
+                }.items():
+                    item[field] = find_under_roots(roots_selected, paths)
+                item["cmake_target"] = "roc::hipblaslt" if item["cmake_config"] else None
+                item["library_format"] = (
+                    "msvc_import_library"
+                    if item["msvc_import_library"]
+                    else "gnu_import_archive"
+                    if item["import_archive"]
+                    else "shared_library"
+                    if item["library"]
+                    else "not_found"
+                )
     return {
         name: {
             "ok": bool(item["header"] or item["library"] or item["tool"]),
@@ -166,7 +239,8 @@ def accelerator_components() -> dict[str, dict[str, object]]:
                 else "not_implemented"
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+            "can_enable_correctness_backend": name
+            in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and bool(item["header"] or item["library"] or item["tool"]),
             "feature_detection": "evidence_only",
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
@@ -232,7 +306,12 @@ def include_root_for_header(header: str | None) -> str | None:
     return str(parent)
 
 
-def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
+def write_ck_generated_headers(
+    root: Path,
+    commit_id: str = "unknown",
+    source_root: Path | None = None,
+    include_root: Path | None = None,
+) -> Path:
     include_dir = root / "generated" / "ck" / "include"
     ck_dir = include_dir / "ck"
     ck_dir.mkdir(parents=True, exist_ok=True)
@@ -258,36 +337,63 @@ def write_ck_generated_headers(root: Path, commit_id: str = "unknown") -> Path:
         ),
         encoding="utf-8",
     )
-    (ck_dir / "version.h").write_text(
-        "\n".join(
-            [
-                "#ifndef CK_VERSION_H_",
-                "#define CK_VERSION_H_",
-                "#define CK_VERSION 1.1.0",
-                "#define CK_VERSION_MAJOR 1",
-                "#define CK_VERSION_MINOR 1",
-                "#define CK_VERSION_PATCH 0",
-                f"#define CK_COMMIT_ID {commit_id or 'unknown'}",
-                "#endif",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    source_root = source_root or repo_local_accelerator_roots("ck")[0]
+    include_root = include_root or source_root / "include"
+    installed_version = include_root / "ck/version.h"
+    if installed_version.is_file():
+        (ck_dir / "version.h").write_bytes(installed_version.read_bytes())
+    else:
+        cmake = source_root / "CMakeLists.txt"
+        if not cmake.is_file():
+            raise ValueError(
+                "selected CK requires an installed ck/version.h or source CMakeLists.txt"
+            )
+        match = re.search(
+            r'^\s*set\s*\(\s*version\s+"?(\d+)\.(\d+)\.(\d+)"?\s*\)',
+            cmake.read_text(encoding="utf-8"),
+            re.M | re.I,
+        )
+        if not match:
+            raise ValueError("cannot determine selected CK source version")
+        major, minor, patch = match.groups()
+        (ck_dir / "version.h").write_text(
+            "#ifndef CK_VERSION_H_\n#define CK_VERSION_H_\n"
+            + f"#define CK_VERSION {major}.{minor}.{patch}\n"
+            + f"#define CK_VERSION_MAJOR {major}\n#define CK_VERSION_MINOR {minor}\n#define CK_VERSION_PATCH {patch}\n"
+            + f"#define CK_COMMIT_ID {commit_id or 'unknown'}\n#endif\n",
+            encoding="utf-8",
+        )
     return include_dir
 
 
-def include_roots_for_component(name: str, component: dict[str, object], probe_dir: Path) -> list[str]:
+def include_roots_for_component(
+    name: str, component: dict[str, object], probe_dir: Path
+) -> list[str]:
     header = component.get("header")
     include_root = include_root_for_header(header if isinstance(header, str) else None)
     roots: list[str] = []
+    if name == "amdgpu_builtins":
+        return [str(repo_root() / "src")]
     if name == "ck":
+        source_root = (
+            Path(include_root).parent if include_root else repo_local_accelerator_roots("ck")[0]
+        )
         dependency = component.get("repo_local_dependency")
         commit_id = ""
-        if isinstance(dependency, dict):
-            commit_value = dependency.get("actual_sha") or dependency.get("expected_sha")
+        if (
+            isinstance(dependency, dict)
+            and dependency.get("path")
+            and Path(str(dependency["path"])).resolve() == source_root.resolve()
+        ):
+            commit_value = dependency.get("actual_sha")
             commit_id = str(commit_value) if commit_value else ""
-        roots.append(str(write_ck_generated_headers(probe_dir, commit_id)))
+        roots.append(
+            str(
+                write_ck_generated_headers(
+                    probe_dir, commit_id, source_root, Path(include_root) if include_root else None
+                )
+            )
+        )
         roots.append(str(repo_root() / "src" / "backend_common"))
     if include_root:
         roots.append(include_root)
@@ -308,10 +414,20 @@ def primitive_probe_object_path(probe_dir: Path, name: str) -> Path:
     return probe_dir / f"{name}_primitive_probe{suffix}"
 
 
-def primitive_probe_not_run_fields(name: str, probe_dir: Path, status: str, detail: str, requested: bool) -> dict[str, object]:
+def primitive_probe_not_run_fields(
+    name: str, probe_dir: Path, status: str, detail: str, requested: bool
+) -> dict[str, object]:
     applicable = name in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
-    primitive_status = status if requested and applicable else ("NOT_REQUESTED" if applicable else "NOT_APPLICABLE")
-    primitive_detail = detail if applicable else "no matrix-engine primitive dependency probe is defined for this accelerator"
+    primitive_status = (
+        status
+        if requested and applicable
+        else ("NOT_REQUESTED" if applicable else "NOT_APPLICABLE")
+    )
+    primitive_detail = (
+        detail
+        if applicable
+        else "no matrix-engine primitive dependency probe is defined for this accelerator"
+    )
     return {
         "primitive_probe_requested": requested and applicable,
         "primitive_probe_status": primitive_status,
@@ -363,7 +479,8 @@ def not_run_probe(
             else ACCELERATOR_ENABLE_POLICY
         ),
         "validated_correctness_backend": False,
-        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"} and requested,
+        "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+        and requested,
         "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
         "candidate_evidence_is_correctness_validation": False,
         "readiness_effect": "none",
@@ -395,6 +512,37 @@ def compile_accelerator_primitive_probe(
             "no matrix-engine primitive dependency probe is defined for this accelerator",
             False,
         )
+    try:
+        base = _target_base(offload_target)
+    except ValueError as error:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_RUN_UNSUPPORTED_TARGET", str(error), True
+        )
+    supported = (
+        {"gfx942", "gfx1100", "gfx1101", "gfx1102", "gfx1200", "gfx1201"}
+        if name == "amdgpu_builtins"
+        else {
+            "gfx908",
+            "gfx90a",
+            "gfx940",
+            "gfx941",
+            "gfx942",
+            "gfx950",
+            "gfx1100",
+            "gfx1101",
+            "gfx1102",
+            "gfx1200",
+            "gfx1201",
+        }
+    )
+    if base not in supported:
+        return primitive_probe_not_run_fields(
+            name,
+            root,
+            "NOT_RUN_UNSUPPORTED_TARGET",
+            "No admitted " + name + " primitive body for " + str(offload_target),
+            True,
+        )
     header = component.get("header")
     if not isinstance(header, str) or not header:
         return primitive_probe_not_run_fields(
@@ -413,6 +561,8 @@ def compile_accelerator_primitive_probe(
             True,
         )
 
+    root = root.resolve() / ("primitive-" + name + "-" + secrets.token_hex(12))
+    root.mkdir(parents=True, exist_ok=False)
     source = primitive_probe_source_path(root, name)
     obj = primitive_probe_object_path(root, name)
     source.write_text(ACCELERATOR_PRIMITIVE_PROBE_SOURCES[name], encoding="utf-8")
@@ -435,8 +585,51 @@ def compile_accelerator_primitive_probe(
             "MSVC developer environment could not be discovered automatically",
             True,
         )
-    code, output = run(actual_command, timeout=180)
-    ok = code == 0
+    environment = dict(os.environ)
+    active = ACTIVE_RESOLUTION.get()
+    if active:
+        environment.update(selected_hip_environment(active))
+    invocation = (
+        command
+        if isinstance(actual_command, list)
+        else [sys.executable, str(repo_root() / "tools/windows_dev.py"), *command]
+    )
+    inputs = {
+        "source": snapshot(source),
+        "compiler_driver": snapshot(Path(hipcc)),
+        "component_header": snapshot(Path(header)),
+    }
+    if name == "amdgpu_builtins":
+        inputs["production_builtin_source"] = snapshot(
+            repo_root() / "src/backend_amdgpu_builtins/amdgpu_builtins_kernels.hip"
+        )
+        inputs["target_body_contract"] = snapshot(
+            repo_root() / "src/backend_common/matrix_target.hpp"
+        )
+    process = run_capture(
+        invocation,
+        cwd=repo_root(),
+        label="primitive-probe:" + name + ":" + str(offload_target),
+        env=environment,
+        timeout_seconds=180,
+        max_output_bytes=8 * 1024**2,
+        artifact_roots=(root,),
+        max_artifact_bytes=256 * 1024**2,
+        return_on_interrupt=True,
+    )
+    receipt = write_process(root / "process.json", process)
+    output = process["stdout"] + process["stderr"]
+    code = process.get("returncode")
+    ok = capture_succeeded(process)
+    artifact = None
+    try:
+        if ok:
+            artifact = snapshot(obj)
+            ok = artifact["bytes"] > 0 and all(
+                value == snapshot(Path(value["path"])) for value in inputs.values()
+            )
+    except (OSError, ValueError):
+        ok = False
     return {
         "primitive_probe_requested": True,
         "primitive_probe_status": "OBJECT_COMPILE_PASS" if ok else "OBJECT_COMPILE_FAIL",
@@ -447,6 +640,13 @@ def compile_accelerator_primitive_probe(
         "primitive_wrapped_command": wrapped_command,
         "primitive_exit_code": code,
         "primitive_output": compact_output(output),
+        "primitive_process_receipt": receipt,
+        "primitive_object_receipt": artifact,
+        "primitive_input_bookends": inputs,
+        "primitive_compiler_environment": compiler_environment(environment),
+        "primitive_host_environment": active.get("host_environment", {"kind": "unknown"})
+        if active
+        else {"kind": "unknown"},
         "primitive_detail": (
             "object-only int8 matrix-engine primitive probe compiled for the requested target; "
             "this is dependency evidence only, not runtime execution or correctness validation"
@@ -456,13 +656,101 @@ def compile_accelerator_primitive_probe(
     }
 
 
+def _target_base(target: str | None) -> str:
+    if (
+        not isinstance(target, str)
+        or len(target) > 128
+        or not re.fullmatch(r"gfx[0-9a-f]+(?::(?:xnack|sramecc)[+-])*", target)
+    ):
+        raise ValueError("An explicit well-formed AMDGPU target is required for primitive probing")
+    base, *features = target.split(":")
+    if len({feature[:-1] for feature in features}) != len(features):
+        raise ValueError("Duplicate AMDGPU target feature: " + target)
+    return base
+
+
+def requested_probe_targets(offload_target: str | None) -> tuple[str, ...]:
+    active = ACTIVE_RESOLUTION.get()
+    value = active["request"]["overrides"].get("RNS8_AMDGPU_TARGETS") if active else None
+    if value is None:
+        value = active.get("effective_identity", {}).get("targets") if active else None
+    if value is None:
+        value = offload_target
+    if not isinstance(value, str) or len(value) > 2048:
+        raise ValueError("Select AMDGPU probe targets with --set RNS8_AMDGPU_TARGETS=...")
+    targets = tuple(dict.fromkeys(value.split(";")))
+    if not 1 <= len(targets) <= 16:
+        raise ValueError("Primitive probing requires 1..16 distinct targets")
+    for target in targets:
+        _target_base(target)
+    return targets
+
+
+def compile_accelerator_target_probes(
+    name: str, component: dict, root: Path, targets: tuple[str, ...], hipcc: str | None
+) -> dict:
+    if name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_APPLICABLE", "No matrix primitive probe for this component", False
+        )
+    if not targets:
+        return primitive_probe_not_run_fields(
+            name, root, "NOT_RUN_UNSUPPORTED_TARGET", "No selected target", True
+        )
+    # Keep independent per-target compile evidence, but reject a package whose
+    # targets need different global host lowerings before reporting readiness.
+    families = {64 if _target_base(target).startswith("gfx9") else 32 for target in targets}
+    compatible = name == "amdgpu_builtins" or len(families) == 1
+    run = root / (name + "-targets-" + secrets.token_hex(12))
+    rows = []
+    for target in targets:
+        directory = run / hashlib.sha256(target.encode()).hexdigest()
+        try:
+            row = compile_accelerator_primitive_probe(name, component, directory, target, hipcc)
+        except InterruptedError:
+            raise
+        except (OSError, ValueError) as error:
+            row = primitive_probe_not_run_fields(name, directory, "PROBE_ERROR", str(error), True)
+        rows.append({"target": target, **row})
+    ok = compatible and all(row.get("primitive_probe_ok") is True for row in rows)
+    # Scalar fields describe one target only. Multi-target callers must inspect
+    # the complete denominator instead of attributing one object's pass to all.
+    result = (
+        dict(rows[0])
+        if len(rows) == 1
+        else primitive_probe_not_run_fields(
+            name, root, "NOT_RUN", "Inspect primitive_target_probes", True
+        )
+    )
+    if len(rows) != 1:
+        result["primitive_object"] = ""
+    failures = {row["primitive_probe_status"] for row in rows if not row.get("primitive_probe_ok")}
+    failed_status = next(iter(failures)) if len(failures) == 1 else "OBJECT_COMPILE_FAIL"
+    result.update(
+        primitive_probe_requested=True,
+        primitive_probe_status="OBJECT_COMPILE_PASS"
+        if ok
+        else "INCOMPATIBLE_HOST_TARGET_SET"
+        if not compatible
+        else failed_status,
+        primitive_probe_ok=ok,
+        primitive_target_probes=rows,
+        primitive_targets=list(targets),
+        package_host_lowering_compatible=compatible,
+        primitive_detail="Object-only production primitive signatures for every selected target; no runtime, differential, ISA or performance qualification",
+    )
+    return result
+
+
 def accelerator_compile_probes(
     accelerators: dict[str, dict[str, object]],
     requested: bool,
     probe_dir: Path | None,
     offload_target: str | None,
 ) -> dict[str, object]:
-    root = probe_dir or (repo_root() / "temp" / "accelerator-deps" / "check-dependencies")
+    root = (
+        probe_dir or (repo_root() / "temp" / "accelerator-deps" / "check-dependencies")
+    ).resolve()
     items: dict[str, dict[str, object]] = {}
     if not requested:
         for name in ACCELERATOR_NAMES:
@@ -482,27 +770,51 @@ def accelerator_compile_probes(
             "items": items,
         }
 
+    try:
+        targets = requested_probe_targets(offload_target)
+    except ValueError as error:
+        return {
+            "requested": True,
+            "probe_root": str(root),
+            "items": {
+                name: not_run_probe(name, root, "NOT_RUN_INVALID_TARGETS", str(error), True)
+                for name in ACCELERATOR_NAMES
+            },
+            "policy": "Invalid target selection; no probe ran and no feature was enabled",
+            "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
+            "candidate_evidence_is_correctness_validation": False,
+        }
     hipcc = find_command("hipcc")
     root.mkdir(parents=True, exist_ok=True)
     for name in ACCELERATOR_NAMES:
         component = accelerators.get(name, {})
         if name == "amdgpu_builtins":
-            items[name] = not_run_probe(
-                name,
-                root,
-                "NOT_RUN_IN_REPO_BUILD_TEST_REQUIRED",
-                "AMDGPU builtin correctness is validated by RNS8_ENABLE_AMDGPU_BUILTINS builds and exact tests, not a shallow dependency probe",
-                False,
-            )
+            primitive = compile_accelerator_target_probes(name, component, root, targets, hipcc)
+            items[name] = {
+                **not_run_probe(
+                    name,
+                    root,
+                    primitive["primitive_probe_status"],
+                    "Production builtin body object probes only; runtime and exact differentials not run",
+                    True,
+                ),
+                **primitive,
+                "compiled_probe_ok": primitive["primitive_probe_ok"],
+                "can_enable_correctness_backend": False,
+            }
             continue
         header = component.get("header") if isinstance(component, dict) else None
         library = component.get("library") if isinstance(component, dict) else None
         runtime_library = component.get("runtime_library") if isinstance(component, dict) else None
         if not isinstance(header, str) or not header:
-            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True)
+            items[name] = not_run_probe(
+                name, root, "NOT_RUN_MISSING_HEADER", "component header not discovered", True
+            )
             continue
         if name == "hipblaslt" and (not isinstance(library, str) or not library):
-            items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True)
+            items[name] = not_run_probe(
+                name, root, "NOT_RUN_MISSING_LIBRARY", "hipBLASLt library not discovered", True
+            )
             continue
 
         source = root / f"{name}_probe.cpp"
@@ -510,7 +822,9 @@ def accelerator_compile_probes(
         source.write_text(ACCELERATOR_PROBE_SOURCES[name], encoding="utf-8")
         include_roots = include_roots_for_component(name, component, root)
         if name == "hipblaslt" and platform.system() == "Windows" and isinstance(library, str):
-            command = msvc_probe_command(source, binary, include_roots[0] if include_roots else "", library)
+            command = msvc_probe_command(
+                source, binary, include_roots[0] if include_roots else "", library
+            )
             if not command:
                 items[name] = not_run_probe(
                     name,
@@ -522,11 +836,13 @@ def accelerator_compile_probes(
                 continue
         else:
             if not hipcc:
-                items[name] = not_run_probe(name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True)
+                items[name] = not_run_probe(
+                    name, root, "NOT_RUN_MISSING_COMPILER", "hipcc not discovered", True
+                )
                 continue
             command = [hipcc, "-std=c++17"]
-            if offload_target:
-                command.append(f"--offload-arch={offload_target}")
+            for target in targets:
+                command.append(f"--offload-arch={target}")
             command.append(str(source))
             for include_root in include_roots:
                 command.extend(["-I", include_root])
@@ -546,7 +862,11 @@ def accelerator_compile_probes(
                 True,
             )
             continue
-        code, output = run(actual_command, timeout=60)
+        code, output = run(
+            actual_command,
+            timeout=60,
+            logical_command=command if isinstance(command, list) else None,
+        )
         run_command: list[str] = []
         run_code: int | None = None
         run_output = ""
@@ -555,7 +875,9 @@ def accelerator_compile_probes(
             run_env = None
             if isinstance(runtime_library, str) and runtime_library:
                 run_env = os.environ.copy()
-                run_env["PATH"] = str(Path(runtime_library).parent) + os.pathsep + run_env.get("PATH", "")
+                run_env["PATH"] = (
+                    str(Path(runtime_library).parent) + os.pathsep + run_env.get("PATH", "")
+                )
             run_code, run_output = run(run_command, timeout=30, env=run_env)
         compiled = code == 0
         runtime_ok = run_code == 0
@@ -565,12 +887,17 @@ def accelerator_compile_probes(
             status = "COMPILE_LINK_PASS_RUN_PASS"
         else:
             status = "COMPILE_LINK_PASS_RUN_FAIL"
-        primitive_probe = compile_accelerator_primitive_probe(name, component, root, offload_target, hipcc)
+        primitive_probe = compile_accelerator_target_probes(name, component, root, targets, hipcc)
         items[name] = {
             "probe_requested": True,
             "requested": True,
             "status": status,
-            "ok": compiled and runtime_ok,
+            "ok": compiled
+            and runtime_ok
+            and (
+                name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
+                or primitive_probe["primitive_probe_ok"]
+            ),
             "compiled_probe_ok": compiled,
             "runtime_probe_ok": runtime_ok,
             "device_capability_ok": False,
@@ -596,9 +923,14 @@ def accelerator_compile_probes(
                 else ACCELERATOR_ENABLE_POLICY
             ),
             "validated_correctness_backend": False,
-            "can_enable_correctness_backend": name in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
+            "can_enable_correctness_backend": name
+            in {"hipblaslt", "ck", "rocwmma", "amdgpu_builtins"}
             and compiled
-            and runtime_ok,
+            and runtime_ok
+            and (
+                name not in ACCELERATOR_PRIMITIVE_PROBE_SOURCES
+                or primitive_probe["primitive_probe_ok"]
+            ),
             "evidence_class": CANDIDATE_ACCELERATOR_EVIDENCE_CLASS,
             "candidate_evidence_is_correctness_validation": False,
             "readiness_effect": "none",
@@ -628,5 +960,3 @@ def accelerator_compile_probes(
         "candidate_evidence_is_correctness_validation": False,
         "items": items,
     }
-
-

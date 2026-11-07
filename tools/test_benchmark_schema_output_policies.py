@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import copy
 
-from test_benchmark_schema import add_output_padding_fields, expect_invalid, expect_valid
+from test_benchmark_schema_support_core import (
+    expect_invalid,
+    expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_output_padding_fields,
+)
 from benchmark_schema import validate_capture
 
 
@@ -14,7 +20,9 @@ def main() -> int:
     validate_capture(capture)
 
     invalid_layout = copy.deepcopy(capture)
-    invalid_layout["timing_metadata"]["benchmark_output_destination_layout"] = "contiguous_row_major"
+    invalid_layout["timing_metadata"]["benchmark_output_destination_layout"] = (
+        "contiguous_row_major"
+    )
     expect_invalid(invalid_layout, "benchmark_output_destination_layout must be padded_row_major")
     return 0
 

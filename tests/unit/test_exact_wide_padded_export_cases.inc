@@ -28,13 +28,15 @@ TEST_CASE("exact-wide unsigned CPU limb export preserves padded destination cell
 
   constexpr uint32_t limb_count = 2;
   std::vector<uint64_t> limbs(static_cast<std::size_t>(m * ld * limb_count), sentinel);
-  REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), ld, limb_count) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), ld,
+                                                limb_count) == RNS8_SUCCESS);
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
       const auto exact = rns8::detail::exact_u64_gemm_cell(A, k, B, n, row, col, k);
       const auto expected = unsigned_limbs(exact, limb_count);
       const std::size_t offset = static_cast<std::size_t>((row * ld + col) * limb_count);
-      CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
+      CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) ==
+            expected);
     }
     for (int64_t col = n; col < ld; ++col) {
       const std::size_t padding = static_cast<std::size_t>((row * ld + col) * limb_count);
@@ -76,12 +78,15 @@ TEST_CASE("exact-wide CPU max-width public limb export preserves padded element 
 
     constexpr uint64_t sentinel = 0xa5a5a5a5a5a5a5a5ull;
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * ld * limb_count), sentinel);
-    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), ld,
+                                                limb_count) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t col = 0; col < n; ++col) {
-        const auto expected = signed_twos_complement_limbs(values[static_cast<std::size_t>(row * n + col)], limb_count);
+        const auto expected = signed_twos_complement_limbs(
+            values[static_cast<std::size_t>(row * n + col)], limb_count);
         const std::size_t offset = static_cast<std::size_t>((row * ld + col) * limb_count);
-        CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
+        CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) ==
+              expected);
       }
       const std::size_t padding = static_cast<std::size_t>((row * ld + n) * limb_count);
       for (uint32_t limb = 0; limb < limb_count; ++limb) {
@@ -110,12 +115,15 @@ TEST_CASE("exact-wide CPU max-width public limb export preserves padded element 
 
     constexpr uint64_t sentinel = 0x5a5a5a5a5a5a5a5aull;
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * ld * limb_count), sentinel);
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), ld,
+                                                  limb_count) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t col = 0; col < n; ++col) {
-        const auto expected = unsigned_limbs(values[static_cast<std::size_t>(row * n + col)], limb_count);
+        const auto expected =
+            unsigned_limbs(values[static_cast<std::size_t>(row * n + col)], limb_count);
         const std::size_t offset = static_cast<std::size_t>((row * ld + col) * limb_count);
-        CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) == expected);
+        CHECK(std::vector<uint64_t>(limbs.begin() + offset, limbs.begin() + offset + limb_count) ==
+              expected);
       }
       const std::size_t padding = static_cast<std::size_t>((row * ld + n) * limb_count);
       for (uint32_t limb = 0; limb < limb_count; ++limb) {
@@ -129,4 +137,3 @@ TEST_CASE("exact-wide CPU max-width public limb export preserves padded element 
 
   rns8_destroy_context(ctx);
 }
-

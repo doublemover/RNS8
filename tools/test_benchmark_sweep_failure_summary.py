@@ -155,7 +155,11 @@ def main() -> int:
                         "shape_family": "small_square",
                         "scenario_families": ["summary-test"],
                         "contract_key": "release-candidate-contract",
-                        "required_baselines": ["cpu-reference", "hip-direct", "hip-vector-alu-int64"],
+                        "required_baselines": [
+                            "cpu-reference",
+                            "hip-direct",
+                            "hip-vector-alu-int64",
+                        ],
                         "missing_required_baselines": ["hip-vector-alu-int64"],
                         "scenario_promotion_scopes": ["release_review_candidate"],
                         "candidates": [
@@ -354,7 +358,11 @@ def main() -> int:
                         "shape_family": "sparse_a_4_to_2_128",
                         "scenario_families": ["sparse-a-4-to-2"],
                         "contract_key": "sparse-a-contract",
-                        "required_baselines": ["cpu-reference", "hip-direct", "amdgpu-builtins-dense-sparse-a-input"],
+                        "required_baselines": [
+                            "cpu-reference",
+                            "hip-direct",
+                            "amdgpu-builtins-dense-sparse-a-input",
+                        ],
                         "missing_required_baselines": [],
                         "scenario_promotion_scopes": ["execution_path_evidence"],
                         "candidates": [
@@ -495,7 +503,7 @@ def main() -> int:
                             },
                         ],
                     },
-                ]
+                ],
             },
         )
         _write(
@@ -599,7 +607,10 @@ def main() -> int:
         assert "NATIVE_TO_RNS_CHAIN_PAIR_DISPOSITIONS" in text
         assert "local_promote 1" in text
         assert "NATIVE_TO_RNS_CHAIN_PAIR_BLOCKERS" in text
-        assert "pack_mode=per_repeat_repack disposition=local_promote speedup_vs_host_repack=1.4285714285714286" in text
+        assert (
+            "pack_mode=per_repeat_repack disposition=local_promote speedup_vs_host_repack=1.4285714285714286"
+            in text
+        )
         assert "fused_e2e=70.0 control_e2e=100.0 fused_conversion=8.0 host_repack=30.0" in text
         assert "vector_output_d2h=10.0 consumer_gemm=40.0 blockers=none" in text
         assert "SKINNY_GEMV_TILED_CONTROLS 1" in text
@@ -619,7 +630,10 @@ def main() -> int:
             "export_variant=tree-crt-export-candidate reconstruction=tree_crt_candidate "
             "crt_export=3.0 e2e=123"
         ) in text
-        assert "status_policy=range_checked_status_buffer d2h_policy=compact_contiguous final_mode=final_host_output" in text
+        assert (
+            "status_policy=range_checked_status_buffer d2h_policy=compact_contiguous final_mode=final_host_output"
+            in text
+        )
         assert "SPARSE_A_ROUTE_ROWS 2" in text
         assert "SPARSE_A_ROUTE_COUNTS" in text
         assert "amdgpu-builtins-sparse-a-runtime 1" in text
@@ -659,11 +673,20 @@ def main() -> int:
             "tile_shape_variant=amdgpu-cdna3-mfma-16x16x32 kernel=ck_kernel "
             "e2e=123 pack=100.0 rns_gemm=20.0 crt_export=3.0"
         ) in text
-        assert "primary_loss=pack matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
+        assert (
+            "primary_loss=pack matrix_meta=mfma/16x16x32/i8/dense matrix_isa=v_mfma_i32_16x16x32_i8:2"
+            in text
+        )
         assert "ACTIONABLE_PROMOTION_BLOCKER_COUNTS" in text
         assert "ACTIONABLE_PROMOTION_CANDIDATES 1" in text
-        assert "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64" in normalized
-        assert "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8" in text
+        assert (
+            "review=rank-scenarios/all/review_report.json ck semantics=bounded_i64 shape=64x64x64"
+            in normalized
+        )
+        assert (
+            "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8"
+            in text
+        )
         assert (
             "details=phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8 "
             "pack_split=pack_a:70.0,pack_b:30.0 reuse_setup_e2e=150.0"
@@ -675,7 +698,9 @@ def main() -> int:
         assert "setup_amortized=3.0 setup_share=0.02 same_backend=ck" in text
         assert "reuse_vs_best=0.6666666666666666" in text
         assert "graph_setup_e2e=151.0 graph_steady_e2e=144.0 graph_capture=13.0" in text
-        assert "graph_setup_amortized=6.333333333333333 graph_setup_share=0.04194260485651214" in text
+        assert (
+            "graph_setup_amortized=6.333333333333333 graph_setup_share=0.04194260485651214" in text
+        )
         assert "baseline_steady_e2e=141.0 baseline_total_setup=27.0 baseline_e2e=144.0" in text
         assert "baseline_setup_share=0.020833333333333332" in text
         assert "graph_total_setup=57.0" in text
@@ -694,8 +719,14 @@ def main() -> int:
         assert "production backend=hip-direct semantics=bounded_i64 shape=64x64x64" in text
         assert "FASTEST_ACCELERATOR_ROUTES 1" in text
         assert "accelerator backend=ck semantics=bounded_i64 shape=64x64x64" in text
-        assert "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8" in text
-        assert "pack_split=pack_a:70.0,pack_b:30.0 matrix_meta=mfma/16x16x32/i8/dense matrix_isa=" in text
+        assert (
+            "phase_ratios=slowest=pack:2.0 speedups=pack:0.5,rns_gemm:1.5,crt_export:2.0,end_to_end:0.8"
+            in text
+        )
+        assert (
+            "pack_split=pack_a:70.0,pack_b:30.0 matrix_meta=mfma/16x16x32/i8/dense matrix_isa="
+            in text
+        )
         assert "matrix_isa=v_mfma_i32_16x16x32_i8:2" in text
         assert summary.clean_gate_failures(lines) == [
             "failed captures=1",

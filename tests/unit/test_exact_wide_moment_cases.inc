@@ -93,9 +93,10 @@ void check_exact_moment_chain(rns8_backend_kind backend) {
     const int64_t diagonal[] = {h};
     const int64_t scale = 2 / factor;
     const int64_t b[] = {100 * scale, 10 * scale, 10 * scale};
-    auto pack = [&](rns8_context* ctx, rns8_matrix* matrix, const int64_t* values, std::size_t count,
-                    int64_t ld) {
-      if (sem == RNS8_EXACT_WIDE_SIGNED) return rns8_pack_i64(ctx, matrix, values, ld, 1);
+    auto pack = [&](rns8_context* ctx, rns8_matrix* matrix, const int64_t* values,
+                    std::size_t count, int64_t ld) {
+      if (sem == RNS8_EXACT_WIDE_SIGNED)
+        return rns8_pack_i64(ctx, matrix, values, ld, 1);
       std::vector<uint64_t> unsigned_values(values, values + count);
       return rns8_pack_u64(ctx, matrix, unsigned_values.data(), ld, 1);
     };
@@ -129,13 +130,14 @@ void check_exact_moment_chain(rns8_backend_kind backend) {
       CHECK(selected == 17);
     }
     uint64_t limbs[3]{};
-    REQUIRE(
-        (sem == RNS8_EXACT_WIDE_SIGNED
-             ? rns8_export_exact_wide_signed_limbs(next.ctx, next.plan, next.matrices[2], limbs, 1, 3)
-             : rns8_export_exact_wide_unsigned_limbs(next.ctx, next.plan, next.matrices[2], limbs, 1,
-                                                     3)) == RNS8_SUCCESS);
+    REQUIRE((sem == RNS8_EXACT_WIDE_SIGNED
+                 ? rns8_export_exact_wide_signed_limbs(next.ctx, next.plan, next.matrices[2], limbs,
+                                                       1, 3)
+                 : rns8_export_exact_wide_unsigned_limbs(next.ctx, next.plan, next.matrices[2],
+                                                         limbs, 1, 3)) == RNS8_SUCCESS);
     const auto expected = unsigned_limbs(1020 * scale * unit, 3);
-    for (unsigned i = 0; i < 3; ++i) CHECK(limbs[i] == expected[i]);
+    for (unsigned i = 0; i < 3; ++i)
+      CHECK(limbs[i] == expected[i]);
   }
 }
 

@@ -19,12 +19,12 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "RNS8_ENABLE_HIP": "OFF",
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
-        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "VCPKG_MANIFEST_INSTALL": "OFF"
       }
     },
     {
@@ -39,25 +39,25 @@
     {
       "name": "cpu-asan-ubsan-debug",
       "displayName": "CPU + native packages + ASan/UBSan (Debug)",
-      "description": "Optional CPU-only non-Windows sanitizer preset for Clang/GCC-like toolchains using native package discovery only.",
+      "description": "Separate native Linux Clang CPU ASan/UBSan lane, nonrecovering checks and disposable detector controls; OpenMP disabled initially.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-debug",
       "condition": {
-        "type": "notEquals",
+        "type": "equals",
         "lhs": "${hostSystemName}",
-        "rhs": "Windows"
+        "rhs": "Linux"
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
-        "CMAKE_CXX_FLAGS_DEBUG": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined",
-        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
-        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=address,undefined",
         "RNS8_ENABLE_HIP": "OFF",
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
-        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "RNS8_HOST_SANITIZER": "address-undefined",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "ON",
+        "RNS8_ENABLE_CPU_PARALLEL": "OFF"
       }
     },
     {
@@ -84,13 +84,14 @@
         "RNS8_ENABLE_HIPBLASLT": "OFF",
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
-        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF"
+        "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "ON"
       }
     },
     {
       "name": "windows-msvc-hip-debug",
       "displayName": "Windows MSVC + HIP SDK + vcpkg (Debug)",
-      "description": "Windows Radeon bring-up preset using Ninja, vcpkg, and explicit HIP SDK paths.",
+      "description": "Windows Radeon bring-up using shared HIP/vcpkg discovery, Ninja and explicit feature/target policy.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-msvc-hip-debug",
       "condition": {
@@ -100,15 +101,12 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "RNS8_ENABLE_HIP": "ON",
-        "RNS8_HIP_ROOT": "C:/Program Files/AMD/ROCm/7.1",
         "RNS8_AMDGPU_TARGETS": "gfx1100",
         "RNS8_ROCM_DEPS_BUILD_ROOT": "${sourceDir}/out/third_party/rocm/build/windows-gfx1100",
         "RNS8_ROCM_DEPS_INSTALL_ROOT": "${sourceDir}/out/third_party/rocm/install/windows-gfx1100",
-        "RNS8_CK_ROOT": "${sourceDir}/third_party/rocm/composable_kernel",
-        "RNS8_ROCWMMA_ROOT": "${sourceDir}/third_party/rocm/rocWMMA"
+        "VCPKG_MANIFEST_INSTALL": "OFF"
       }
     },
     {
@@ -244,7 +242,6 @@
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
         "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
-        "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942;gfx950",
         "RNS8_ROCM_DEPS_BUILD_ROOT": "",
         "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
@@ -278,13 +275,10 @@
         "RNS8_ENABLE_CK": "OFF",
         "RNS8_ENABLE_ROCWMMA": "OFF",
         "RNS8_ENABLE_AMDGPU_BUILTINS": "OFF",
-        "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942",
         "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
         "RNS8_ROCM_DEPS_BUILD_ROOT": "",
-        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
-        "RNS8_CK_ROOT": "",
-        "RNS8_ROCWMMA_ROOT": ""
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": ""
       }
     },
     {
@@ -309,13 +303,10 @@
         "RNS8_ENABLE_ROCWMMA": "ON",
         "RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS": "OFF",
         "RNS8_ENABLE_AMDGPU_BUILTINS": "ON",
-        "RNS8_HIP_ROOT": "/opt/rocm",
         "RNS8_AMDGPU_TARGETS": "gfx942",
         "RNS8_ROCM_COVERAGE_TARGETS": "gfx90a;gfx942;gfx950",
         "RNS8_ROCM_DEPS_BUILD_ROOT": "",
-        "RNS8_ROCM_DEPS_INSTALL_ROOT": "",
-        "RNS8_CK_ROOT": "",
-        "RNS8_ROCWMMA_ROOT": ""
+        "RNS8_ROCM_DEPS_INSTALL_ROOT": ""
       }
     },
     {
@@ -359,6 +350,66 @@
       "binaryDir": "${sourceDir}/build/linux-cpu-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-analysis-cpu",
+      "displayName": "Windows Analysis Cpu",
+      "description": "Separate non-unity CPU analysis configuration; host commands do not establish HIP device coverage.",
+      "inherits": "cpu-debug",
+      "binaryDir": "${sourceDir}/build/windows-analysis-cpu",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_UNITY_BUILD": "OFF",
+        "RNS8_BUILD_TESTS": "ON",
+        "RNS8_BUILD_TOOLS": "ON",
+        "RNS8_BUILD_BENCHMARKS": "ON",
+        "RNS8_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "linux-analysis-cpu",
+      "displayName": "Linux Analysis Cpu",
+      "description": "Separate non-unity CPU analysis configuration; host commands do not establish HIP device coverage.",
+      "inherits": "linux-cpu-debug",
+      "binaryDir": "${sourceDir}/build/linux-analysis-cpu",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_UNITY_BUILD": "OFF",
+        "RNS8_BUILD_TESTS": "ON",
+        "RNS8_BUILD_TOOLS": "ON",
+        "RNS8_BUILD_BENCHMARKS": "ON",
+        "RNS8_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "displayName": "CPU Linux Clang ASan/UBSan optimized",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-asan-ubsan-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "cpu-tsan-release",
+      "displayName": "CPU Linux Clang TSan; OpenMP OFF",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-tsan-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "RNS8_HOST_SANITIZER": "thread"
+      }
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "displayName": "CPU Linux Clang source branch coverage",
+      "inherits": "cpu-asan-ubsan-debug",
+      "binaryDir": "${sourceDir}/build/cpu-coverage-debug",
+      "cacheVariables": {
+        "RNS8_HOST_SANITIZER": "none",
+        "RNS8_BUILD_SANITIZER_CONTROLS": "OFF",
+        "RNS8_ENABLE_HOST_COVERAGE": "ON"
       }
     }
   ],
@@ -454,6 +505,18 @@
     {
       "name": "linux-cpu-release",
       "configurePreset": "linux-cpu-release"
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "configurePreset": "cpu-asan-ubsan-release"
+    },
+    {
+      "name": "cpu-tsan-release",
+      "configurePreset": "cpu-tsan-release"
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "configurePreset": "cpu-coverage-debug"
     }
   ],
   "testPresets": [
@@ -476,6 +539,11 @@
       "configurePreset": "cpu-asan-ubsan-debug",
       "output": {
         "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",
+        "CTEST_NO_TESTS_ACTION": "error"
       }
     },
     {
@@ -602,6 +670,55 @@
       "configurePreset": "linux-cpu-release",
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cpu-asan-ubsan-release",
+      "configurePreset": "cpu-asan-ubsan-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "ASAN_OPTIONS": "halt_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "cpu-tsan-release",
+      "configurePreset": "cpu-tsan-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "TSAN_OPTIONS": "halt_on_error=1"
+      }
+    },
+    {
+      "name": "cpu-coverage-debug",
+      "configurePreset": "cpu-coverage-debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 1,
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      },
+      "environment": {
+        "CTEST_NO_TESTS_ACTION": "error",
+        "LLVM_PROFILE_FILE": "${sourceDir}/build/cpu-coverage-debug/profiles/%m-%p.profraw"
       }
     }
   ]

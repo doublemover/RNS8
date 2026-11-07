@@ -17,7 +17,8 @@ typedef enum rns8_semantics RNS8_ENUM_BASE {
   RNS8_FINITE_FIELD_U8 = 7,
 
   /* Reserved research values. Plan/matrix creation rejects these values;
-   * no INT4, Ozaki, Strassen, or Freivalds execution backend is implemented. */
+   * opt-in research operations use ordinary explicit arithmetic semantics,
+   * never these enum values as implicit execution or exactness contracts. */
   RNS8_INT4_RESEARCH = 100,
   RNS8_IU4_RESEARCH = 101,
   RNS8_OZAKI_FP8_RESEARCH = 200,
@@ -39,7 +40,8 @@ typedef enum rns8_backend_kind RNS8_ENUM_BASE {
   RNS8_BACKEND_ROCWMMA = 5,
   RNS8_BACKEND_WRAP64_BYTE_LIMB = 6,
   RNS8_BACKEND_HIP_VECTOR_ALU_INT64 = 7,
-  RNS8_BACKEND_AMDGPU_BUILTINS = 8
+  RNS8_BACKEND_AMDGPU_BUILTINS = 8,
+  RNS8_BACKEND_CPU_AMX = 9
 } rns8_backend_kind;
 
 #ifdef __cplusplus

@@ -1,17 +1,14 @@
 rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, void* device_c_residues,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
-      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+  if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
+      ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
       n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
       lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
       ldc > std::numeric_limits<int>::max()) {
@@ -21,19 +18,14 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
   if (device_status != RNS8_SUCCESS) {
     return device_status;
   }
-  const int code =
-      rns8::detail::run_timed_device_code("bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group", [&]() {
-        const int launch_status = rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
-            static_cast<const int8_t*>(device_a_i8),
-            static_cast<const int8_t*>(device_b_i8),
-            static_cast<int8_t*>(device_c_residues),
-            static_cast<int>(m),
-            static_cast<int>(n),
-            static_cast<int>(k),
-            static_cast<int>(lda),
-            static_cast<int>(ldb),
-            static_cast<int>(ldc),
-            static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+  const int code = rns8::detail::run_timed_device_code(
+      "bounded_uniform_small_i8_ab_reuse_b_gemm_kernel_group", [&]() {
+        const int launch_status =
+            rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
+                static_cast<const int8_t*>(device_a_i8), static_cast<const int8_t*>(device_b_i8),
+                static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+                static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb),
+                static_cast<int>(ldc), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
         if (launch_status != static_cast<int>(hipSuccess)) {
           return launch_status;
         }
@@ -57,38 +49,22 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    uint64_t source_version) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, rns8_matrix* C, int64_t m,
+    int64_t n, int64_t k, int64_t lda, int64_t ldb, uint64_t source_version) {
   if (!device_a_i8 || !device_b_i8 || !C || !C->hip_residues ||
       (C->desc.semantics != RNS8_BOUNDED_I64 && C->desc.semantics != RNS8_BOUNDED_U64) ||
       (C->desc.semantics == RNS8_BOUNDED_I64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) ||
-      (C->desc.semantics == RNS8_BOUNDED_U64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
+      (C->desc.semantics == RNS8_BOUNDED_U64 &&
+       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
       C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->desc.rows != m || C->desc.cols != n) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status status = hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_device(
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      C->hip_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      C->desc.logical_ld);
+      device_id, device_a_i8, device_b_i8, C->hip_residues, m, n, k, lda, ldb, C->desc.logical_ld);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -98,20 +74,17 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_resident_b_prefix9_matrix(
 namespace {
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
-    const char* timing_label,
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
+    const char* timing_label, int device_id, const void* device_a_i8, const void* device_b_i8,
+    void* device_c_residues, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb,
     int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
-      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+  if (!device_a_i8 || !device_b_i8 || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
+      ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
       n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
       lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
       ldc > std::numeric_limits<int>::max()) {
@@ -122,17 +95,12 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_labe
     return device_status;
   }
   const int code = rns8::detail::run_timed_device_code(timing_label, [&]() {
-    const int launch_status = rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_colpair_device(
-        static_cast<const int8_t*>(device_a_i8),
-        static_cast<const int8_t*>(device_b_i8),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    const int launch_status =
+        rns8_hip_direct_ring_gemm_uniform_small_i8_ab_resident_b_prefix9_colpair_device(
+            static_cast<const int8_t*>(device_a_i8), static_cast<const int8_t*>(device_b_i8),
+            static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+            static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb),
+            static_cast<int>(ldc), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
     }
@@ -156,66 +124,38 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_labe
 #endif
 }
 
-}  // namespace
+} // namespace
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_device(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, void* device_c_residues,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
-      "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group",
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      device_c_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc);
+      "bounded_uniform_small_i8_ab_colpair_reuse_b_gemm_kernel_group", device_id, device_a_i8,
+      device_b_i8, device_c_residues, m, n, k, lda, ldb, ldc);
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matrix(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    uint64_t source_version) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, rns8_matrix* C, int64_t m,
+    int64_t n, int64_t k, int64_t lda, int64_t ldb, uint64_t source_version) {
   if (!device_a_i8 || !device_b_i8 || !C || !C->hip_residues ||
       (C->desc.semantics != RNS8_BOUNDED_I64 && C->desc.semantics != RNS8_BOUNDED_U64) ||
       (C->desc.semantics == RNS8_BOUNDED_I64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) ||
-      (C->desc.semantics == RNS8_BOUNDED_U64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
+      (C->desc.semantics == RNS8_BOUNDED_U64 &&
+       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
       C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->desc.rows != m || C->desc.cols != n) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status status = hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_device(
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      C->hip_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      C->desc.logical_ld);
+      device_id, device_a_i8, device_b_i8, C->hip_residues, m, n, k, lda, ldb, C->desc.logical_ld);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -223,63 +163,35 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_b_prefix9_matri
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_device(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, void* device_c_residues,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
-      "bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group",
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      device_c_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc);
+      "bounded_uniform_small_i8_ab_colpair_reuse_a_gemm_kernel_group", device_id, device_a_i8,
+      device_b_i8, device_c_residues, m, n, k, lda, ldb, ldc);
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matrix(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    uint64_t source_version) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, rns8_matrix* C, int64_t m,
+    int64_t n, int64_t k, int64_t lda, int64_t ldb, uint64_t source_version) {
   if (!device_a_i8 || !device_b_i8 || !C || !C->hip_residues ||
       (C->desc.semantics != RNS8_BOUNDED_I64 && C->desc.semantics != RNS8_BOUNDED_U64) ||
       (C->desc.semantics == RNS8_BOUNDED_I64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) ||
-      (C->desc.semantics == RNS8_BOUNDED_U64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
+      (C->desc.semantics == RNS8_BOUNDED_U64 &&
+       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
       C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->desc.rows != m || C->desc.cols != n) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status status = hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_device(
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      C->hip_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      C->desc.logical_ld);
+      device_id, device_a_i8, device_b_i8, C->hip_residues, m, n, k, lda, ldb, C->desc.logical_ld);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -287,66 +199,37 @@ rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_resident_a_prefix9_matri
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, void* device_c_residues,
+    int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
   return hip_direct_gemm_uniform_small_i8_ab_colpair_prefix9_device_with_label(
-      "bounded_uniform_small_i8_ab_transient_gemm_kernel_group",
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      device_c_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      ldc);
+      "bounded_uniform_small_i8_ab_transient_gemm_kernel_group", device_id, device_a_i8,
+      device_b_i8, device_c_residues, m, n, k, lda, ldb, ldc);
 }
 
 rns8_status hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_matrix(
-    int device_id,
-    const void* device_a_i8,
-    const void* device_b_i8,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    uint64_t source_version) {
+    int device_id, const void* device_a_i8, const void* device_b_i8, rns8_matrix* C, int64_t m,
+    int64_t n, int64_t k, int64_t lda, int64_t ldb, uint64_t source_version) {
   if (!device_a_i8 || !device_b_i8 || !C || !C->hip_residues ||
       (C->desc.semantics != RNS8_BOUNDED_I64 && C->desc.semantics != RNS8_BOUNDED_U64) ||
       (C->desc.semantics == RNS8_BOUNDED_I64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) ||
-      (C->desc.semantics == RNS8_BOUNDED_U64 && C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
+      (C->desc.semantics == RNS8_BOUNDED_U64 &&
+       C->desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) ||
       C->prefix != RNS8_DEFAULT_BOUNDED_PREFIX || C->desc.rows != m || C->desc.cols != n) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status status = hip_direct_gemm_uniform_small_i8_ab_colpair_transient_prefix9_device(
-      device_id,
-      device_a_i8,
-      device_b_i8,
-      C->hip_residues,
-      m,
-      n,
-      k,
-      lda,
-      ldb,
-      C->desc.logical_ld);
+      device_id, device_a_i8, device_b_i8, C->hip_residues, m, n, k, lda, ldb, C->desc.logical_ld);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  mark_device_residue_output_current(C);
+  mark_device_residue_output_current(C, RNS8_DEFAULT_BOUNDED_PREFIX);
   C->finite_modulus = 0;
   C->source_version = source_version;
   C->prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
   return RNS8_SUCCESS;
 }
-

@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "2c94b994190e6571136820cda07a43f0072d212f",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-followup-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-followup-20261026/remaining-code-validation-20261027-2c94b99.zip",
+  "bytes": 572180,
+  "sha256": "58fa3ca1e74d40ee5cf1676aac9a98e04917ef94b3a99894bcf057b3b66d212e",
+  "index_member": "archive-index.json",
+  "scope": "Five source-extension closeout: 69 indexed build/validation/compile-only/manifest/receipt files. No executable binaries or SDK payloads.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/remaining-code-validation-archive-20261027.json --output temp/restored-remaining-code-validation"
+}

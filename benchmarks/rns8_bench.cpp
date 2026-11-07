@@ -1,4 +1,7 @@
 #include <algorithm>
+#include "diagnostics/trace_ranges.hpp"
+#include "tool_common/json_output.hpp"
+#include "tool_common/execution_environment_json.hpp"
 #include <array>
 #include <chrono>
 #include <cstdio>
@@ -8,6 +11,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <map>
 #include <random>
@@ -23,45 +27,51 @@
 #include "core/autotune_cache.hpp"
 #include "core/api_internal.hpp"
 #include "core/backend_common.hpp"
+#include "core/exact_range.hpp"
 #include "core/hip_resources.hpp"
 #include "core/internal.hpp"
 #include "core/plan_lowering.hpp"
 #include "rns8/rns8.h"
+#include "rns8/generated/metadata_registry.hpp"
+#include "tool_common/build_identity.hpp"
+#include "tool_common/process_identity.hpp"
+#include "tool_common/execution_host_identity.hpp"
+#include "tool_common/device_identity_json.hpp"
 
 #ifndef RNS8_CONFIGURED_AMDGPU_TARGETS
-#  define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
+#define RNS8_CONFIGURED_AMDGPU_TARGETS "not-configured"
 #endif
 
 #ifndef RNS8_CONFIGURED_HIP_ENABLED
-#  define RNS8_CONFIGURED_HIP_ENABLED 0
+#define RNS8_CONFIGURED_HIP_ENABLED 0
 #endif
 
 #ifndef RNS8_CONFIGURED_HIP_ROOT
-#  define RNS8_CONFIGURED_HIP_ROOT ""
+#define RNS8_CONFIGURED_HIP_ROOT ""
 #endif
 
 #ifndef RNS8_CONFIGURED_HIPCC_PATH
-#  define RNS8_CONFIGURED_HIPCC_PATH ""
+#define RNS8_CONFIGURED_HIPCC_PATH ""
 #endif
 
 #ifndef RNS8_CONFIGURED_HIPCC_VERSION
-#  define RNS8_CONFIGURED_HIPCC_VERSION ""
+#define RNS8_CONFIGURED_HIPCC_VERSION ""
 #endif
 
 #ifndef RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION
-#  define RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION ""
+#define RNS8_CONFIGURED_HIP_SDK_OR_ROCM_VERSION ""
 #endif
 
 #ifndef RNS8_GIT_COMMIT
-#  define RNS8_GIT_COMMIT "unknown"
+#define RNS8_GIT_COMMIT "unknown"
 #endif
 
 #ifndef RNS8_SOURCE_DIR
-#  define RNS8_SOURCE_DIR "."
+#define RNS8_SOURCE_DIR "."
 #endif
 
 #if RNS8_CONFIGURED_HIP_ENABLED
-#  include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 #include "rns8_bench_args.hpp"
@@ -77,6 +87,9 @@ using rns8::bench::checked_elements;
 using rns8::bench::checked_limb_elements;
 using rns8::bench::Args;
 using rns8::bench::BenchmarkResult;
+using rns8::bench::GraphCallerObservation;
+using rns8::bench::GraphCallerOwnerAccounting;
+using rns8::bench::completed_graph_caller_transaction;
 using rns8::bench::benchmark_node_gpu_count;
 using rns8::bench::BenchSemantics;
 using rns8::bench::BoundMode;
@@ -127,33 +140,23 @@ constexpr uint32_t kBenchmarkSchemaVersion = 4;
 constexpr uint32_t kWrap64RocwmmaCandidateTile = 16;
 constexpr int64_t kWrap64RocwmmaCandidateMaxK = 32768;
 constexpr const char* kWrap64RocwmmaCandidateRequestedBackend = "rocwmma-wrap64-candidate";
-constexpr const char* kWrap64RocwmmaCandidateSelectedKernel = "rocwmma_wrap64_byte_gemm36_candidate_v0";
-constexpr const char* kWrap64RocwmmaCandidateScheduleSource = "rns8_bench_wrap64_rocwmma_candidate_static_schedule";
+constexpr const char* kWrap64RocwmmaCandidateSelectedKernel =
+    "rocwmma_wrap64_byte_gemm36_candidate_v0";
+constexpr const char* kWrap64RocwmmaCandidateScheduleSource =
+    "rns8_bench_wrap64_rocwmma_candidate_static_schedule";
 constexpr const char* kWrap64RocwmmaCandidateBackendSource = "rns8_bench_wrap64_rocwmma_candidate";
-constexpr const char* kWrap64RocwmmaCandidateEventLabel = "wrap64_rocwmma_candidate_gemm36_kernel_group";
+constexpr const char* kWrap64RocwmmaCandidateEventLabel =
+    "wrap64_rocwmma_candidate_gemm36_kernel_group";
 
-template <typename Fn>
-rns8_status run_timed_status_operation(const char* label, Fn&& fn);
+template <typename Fn> rns8_status run_timed_status_operation(const char* label, Fn&& fn);
 
 #if RNS8_CONFIGURED_HIP_ENABLED
-extern "C" int rns8_bench_vector_i64_gemm_device(
-    int device_id,
-    const int64_t* a,
-    const int64_t* b,
-    int64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k);
-extern "C" int rns8_bench_vector_u64_gemm_device(
-    int device_id,
-    const uint64_t* a,
-    const uint64_t* b,
-    uint64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k);
+extern "C" int rns8_bench_vector_i64_gemm_device(int device_id, const int64_t* a, const int64_t* b,
+                                                 int64_t* c, uint32_t* status, int64_t m, int64_t n,
+                                                 int64_t k);
+extern "C" int rns8_bench_vector_u64_gemm_device(int device_id, const uint64_t* a,
+                                                 const uint64_t* b, uint64_t* c, uint32_t* status,
+                                                 int64_t m, int64_t n, int64_t k);
 #endif
 
 uint32_t benchmark_prefix(const Args& args);
@@ -178,25 +181,18 @@ struct HipGraphReplayState {
   hipGraphExec_t executable = nullptr;
 #endif
   uint64_t launch_count = 0;
+  double stream_prepare_us = 0;
 };
 void destroy_hip_graph_replay_state(HipGraphReplayState& state);
-rns8_status capture_hip_graph_replay(
-    int device_id,
-    const std::function<rns8_status(void*)>& capture_body,
-    HipGraphReplayState& state,
-    uint64_t& capture_us,
-    uint64_t& instantiate_us,
-    std::string& error_text);
-rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text);
+rns8_status capture_hip_graph_replay(int device_id,
+                                     const std::function<rns8_status(void*)>& capture_body,
+                                     HipGraphReplayState& state, double& capture_us,
+                                     double& instantiate_us, std::string& error_text);
+rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state,
+                                    std::string& error_text);
 
-
-
-
-
-boost::multiprecision::cpp_int exact_wide_value_from_limbs(
-    const uint64_t* limbs,
-    uint32_t limb_count,
-    bool signed_values) {
+boost::multiprecision::cpp_int
+exact_wide_value_from_limbs(const uint64_t* limbs, uint32_t limb_count, bool signed_values) {
   boost::multiprecision::cpp_int value = 0;
   for (uint32_t limb = 0; limb < limb_count; ++limb) {
     value += boost::multiprecision::cpp_int(limbs[limb]) << (64u * limb);
@@ -230,10 +226,19 @@ std::size_t exact_wide_limb_index(int64_t row, int64_t col, int64_t ld, uint32_t
 #include "rns8_bench_json_sections.inc"
 #include "rns8_bench_dispatch_graph_json.inc"
 #include "rns8_bench_print_json.inc"
-}  // namespace
+} // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
+  const int identity_status = rns8::tools::emit_build_identity(argc, argv, std::cout);
+  if (identity_status >= 0)
+    return identity_status;
   const Args args = parse_args(argc, argv);
+  const auto execution_host = rns8::tools::ExecutionHostSnapshot::observe();
+  rns8::tools::JsonOutput json_output(args.json_output);
+  rns8::tools::ExecutionEnvironmentWitness execution_environment(args.record_execution_environment,
+                                                                 argc, argv);
+  (void)rns8::bench::host_clock_calibration(); // Validated args; outside every workload timing
+                                               // interval.
   struct ScopedAmdgpuBuiltinDenseVariantOverride {
     explicit ScopedAmdgpuBuiltinDenseVariantOverride(const Args& args) {
       rns8::detail::amdgpu_builtins_set_dense_kernel_variant_override(
@@ -244,14 +249,14 @@ int main(int argc, char** argv) {
           rns8::detail::amdgpu_builtins_dense_kernel_variant::auto_select);
     }
   } amdgpu_builtin_dense_variant_override(args);
-  rns8::detail::configure_cpu_parallel(args.cpu_threads, args.cpu_parallel_threshold, args.progress);
+  rns8::detail::configure_cpu_parallel(args.cpu_threads, args.cpu_parallel_threshold,
+                                       args.progress);
   const uint64_t bound = benchmark_bound(args);
   const std::string cmdline = command_line(argc, argv);
   if (args.progress) {
     std::cerr << "rns8-bench start: semantics=" << semantics_name(args.semantics)
-              << " backend=" << requested_backend_name(args)
-              << " shape=" << args.m << "x" << args.n << "x" << args.k
-              << " warmups=" << args.warmups << " repeats=" << args.repeats
+              << " backend=" << requested_backend_name(args) << " shape=" << args.m << "x" << args.n
+              << "x" << args.k << " warmups=" << args.warmups << " repeats=" << args.repeats
               << " cpu_runtime=" << rns8::detail::cpu_parallel_runtime_name()
               << " cpu_threads=" << rns8::detail::cpu_parallel_effective_threads()
               << " cpu_threshold_ops=" << rns8::detail::cpu_parallel_threshold_ops() << "\n";
@@ -270,7 +275,8 @@ int main(int argc, char** argv) {
     rns8_context* vector_ctx = nullptr;
     rns8_status status = rns8_create_context(args.device_id, &vector_options, &vector_ctx);
     if (status != RNS8_SUCCESS) {
-      std::cerr << "rns8_create_context(vector-to-RNS producer): " << rns8_status_string(status) << "\n";
+      std::cerr << "rns8_create_context(vector-to-RNS producer): " << rns8_status_string(status)
+                << "\n";
       return 1;
     }
 
@@ -282,7 +288,8 @@ int main(int argc, char** argv) {
     status = rns8_create_context(args.device_id, &direct_options, &direct_ctx);
     if (status != RNS8_SUCCESS) {
       rns8_destroy_context(vector_ctx);
-      std::cerr << "rns8_create_context(vector-to-RNS consumer): " << rns8_status_string(status) << "\n";
+      std::cerr << "rns8_create_context(vector-to-RNS consumer): " << rns8_status_string(status)
+                << "\n";
       return 1;
     }
 
@@ -293,32 +300,41 @@ int main(int argc, char** argv) {
     if (status != RNS8_SUCCESS) {
       rns8_destroy_context(direct_ctx);
       rns8_destroy_context(vector_ctx);
-      std::cerr << "rns8_get_device_info(vector-to-RNS consumer): " << rns8_status_string(status) << "\n";
+      std::cerr << "rns8_get_device_info(vector-to-RNS consumer): " << rns8_status_string(status)
+                << "\n";
       return 1;
     }
 
+    rns8::tools::DeviceIdentityWitness device_identity(info.device_id, info.hip_available != 0);
     BenchmarkResult result{};
     switch (args.semantics) {
-      case BenchSemantics::BoundedI64:
-        result = run_vector_to_rns_chain_i64(vector_ctx, direct_ctx, args, bound);
-        break;
-      case BenchSemantics::BoundedU64:
-        result = run_vector_to_rns_chain_u64(vector_ctx, direct_ctx, args, bound);
-        break;
-      case BenchSemantics::ExactWideSigned:
-      case BenchSemantics::ExactWideUnsigned:
-      case BenchSemantics::WrapU64Mod2_64:
-      case BenchSemantics::FiniteRingU8:
-      case BenchSemantics::FiniteFieldU8:
-        rns8_destroy_context(direct_ctx);
-        rns8_destroy_context(vector_ctx);
-        std::cerr << "--vector-to-rns-chain reached an unsupported semantic mode after argument validation\n";
-        return 1;
+    case BenchSemantics::BoundedI64:
+      result = run_vector_to_rns_chain_i64(vector_ctx, direct_ctx, args, bound);
+      break;
+    case BenchSemantics::BoundedU64:
+      result = run_vector_to_rns_chain_u64(vector_ctx, direct_ctx, args, bound);
+      break;
+    case BenchSemantics::ExactWideSigned:
+    case BenchSemantics::ExactWideUnsigned:
+    case BenchSemantics::WrapU64Mod2_64:
+    case BenchSemantics::FiniteRingU8:
+    case BenchSemantics::FiniteFieldU8:
+      rns8_destroy_context(direct_ctx);
+      rns8_destroy_context(vector_ctx);
+      std::cerr
+          << "--vector-to-rns-chain reached an unsupported semantic mode after argument validation\n";
+      return 1;
     }
+    device_identity.finish();
     rns8_destroy_context(direct_ctx);
     rns8_destroy_context(vector_ctx);
-    const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
-    print_json(args, info, result, effective_bound, cmdline);
+    const uint64_t effective_bound =
+        result.effective_bound_available ? result.effective_bound : bound;
+    json_output.emit([&](std::ostream& output) {
+      execution_environment.finish();
+      print_json(output, args, info, result, effective_bound, cmdline, device_identity,
+                 execution_environment, execution_host);
+    });
     return 0;
   }
 
@@ -343,47 +359,82 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  rns8::tools::DeviceIdentityWitness device_identity(info.device_id, info.hip_available != 0);
+  rns8::detail::hipblaslt_metadata_set_policy(
+      args.hipblaslt_metadata_per_block_control
+          ? rns8::detail::HipblasLtMetadataPolicy::per_block_control
+          : rns8::detail::HipblasLtMetadataPolicy::per_call);
+  rns8::detail::hipblaslt_metadata_counters_reset();
+  rns8::detail::hipblaslt_algorithm_observations_set_enabled(true);
+  const auto prepack_policy =
+      args.hipblaslt_prepack_policy == "none" ? rns8::detail::HipblasLtPrepackPolicy::none
+      : args.hipblaslt_prepack_policy == "a"  ? rns8::detail::HipblasLtPrepackPolicy::a
+      : args.hipblaslt_prepack_policy == "b"  ? rns8::detail::HipblasLtPrepackPolicy::b
+                                              : rns8::detail::HipblasLtPrepackPolicy::both;
+  (void)rns8::detail::hipblaslt_prepack_set_policy(prepack_policy);
+  rns8::detail::hipblaslt_prepack_counters_reset();
+  const auto packing_policy =
+      args.rocwmma_packing_policy == "direct-a" ? rns8::detail::RocwmmaPackingPolicy::direct_a
+      : args.rocwmma_packing_policy == "reuse"  ? rns8::detail::RocwmmaPackingPolicy::reuse
+      : args.rocwmma_packing_policy == "direct-a-reuse"
+          ? rns8::detail::RocwmmaPackingPolicy::direct_a_reuse
+          : rns8::detail::RocwmmaPackingPolicy::packed;
+  (void)rns8::detail::rocwmma_set_packing_policy(packing_policy);
+  rns8::detail::rocwmma_reset_packing_stats();
   rns8::detail::hip_direct_allocation_counters_reset();
   const auto allocation_before = rns8::detail::hip_direct_allocation_counters_snapshot();
   BenchmarkResult result{};
   switch (args.semantics) {
-    case BenchSemantics::BoundedI64:
-      result = run_bounded_i64(ctx, args, bound);
-      break;
-    case BenchSemantics::BoundedU64:
-      result = run_bounded_u64(ctx, args, bound);
-      break;
-    case BenchSemantics::ExactWideSigned:
-      result = run_exact_wide_signed(ctx, args, bound);
-      break;
-    case BenchSemantics::ExactWideUnsigned:
-      result = run_exact_wide_unsigned(ctx, args, bound);
-      break;
-    case BenchSemantics::WrapU64Mod2_64:
-      result = run_wrap_u64(ctx, args, bound);
-      break;
-    case BenchSemantics::FiniteRingU8:
-    case BenchSemantics::FiniteFieldU8:
-      result = run_finite_u8(ctx, args, bound);
-      break;
+  case BenchSemantics::BoundedI64:
+    result = run_bounded_i64(ctx, args, bound);
+    break;
+  case BenchSemantics::BoundedU64:
+    result = run_bounded_u64(ctx, args, bound);
+    break;
+  case BenchSemantics::ExactWideSigned:
+    result = run_exact_wide_signed(ctx, args, bound);
+    break;
+  case BenchSemantics::ExactWideUnsigned:
+    result = run_exact_wide_unsigned(ctx, args, bound);
+    break;
+  case BenchSemantics::WrapU64Mod2_64:
+    result = run_wrap_u64(ctx, args, bound);
+    break;
+  case BenchSemantics::FiniteRingU8:
+  case BenchSemantics::FiniteFieldU8:
+    result = run_finite_u8(ctx, args, bound);
+    break;
   }
   result.allocation_before = allocation_before;
   if (!result.allocation_after_repeats_available) {
+    result.prepack_after_repeats = rns8::detail::hipblaslt_prepack_counters_snapshot();
+    result.rocwmma_after_repeats = rns8::detail::rocwmma_packing_stats();
     result.allocation_after_repeats = rns8::detail::hip_direct_allocation_counters_snapshot();
     result.allocation_after_repeats_available = true;
   }
   result.allocation_tracking_available = true;
   if (!result.allocation_after_warmups_available) {
+    result.prepack_after_warmups = result.prepack_after_repeats;
+    result.rocwmma_after_warmups = result.rocwmma_after_repeats;
     result.allocation_after_warmups = result.allocation_after_repeats;
     result.allocation_after_warmups_available = true;
   }
+  device_identity.finish();
   rns8_destroy_context(ctx);
-  const uint64_t effective_bound = result.effective_bound_available ? result.effective_bound : bound;
+  const uint64_t effective_bound =
+      result.effective_bound_available ? result.effective_bound : bound;
   if (args.progress) {
     std::cerr << "rns8-bench complete: semantics=" << semantics_name(args.semantics)
               << " backend=" << selected_backend_name(args, info, &result)
               << " checksum=" << result.checksum << "\n";
   }
-  print_json(args, info, result, effective_bound, cmdline);
+  json_output.emit([&](std::ostream& output) {
+    execution_environment.finish();
+    print_json(output, args, info, result, effective_bound, cmdline, device_identity,
+               execution_environment, execution_host);
+  });
   return 0;
+} catch (const std::exception& error) {
+  std::cerr << "rns8-bench: " << error.what() << '\n';
+  return 1;
 }

@@ -1,0 +1,8 @@
+[
+  {"candidate":"complex_3m","m":32,"n":32,"k":32,"prefix":20,"group":1,"unsigned_inputs":false},
+  {"candidate":"complex_4m","m":32,"n":32,"k":32,"prefix":20,"group":1,"unsigned_inputs":false},
+  {"candidate":"complex_3m","m":1,"n":512,"k":512,"prefix":20,"group":1,"unsigned_inputs":false},
+  {"candidate":"complex_4m","m":1,"n":512,"k":512,"prefix":20,"group":1,"unsigned_inputs":false},
+  {"candidate":"complex_3m","m":512,"n":512,"k":512,"prefix":20,"group":1,"unsigned_inputs":false},
+  {"candidate":"complex_4m","m":512,"n":512,"k":512,"prefix":20,"group":1,"unsigned_inputs":false}
+]

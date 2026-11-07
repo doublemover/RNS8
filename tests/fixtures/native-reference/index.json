@@ -1,0 +1,78 @@
+{
+  "schema": "rns8_native_reference_fixtures_v1",
+  "format": "RNS8REF1 header + canonical little-endian uint64 words, gzip",
+  "provenance": {
+    "oracle": "boost_cpp_int_full_integer_reference",
+    "source_commit": "72c55c2a09c3affdc49f3da1c00b9d47b39ee5a3",
+    "source_dirty": true,
+    "generator_source_sha256": "9ea4d4f92fa15635e4ef80290fc2216b307172c50185142eb61e0b446b2bbbc8",
+    "generator_executable_sha256": "4651b540c94e07ff692e11483ff86c877f653dacc73bcbb7c02cf1d506e8ba58",
+    "compiler": "MSVC 19.51.36260.0",
+    "cases": [
+      {
+        "m": 512,
+        "n": 512,
+        "k": 512,
+        "semantics": "bounded-i64",
+        "seed": 3135,
+        "input_profile": "uniform-small",
+        "key": "1d2fb205f84aebc4c18ff81787dcadbf2dd172065524a3f4389e55677dd5e441",
+        "payload_sha256": "ef9507910829ec8102cd2e27073854e86726221f0b298ffd78d782ccb0b2a227",
+        "checked_cells": 262144,
+        "capture_sha256": "f72977d170ab994c793ada3e2ab5ba8ae5e859c6a3fc98108852608bb7b94c70"
+      },
+      {
+        "m": 1024,
+        "n": 1024,
+        "k": 1024,
+        "semantics": "bounded-i64",
+        "seed": 3135,
+        "input_profile": "uniform-small",
+        "key": "a98e8528ac4c81ccbeef32c203ceafee46c6ed985831fdffe8ae48bf8aaf45a9",
+        "payload_sha256": "6da18e7e56f3ba46895fc7f15b1573cba78989b8890a6f50ed261f9387318a5c",
+        "checked_cells": 1048576,
+        "capture_sha256": "5a69cb5284a4de24196a1c59e806c0df2fd318698c9b4cdfdc5df4c8a2d46804"
+      },
+      {
+        "m": 16,
+        "n": 17,
+        "k": 65537,
+        "semantics": "bounded-i64",
+        "seed": 3135,
+        "input_profile": "uniform-small",
+        "key": "c59747a89593339d4218aeb73c901204aaeaf732ea4fe65c14eb23652234763e",
+        "payload_sha256": "d0435a2bb9ef6c9366a618ce43f86e4584867c32e43f3c0b3b872c1457fd2447",
+        "checked_cells": 272,
+        "capture_sha256": "b149346a0f58863b3355109de9f744713c6e5a79f37cc67cddf9cb44b9ee4d2a"
+      }
+    ],
+    "cxx_standard": 17,
+    "date": "2026-10-27"
+  },
+  "fixtures": [
+    {
+      "key": "1d2fb205f84aebc4c18ff81787dcadbf2dd172065524a3f4389e55677dd5e441",
+      "cells": 262144,
+      "bytes": 2097296,
+      "sha256": "5d4f2868f3599973992572ba7a76b17bfe845997ef3376f0d370185b7fbe2805",
+      "compressed_bytes": 638877,
+      "compressed_sha256": "986f441e5daab00b709f594d36e14883695b43968b174ae47759f3abe3efc9c5"
+    },
+    {
+      "key": "a98e8528ac4c81ccbeef32c203ceafee46c6ed985831fdffe8ae48bf8aaf45a9",
+      "cells": 1048576,
+      "bytes": 8388752,
+      "sha256": "7526b518c8d8986c80716c6ecc3d48cc82b9f32725e2644c2e379acb3bd505e9",
+      "compressed_bytes": 2643126,
+      "compressed_sha256": "56235cc80a7ceb3b1ab1cffdbfe2a1572b4238105dc85e2536b7e31c29757d1c"
+    },
+    {
+      "key": "c59747a89593339d4218aeb73c901204aaeaf732ea4fe65c14eb23652234763e",
+      "cells": 272,
+      "bytes": 2320,
+      "sha256": "ff79199786902f2f9de533a2e23522726febc95b318134742c3c7b9f2ad124a1",
+      "compressed_bytes": 1037,
+      "compressed_sha256": "92925e59e7874fb18f734b9d61fefc6d457aab96eed14307c79c5ee260d67480"
+    }
+  ]
+}

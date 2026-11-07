@@ -1,0 +1,5 @@
+self-hosted-runner:
+  labels:
+    - gfx1100
+    - node24
+    - rns8-host-checks

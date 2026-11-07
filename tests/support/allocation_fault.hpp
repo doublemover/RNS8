@@ -18,5 +18,5 @@ void begin(std::size_t fail_at = std::numeric_limits<std::size_t>::max());
 Profile end() noexcept;
 std::size_t live_allocations() noexcept;
 
-}  // namespace rns8::test::allocation_fault
+} // namespace rns8::test::allocation_fault
 #endif

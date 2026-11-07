@@ -29,4 +29,4 @@ const char* bound_kind_name(const Args& args);
 const char* bound_kind_name(rns8_bound_kind bound_kind);
 const char* bound_mode_name(BoundMode mode);
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

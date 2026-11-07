@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "backend_hip_direct/hip_backend.hpp"
+#include "backend_amdgpu_builtins/amdgpu_builtins_backend.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
 
@@ -46,12 +47,12 @@ std::string context_target(rns8_context* ctx) {
 }
 
 bool sparse_runtime_target(const std::string& target) {
-  return target.rfind("gfx942", 0) == 0 || target.rfind("gfx1200", 0) == 0 || target.rfind("gfx1201", 0) == 0;
+  return target.rfind("gfx942", 0) == 0 || target.rfind("gfx1200", 0) == 0 ||
+         target.rfind("gfx1201", 0) == 0;
 }
 
-bool has_timing_label(
-    const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
-    const std::string& label) {
+bool has_timing_label(const std::vector<rns8::detail::hip_direct_timing_sample>& samples,
+                      const std::string& label) {
   for (const auto& sample : samples) {
     if (sample.label == label) {
       return true;
@@ -107,12 +108,8 @@ rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind ba
   return desc;
 }
 
-rns8_gemm_desc exact_wide_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    rns8_semantics semantics,
-    rns8_backend_kind backend) {
+rns8_gemm_desc exact_wide_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics,
+                               rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -153,7 +150,8 @@ rns8_matrix_desc exact_wide_matrix_desc(int64_t rows, int64_t cols, rns8_semanti
   return desc;
 }
 
-rns8_sparse_matrix_desc exact_wide_sparse_a_desc(int64_t rows, int64_t expanded_k, rns8_semantics semantics) {
+rns8_sparse_matrix_desc exact_wide_sparse_a_desc(int64_t rows, int64_t expanded_k,
+                                                 rns8_semantics semantics) {
   rns8_sparse_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -171,12 +169,9 @@ rns8_sparse_matrix_desc exact_wide_sparse_a_desc(int64_t rows, int64_t expanded_
   return desc;
 }
 
-rns8_sparse_matrix_desc bounded_sparse_a_desc(
-    int64_t rows,
-    int64_t expanded_k,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t max_prefix) {
+rns8_sparse_matrix_desc bounded_sparse_a_desc(int64_t rows, int64_t expanded_k,
+                                              rns8_semantics semantics, rns8_bound_kind bound_kind,
+                                              uint32_t max_prefix) {
   rns8_sparse_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -233,9 +228,9 @@ void require_same_u64(const std::vector<uint64_t>& expected, const std::vector<u
   }
 }
 
-}  // namespace
+} // namespace
 
-#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS && \
+#if defined(RNS8_ENABLE_AMDGPU_BUILTINS) && RNS8_ENABLE_AMDGPU_BUILTINS &&                         \
     defined(RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE) && RNS8_AMDGPU_BUILTIN_KERNELS_AVAILABLE
 
 TEST_CASE("AMDGPU builtin dense bounded RNS backend matches CPU") {
@@ -252,12 +247,14 @@ TEST_CASE("AMDGPU builtin dense bounded RNS backend matches CPU") {
   std::vector<int64_t> B(static_cast<std::size_t>(k * n));
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * k + col)] = static_cast<int64_t>((row * 3 + col * 5) % 9) - 4;
+      A[static_cast<std::size_t>(row * k + col)] =
+          static_cast<int64_t>((row * 3 + col * 5) % 9) - 4;
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<int64_t>((row * 7 + col * 11 + 1) % 9) - 4;
+      B[static_cast<std::size_t>(row * n + col)] =
+          static_cast<int64_t>((row * 7 + col * 11 + 1) % 9) - 4;
     }
   }
   std::vector<int64_t> cpu_out(static_cast<std::size_t>(m * n), 0);
@@ -265,7 +262,8 @@ TEST_CASE("AMDGPU builtin dense bounded RNS backend matches CPU") {
   auto cpu_desc = bounded_i64_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
   auto gpu_desc = bounded_i64_desc(m, n, k, RNS8_BACKEND_AMDGPU_BUILTINS);
 
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) ==
+          RNS8_SUCCESS);
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
   rns8_workspace* workspace = nullptr;
@@ -331,9 +329,8 @@ TEST_CASE("AMDGPU builtin dense bounded RNS backend handles tile and K tails") {
     auto cpu_desc = bounded_i64_desc(shape.m, shape.n, shape.k, RNS8_BACKEND_CPU_REFERENCE);
     auto gpu_desc = bounded_i64_desc(shape.m, shape.n, shape.k, RNS8_BACKEND_AMDGPU_BUILTINS);
 
-    REQUIRE(
-        rns8_gemm_i64_oneshot(
-            cpu, &cpu_desc, A.data(), shape.k, B.data(), shape.n, cpu_out.data(), shape.n) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), shape.k, B.data(), shape.n,
+                                  cpu_out.data(), shape.n) == RNS8_SUCCESS);
     rns8_plan* plan = nullptr;
     REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
     rns8_workspace* workspace = nullptr;
@@ -419,7 +416,8 @@ TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       CHECK(std::string(info.selected_kernel).rfind("amdgpu_builtin_", 0) == 0);
-      CHECK(std::string(info.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
+      CHECK(std::string(info.epilogue_mode) ==
+            "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
       CHECK(info.accumulator_uses_int32_inner_product == 1);
       CHECK(std::string(info.accumulator_type) == "int32");
     }
@@ -434,7 +432,8 @@ TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
     REQUIRE(rns8_pack_i64(ctx, b, signed_b.data(), n, 2) == RNS8_SUCCESS);
     REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
     rns8_destroy_matrix(c);
     rns8_destroy_matrix(b);
     rns8_destroy_matrix(a);
@@ -457,7 +456,8 @@ TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       CHECK(std::string(info.selected_kernel).rfind("amdgpu_builtin_", 0) == 0);
-      CHECK(std::string(info.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
+      CHECK(std::string(info.epilogue_mode) ==
+            "amdgpu_builtin_fused_i32_to_centered_residue_rns_output");
       CHECK(info.accumulator_uses_int32_inner_product == 1);
       CHECK(std::string(info.accumulator_type) == "int32");
     }
@@ -472,7 +472,8 @@ TEST_CASE("AMDGPU builtin dense exact-wide RNS backend matches CPU") {
     REQUIRE(rns8_pack_u64(ctx, b, unsigned_b.data(), n, 2) == RNS8_SUCCESS);
     REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), limb_ld,
+                                                  limb_count) == RNS8_SUCCESS);
     rns8_destroy_matrix(c);
     rns8_destroy_matrix(b);
     rns8_destroy_matrix(a);
@@ -504,12 +505,14 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend matches CPU") {
   std::vector<uint8_t> B(static_cast<std::size_t>(k * n));
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * k + col)] = static_cast<uint8_t>((row * 13 + col * 17) % 251);
+      A[static_cast<std::size_t>(row * k + col)] =
+          static_cast<uint8_t>((row * 13 + col * 17) % 251);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint8_t>((row * 19 + col * 23 + 3) % 251);
+      B[static_cast<std::size_t>(row * n + col)] =
+          static_cast<uint8_t>((row * 19 + col * 23 + 3) % 251);
     }
   }
   std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * n), 0);
@@ -517,8 +520,8 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend matches CPU") {
   auto cpu_desc = finite_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
   auto gpu_desc = finite_desc(m, n, k, RNS8_BACKEND_AMDGPU_BUILTINS);
 
-  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), k, B.data(), n, cpu_out.data(), n) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), k, B.data(), n,
+                                            cpu_out.data(), n) == RNS8_SUCCESS);
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
   rns8_workspace* workspace = nullptr;
@@ -547,7 +550,8 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend matches CPU") {
   rns8_destroy_context(cpu);
 }
 
-TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails", "[qualification][hip]") {
+TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails",
+          "[qualification][hip]") {
   if (!amdgpu_builtins_available()) {
     SKIP("AMDGPU builtin backend is not available on this device");
   }
@@ -561,12 +565,14 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails", "[q
   std::vector<uint8_t> B(static_cast<std::size_t>(k * n));
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * k + col)] = static_cast<uint8_t>((row * 17 + col * 19 + 5) % 251);
+      A[static_cast<std::size_t>(row * k + col)] =
+          static_cast<uint8_t>((row * 17 + col * 19 + 5) % 251);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint8_t>((row * 23 + col * 29 + 7) % 251);
+      B[static_cast<std::size_t>(row * n + col)] =
+          static_cast<uint8_t>((row * 23 + col * 29 + 7) % 251);
     }
   }
   std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * n), 0);
@@ -574,8 +580,8 @@ TEST_CASE("AMDGPU builtin dense finite u8 backend handles tile and K tails", "[q
   auto cpu_desc = finite_desc(m, n, k, RNS8_BACKEND_CPU_REFERENCE);
   auto gpu_desc = finite_desc(m, n, k, RNS8_BACKEND_AMDGPU_BUILTINS);
 
-  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), k, B.data(), n, cpu_out.data(), n) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), k, B.data(), n,
+                                            cpu_out.data(), n) == RNS8_SUCCESS);
   rns8_plan* plan = nullptr;
   REQUIRE(rns8_create_plan(amdgpu, &gpu_desc, &plan) == RNS8_SUCCESS);
   rns8_workspace* workspace = nullptr;
@@ -665,19 +671,17 @@ TEST_CASE("AMDGPU builtin explicit sparse-A bounded backend matches dense backen
     REQUIRE(rns8_pack_i64(amdgpu, dense_a, A.data(), k, 101) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_i64(amdgpu, dense_b, B.data(), n, 202) == RNS8_SUCCESS);
 
-    auto sparse_desc = bounded_sparse_a_desc(
-        m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS, RNS8_DEFAULT_BOUNDED_PREFIX);
+    auto sparse_desc = bounded_sparse_a_desc(m, k, RNS8_BOUNDED_I64, RNS8_BOUND_GLOBAL_MAX_ABS,
+                                             RNS8_DEFAULT_BOUNDED_PREFIX);
     rns8_sparse_matrix* sparse_a = nullptr;
     REQUIRE(rns8_create_sparse_matrix(amdgpu, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(
-                amdgpu,
-                sparse_a,
-                reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
-                cpu_a->desc.cols,
-                cpu_a->source_version) == RNS8_SUCCESS);
+                amdgpu, sparse_a, reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
+                cpu_a->desc.cols, cpu_a->source_version) == RNS8_SUCCESS);
 
     REQUIRE(rns8_gemm_rns(amdgpu, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) ==
+            RNS8_SUCCESS);
     std::vector<int64_t> dense_out(static_cast<std::size_t>(m * n), 0);
     std::vector<int64_t> sparse_out(static_cast<std::size_t>(m * n), 0);
     REQUIRE(rns8_export_i64(amdgpu, plan, dense_c, dense_out.data(), n) == RNS8_SUCCESS);
@@ -738,19 +742,17 @@ TEST_CASE("AMDGPU builtin explicit sparse-A bounded backend matches dense backen
     REQUIRE(rns8_pack_u64(amdgpu, dense_a, A.data(), k, 301) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_u64(amdgpu, dense_b, B.data(), n, 402) == RNS8_SUCCESS);
 
-    auto sparse_desc = bounded_sparse_a_desc(
-        m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED, RNS8_DEFAULT_BOUNDED_PREFIX);
+    auto sparse_desc = bounded_sparse_a_desc(m, k, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED,
+                                             RNS8_DEFAULT_BOUNDED_PREFIX);
     rns8_sparse_matrix* sparse_a = nullptr;
     REQUIRE(rns8_create_sparse_matrix(amdgpu, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(
-                amdgpu,
-                sparse_a,
-                reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
-                cpu_a->desc.cols,
-                cpu_a->source_version) == RNS8_SUCCESS);
+                amdgpu, sparse_a, reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
+                cpu_a->desc.cols, cpu_a->source_version) == RNS8_SUCCESS);
 
     REQUIRE(rns8_gemm_rns(amdgpu, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) ==
+            RNS8_SUCCESS);
     std::vector<uint64_t> dense_out(static_cast<std::size_t>(m * n), 0);
     std::vector<uint64_t> sparse_out(static_cast<std::size_t>(m * n), 0);
     REQUIRE(rns8_export_u64(amdgpu, plan, dense_c, dense_out.data(), n) == RNS8_SUCCESS);
@@ -800,7 +802,8 @@ TEST_CASE("AMDGPU builtin explicit sparse-A finite u8 backend matches dense back
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint8_t>((row * 29 + col * 31 + 5) % 251);
+      B[static_cast<std::size_t>(row * n + col)] =
+          static_cast<uint8_t>((row * 29 + col * 31 + 5) % 251);
     }
   }
 
@@ -849,8 +852,10 @@ TEST_CASE("AMDGPU builtin explicit sparse-A finite u8 backend matches dense back
   CHECK(has_timing_label(sparse_pack_events, "sparse_a_values_h2d"));
   CHECK(has_timing_label(sparse_pack_events, "sparse_a_indices_h2d"));
 
-  REQUIRE(rns8_gemm_finite_u8(amdgpu, plan, 251, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_u8_sparse_a(amdgpu, plan, 251, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8(amdgpu, plan, 251, dense_a, dense_b, dense_c, workspace) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8_sparse_a(amdgpu, plan, 251, sparse_a, dense_b, sparse_c, workspace) ==
+          RNS8_SUCCESS);
   std::vector<uint8_t> dense_out(static_cast<std::size_t>(m * n), 0);
   std::vector<uint8_t> sparse_out(static_cast<std::size_t>(m * n), 0);
   REQUIRE(rns8_export_finite_u8(amdgpu, plan, 251, dense_c, dense_out.data(), n) == RNS8_SUCCESS);
@@ -933,20 +938,18 @@ TEST_CASE("AMDGPU builtin explicit sparse-A exact-wide backend matches dense bac
     rns8_sparse_matrix* sparse_a = nullptr;
     REQUIRE(rns8_create_sparse_matrix(amdgpu, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(
-                amdgpu,
-                sparse_a,
-                reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
-                cpu_a->desc.cols,
-                cpu_a->source_version) == RNS8_SUCCESS);
+                amdgpu, sparse_a, reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
+                cpu_a->desc.cols, cpu_a->source_version) == RNS8_SUCCESS);
 
     REQUIRE(rns8_gemm_rns(amdgpu, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) ==
+            RNS8_SUCCESS);
     std::vector<uint64_t> dense_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
     std::vector<uint64_t> sparse_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_signed_limbs(amdgpu, plan, dense_c, dense_limbs.data(), limb_ld, limb_count) ==
-            RNS8_SUCCESS);
-    REQUIRE(rns8_export_exact_wide_signed_limbs(amdgpu, plan, sparse_c, sparse_limbs.data(), limb_ld, limb_count) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(amdgpu, plan, dense_c, dense_limbs.data(), limb_ld,
+                                                limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(amdgpu, plan, sparse_c, sparse_limbs.data(),
+                                                limb_ld, limb_count) == RNS8_SUCCESS);
     CHECK(sparse_limbs == dense_limbs);
 
     rns8_destroy_sparse_matrix(sparse_a);
@@ -1006,20 +1009,18 @@ TEST_CASE("AMDGPU builtin explicit sparse-A exact-wide backend matches dense bac
     rns8_sparse_matrix* sparse_a = nullptr;
     REQUIRE(rns8_create_sparse_matrix(amdgpu, &sparse_desc, &sparse_a) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_sparse_a_4_to_2_matrix_u8(
-                amdgpu,
-                sparse_a,
-                reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
-                cpu_a->desc.cols,
-                cpu_a->source_version) == RNS8_SUCCESS);
+                amdgpu, sparse_a, reinterpret_cast<const uint8_t*>(cpu_a->residues.data()),
+                cpu_a->desc.cols, cpu_a->source_version) == RNS8_SUCCESS);
 
     REQUIRE(rns8_gemm_rns(amdgpu, plan, dense_a, dense_b, dense_c, workspace) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns_sparse_a(amdgpu, plan, sparse_a, dense_b, sparse_c, workspace) ==
+            RNS8_SUCCESS);
     std::vector<uint64_t> dense_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
     std::vector<uint64_t> sparse_limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(amdgpu, plan, dense_c, dense_limbs.data(), limb_ld, limb_count) ==
-            RNS8_SUCCESS);
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(amdgpu, plan, sparse_c, sparse_limbs.data(), limb_ld, limb_count) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(amdgpu, plan, dense_c, dense_limbs.data(),
+                                                  limb_ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(amdgpu, plan, sparse_c, sparse_limbs.data(),
+                                                  limb_ld, limb_count) == RNS8_SUCCESS);
     CHECK(sparse_limbs == dense_limbs);
 
     rns8_destroy_sparse_matrix(sparse_a);
@@ -1037,6 +1038,86 @@ TEST_CASE("AMDGPU builtin explicit sparse-A exact-wide backend matches dense bac
 
   rns8_destroy_context(amdgpu);
   rns8_destroy_context(cpu);
+}
+
+TEST_CASE("indexed matrix batches preserve explicit compact moduli batch strides and padding",
+          "[hip][indexed][differential]") {
+  if (!amdgpu_builtins_available())
+    SKIP("compiled matrix target required");
+  using namespace rns8::detail;
+  using boost::multiprecision::cpp_int;
+  std::unique_ptr<rns8_context, decltype(&rns8_destroy_context)> ctx(
+      require_context(RNS8_BACKEND_AMDGPU_BUILTINS), &rns8_destroy_context);
+  const uint16_t moduli[]{251, 256, 239, 255, 253, 233};
+  IndexedModulusPlanes planes;
+  REQUIRE(partition_modulus_planes(
+      6, moduli, [](uint32_t q, uint32_t) { return q == 251 || q == 239 || q == 233; }, planes));
+  for (bool asynchronous : {false, true})
+    for (bool long_k : {false, true}) {
+      const int64_t m = long_k ? 1 : 3, n = long_k ? 1 : 5, k = long_k ? 65536 : 17, lda = k + 2,
+                    ldb = n + 3, ldc = n + 2;
+      const uint32_t batches = long_k ? 2 : 48;
+      const uint64_t count = uint64_t(batches) * planes.eligible_count;
+      std::vector<int8_t> a(size_t(count * m * lda), 85), b(size_t(count * k * ldb), 85),
+          expected(size_t(count * m * ldc), 77);
+      for (uint64_t matrix = 0; matrix < count; ++matrix) {
+        const int q = planes.moduli[matrix % planes.eligible_count];
+        const auto center = [&](int64_t value) {
+          value %= q;
+          return int8_t(value >= (q + 1) / 2 ? value - q : value);
+        };
+        for (int64_t row = 0; row < m; ++row)
+          for (int64_t inner = 0; inner < k; ++inner)
+            a[size_t((matrix * m + row) * lda + inner)] =
+                center(int64_t(matrix) * 19 + row * 7 + inner * 13);
+        for (int64_t inner = 0; inner < k; ++inner)
+          for (int64_t col = 0; col < n; ++col)
+            b[size_t((matrix * k + inner) * ldb + col)] =
+                center(int64_t(matrix) * 17 + inner * 11 + col * 23);
+        for (int64_t row = 0; row < m; ++row)
+          for (int64_t col = 0; col < n; ++col) {
+            cpp_int value = 0;
+            for (int64_t inner = 0; inner < k; ++inner)
+              value += cpp_int(a[size_t((matrix * m + row) * lda + inner)]) *
+                       b[size_t((matrix * k + inner) * ldb + col)];
+            value %= q;
+            if (value < 0)
+              value += q;
+            int result = value.convert_to<int>();
+            if (result >= (q + 1) / 2)
+              result -= q;
+            expected[size_t((matrix * m + row) * ldc + col)] = int8_t(result);
+          }
+      }
+      hip_unique_stream stream;
+      if (asynchronous)
+        REQUIRE(stream.create_non_blocking() == hipSuccess);
+      hip_direct_device_buffer da, db, dc;
+      const int device = ctx->device_id;
+      REQUIRE(da.allocate(device, a.size()) == RNS8_SUCCESS);
+      REQUIRE(db.allocate(device, b.size()) == RNS8_SUCCESS);
+      REQUIRE(dc.allocate(device, expected.size()) == RNS8_SUCCESS);
+      da.mark_pending();
+      db.mark_pending();
+      dc.mark_pending();
+      REQUIRE(hip_direct_copy_host_to_device(device, da.get(), a.data(), a.size()) == RNS8_SUCCESS);
+      REQUIRE(hip_direct_copy_host_to_device(device, db.get(), b.data(), b.size()) == RNS8_SUCCESS);
+      const std::vector<int8_t> initial(expected.size(), 77);
+      REQUIRE(hip_direct_copy_host_to_device(device, dc.get(), initial.data(), initial.size()) ==
+              RNS8_SUCCESS);
+      REQUIRE(amdgpu_builtins_gemm_indexed_batch_device(device, da.get(), db.get(), dc.get(), m, n,
+                                                        k, lda, ldb, ldc, planes, batches,
+                                                        stream.get()) == RNS8_SUCCESS);
+      if (asynchronous)
+        REQUIRE(hipStreamSynchronize(stream.get()) == hipSuccess);
+      da.mark_completed();
+      db.mark_completed();
+      dc.mark_completed();
+      std::vector<int8_t> actual(expected.size());
+      REQUIRE(hip_direct_copy_device_to_host(device, actual.data(), dc.get(), actual.size()) ==
+              RNS8_SUCCESS);
+      CHECK(actual == expected);
+    }
 }
 
 #endif

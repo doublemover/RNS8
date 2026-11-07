@@ -6,6 +6,52 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "backend_ck/implementation_contract.hpp"
+
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+TEST_CASE("CK input signedness preserves negative residues across K slab boundaries",
+          "[ck][hip][signedness]") {
+  rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
+  options.requested_backend = RNS8_BACKEND_CK;
+  rns8_context* context = nullptr;
+  if (rns8_create_context(0, &options, &context) != RNS8_SUCCESS)
+    SKIP("CK device unavailable");
+  constexpr int64_t m = 3, n = 5, ldc = n + 2;
+  for (uint16_t modulus : {uint16_t{127}, uint16_t{199}, uint16_t{241}, uint16_t{243},
+                           uint16_t{251}, uint16_t{253}, uint16_t{255}, uint16_t{256}})
+    for (int64_t k : {int64_t{64}, int64_t{65536}, int64_t{65537}}) {
+      CAPTURE(modulus, k);
+      const int64_t lda = k + 3, ldb = n + 3;
+      std::vector<uint8_t> a(size_t(m * lda), 0xa5), b(size_t(k * ldb), 0x5a),
+          c(size_t(m * ldc), 0xcc);
+      for (int64_t row = 0; row < m; ++row)
+        for (int64_t q = 0; q < k; ++q)
+          a[size_t(row * lda + q)] = uint8_t(modulus - 1);
+      for (int64_t q = 0; q < k; ++q)
+        for (int64_t col = 0; col < n; ++col)
+          b[size_t(q * ldb + col)] = uint8_t(modulus - 2);
+      rns8_gemm_desc desc{};
+      desc.struct_size = sizeof(desc);
+      desc.abi_version = RNS8_ABI_VERSION;
+      desc.semantics = RNS8_FINITE_RING_U8;
+      desc.bound_kind = RNS8_BOUND_NONE;
+      desc.requested_backend = RNS8_BACKEND_CK;
+      desc.m = m;
+      desc.n = n;
+      desc.k = k;
+      desc.finite_modulus = modulus;
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(context, &desc, modulus, a.data(), lda, b.data(),
+                                               ldb, c.data(), ldc) == RNS8_SUCCESS);
+      const auto exact = uint8_t((uint64_t(k) * (modulus - 1) * (modulus - 2)) % modulus);
+      for (int64_t row = 0; row < m; ++row)
+        for (int64_t col = 0; col < ldc; ++col)
+          CHECK(c[size_t(row * ldc + col)] == (col < n ? exact : uint8_t{0xcc}));
+    }
+  rns8_destroy_context(context);
+}
+#endif
 
 namespace {
 
@@ -20,7 +66,8 @@ rns8_context* create_backend_context(rns8_backend_kind backend) {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = backend;
   rns8_context* ctx = nullptr;
-  const int device_id = backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
+  const int device_id =
+      backend == RNS8_BACKEND_CPU_REFERENCE ? -1 : default_visible_hip_test_device();
   REQUIRE(rns8_create_context(device_id, &options, &ctx) == RNS8_SUCCESS);
   return ctx;
 }
@@ -36,7 +83,8 @@ bool ck_available() {
   return status == RNS8_SUCCESS;
 }
 
-rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -50,7 +98,8 @@ rns8_gemm_desc bounded_i64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
   return desc;
 }
 
-rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -64,12 +113,8 @@ rns8_gemm_desc bounded_u64_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
   return desc;
 }
 
-rns8_gemm_desc per_tile_i64_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& bounds,
-    rns8_backend_kind backend) {
+rns8_gemm_desc per_tile_i64_desc(int64_t m, int64_t n, int64_t k,
+                                 const std::vector<uint64_t>& bounds, rns8_backend_kind backend) {
   rns8_gemm_desc desc = bounded_i64_desc(m, n, k, 0, backend);
   desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
   desc.tile_m = 64;
@@ -79,13 +124,8 @@ rns8_gemm_desc per_tile_i64_desc(
   return desc;
 }
 
-rns8_gemm_desc finite_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    rns8_semantics semantics,
-    rns8_backend_kind backend,
-    uint16_t modulus = 0) {
+rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics,
+                           rns8_backend_kind backend, uint16_t modulus = 0) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -128,12 +168,8 @@ rns8_gemm_desc exact_unsigned_desc(int64_t m, int64_t n, int64_t k, rns8_backend
   return desc;
 }
 
-rns8_matrix_desc matrix_desc(
-    int64_t rows,
-    int64_t cols,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t prefix = 0) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                             rns8_bound_kind bound_kind, uint32_t prefix = 0) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -173,7 +209,7 @@ void require_same_u8(const std::vector<uint8_t>& expected, const std::vector<uin
 }
 #endif
 
-}  // namespace
+} // namespace
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
 TEST_CASE("CK fused bounded RNS backend matches CPU and direct HIP") {
@@ -207,9 +243,12 @@ TEST_CASE("CK fused bounded RNS backend matches CPU and direct HIP") {
   auto hip_desc = bounded_i64_desc(m, n, k, 1000000, RNS8_BACKEND_HIP_DIRECT);
   auto ck_desc = bounded_i64_desc(m, n, k, 1000000, RNS8_BACKEND_CK);
 
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) ==
+          RNS8_SUCCESS);
   require_same_i64(cpu_out, hip_out);
   require_same_i64(cpu_out, ck_out);
 
@@ -269,9 +308,12 @@ TEST_CASE("CK fixed-prefix bounded RNS covers non-hot default moduli") {
   auto hip_desc = make_desc(RNS8_BACKEND_HIP_DIRECT);
   auto ck_desc = make_desc(RNS8_BACKEND_CK);
 
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) ==
+          RNS8_SUCCESS);
   require_same_i64(cpu_out, hip_out);
   require_same_i64(cpu_out, ck_out);
 
@@ -312,9 +354,12 @@ TEST_CASE("CK fused adaptive bounded i64 schedule matches CPU and direct HIP") {
   auto hip_desc = per_tile_i64_desc(m, n, k, bounds, RNS8_BACKEND_HIP_DIRECT);
   auto ck_desc = per_tile_i64_desc(m, n, k, bounds, RNS8_BACKEND_CK);
 
-  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(cpu, &cpu_desc, A.data(), k, B.data(), n, cpu_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(hip, &hip_desc, A.data(), k, B.data(), n, hip_out.data(), n) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ck, &ck_desc, A.data(), k, B.data(), n, ck_out.data(), n) ==
+          RNS8_SUCCESS);
   require_same_i64(cpu_out, hip_out);
   require_same_i64(cpu_out, ck_out);
 
@@ -362,9 +407,8 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_CK) {
-      CHECK(
-          std::string(info.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+      CHECK(std::string(info.selected_kernel) ==
+            rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
       CHECK(info.workspace_required_bytes > 0);
       CHECK(info.accumulator_uses_int32_inner_product == 1);
@@ -374,9 +418,12 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
       CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
     }
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
-    auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-    auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto a_desc =
+        matrix_desc(m, k, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto b_desc =
+        matrix_desc(k, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto c_desc =
+        matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
     REQUIRE(rns8_create_matrix(ctx, &a_desc, &a) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(ctx, &b_desc, &b) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c) == RNS8_SUCCESS);
@@ -384,7 +431,8 @@ TEST_CASE("CK exact-wide RNS output matches CPU and direct HIP limbs") {
     REQUIRE(rns8_pack_i64(ctx, b, B.data(), n, 2) == RNS8_SUCCESS);
     REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_signed_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) ==
+            RNS8_SUCCESS);
     rns8_destroy_matrix(c);
     rns8_destroy_matrix(b);
     rns8_destroy_matrix(a);
@@ -445,15 +493,17 @@ TEST_CASE("CK exact-wide unsigned RNS output matches CPU and direct HIP limbs") 
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     if (backend == RNS8_BACKEND_CK) {
-      CHECK(
-          std::string(info.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+      CHECK(std::string(info.selected_kernel) ==
+            rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_rns_output");
     }
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
-    auto a_desc = matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-    auto b_desc = matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
-    auto c_desc = matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto a_desc =
+        matrix_desc(m, k, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto b_desc =
+        matrix_desc(k, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
+    auto c_desc =
+        matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED, RNS8_BOUND_NONE, RNS8_MAX_SUPPORTED_PREFIX);
     REQUIRE(rns8_create_matrix(ctx, &a_desc, &a) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(ctx, &b_desc, &b) == RNS8_SUCCESS);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c) == RNS8_SUCCESS);
@@ -461,7 +511,8 @@ TEST_CASE("CK exact-wide unsigned RNS output matches CPU and direct HIP limbs") 
     REQUIRE(rns8_pack_u64(ctx, b, B.data(), n, 2) == RNS8_SUCCESS);
     REQUIRE(rns8_gemm_rns(ctx, plan, a, b, c, workspace) == RNS8_SUCCESS);
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n * limb_count), 0);
-    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), limb_ld, limb_count) == RNS8_SUCCESS);
+    REQUIRE(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c, limbs.data(), limb_ld,
+                                                  limb_count) == RNS8_SUCCESS);
     rns8_destroy_matrix(c);
     rns8_destroy_matrix(b);
     rns8_destroy_matrix(a);
@@ -499,12 +550,14 @@ TEST_CASE("CK finite u8 backend matches CPU and direct HIP across padded strides
   std::vector<uint8_t> B(static_cast<std::size_t>(k * ldb), 0x5a);
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * lda + col)] = static_cast<uint8_t>((row * 17 + col * 23) % 251);
+      A[static_cast<std::size_t>(row * lda + col)] =
+          static_cast<uint8_t>((row * 17 + col * 23) % 251);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * ldb + col)] = static_cast<uint8_t>((row * 29 + col * 31 + 7) % 251);
+      B[static_cast<std::size_t>(row * ldb + col)] =
+          static_cast<uint8_t>((row * 29 + col * 31 + 7) % 251);
     }
   }
   std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * ldc), 0xcc);
@@ -514,12 +567,12 @@ TEST_CASE("CK finite u8 backend matches CPU and direct HIP across padded strides
   auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_HIP_DIRECT);
   auto ck_desc = finite_desc(m, n, k, RNS8_FINITE_FIELD_U8, RNS8_BACKEND_CK);
 
-  REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-              cpu, &cpu_desc, 251, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-              hip, &hip_desc, 251, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-              ck, &ck_desc, 251, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, 251, A.data(), lda, B.data(), ldb,
+                                            cpu_out.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(hip, &hip_desc, 251, A.data(), lda, B.data(), ldb,
+                                            hip_out.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_field_u8_oneshot(ck, &ck_desc, 251, A.data(), lda, B.data(), ldb,
+                                            ck_out.data(), ldc) == RNS8_SUCCESS);
   require_same_u8(cpu_out, hip_out);
   require_same_u8(cpu_out, ck_out);
 
@@ -575,19 +628,21 @@ TEST_CASE("CK finite u8 generic byte moduli match CPU and direct HIP") {
     auto hip_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_HIP_DIRECT, item.modulus);
     auto ck_desc = finite_desc(m, n, k, item.semantics, RNS8_BACKEND_CK, item.modulus);
     if (item.semantics == RNS8_FINITE_FIELD_U8) {
-      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
-      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
-      REQUIRE(rns8_gemm_finite_field_u8_oneshot(
-                  ck, &ck_desc, item.modulus, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(cpu, &cpu_desc, item.modulus, A.data(), lda,
+                                                B.data(), ldb, cpu_out.data(),
+                                                ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(hip, &hip_desc, item.modulus, A.data(), lda,
+                                                B.data(), ldb, hip_out.data(),
+                                                ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_field_u8_oneshot(ck, &ck_desc, item.modulus, A.data(), lda, B.data(),
+                                                ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
     } else {
-      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-                  cpu, &cpu_desc, item.modulus, A.data(), lda, B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
-      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-                  hip, &hip_desc, item.modulus, A.data(), lda, B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
-      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-                  ck, &ck_desc, item.modulus, A.data(), lda, B.data(), ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, item.modulus, A.data(), lda,
+                                               B.data(), ldb, cpu_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, item.modulus, A.data(), lda,
+                                               B.data(), ldb, hip_out.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ck, &ck_desc, item.modulus, A.data(), lda, B.data(),
+                                               ldb, ck_out.data(), ldc) == RNS8_SUCCESS);
     }
     require_same_u8(cpu_out, hip_out);
     require_same_u8(cpu_out, ck_out);
@@ -614,12 +669,14 @@ TEST_CASE("CK finite u8 mod253 handles large generic reducer cases") {
   std::vector<uint8_t> B(static_cast<std::size_t>(k * n), 0);
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < k; ++col) {
-      A[static_cast<std::size_t>(row * k + col)] = static_cast<uint8_t>((row * 67 + col * 131 + 29) % modulus);
+      A[static_cast<std::size_t>(row * k + col)] =
+          static_cast<uint8_t>((row * 67 + col * 131 + 29) % modulus);
     }
   }
   for (int64_t row = 0; row < k; ++row) {
     for (int64_t col = 0; col < n; ++col) {
-      B[static_cast<std::size_t>(row * n + col)] = static_cast<uint8_t>((row * 193 + col * 47 + 83) % modulus);
+      B[static_cast<std::size_t>(row * n + col)] =
+          static_cast<uint8_t>((row * 193 + col * 47 + 83) % modulus);
     }
   }
   std::vector<uint8_t> cpu_out(static_cast<std::size_t>(m * n), 0);
@@ -629,12 +686,12 @@ TEST_CASE("CK finite u8 mod253 handles large generic reducer cases") {
   auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
   auto ck_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CK, modulus);
 
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-              cpu, &cpu_desc, modulus, A.data(), k, B.data(), n, cpu_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-              hip, &hip_desc, modulus, A.data(), k, B.data(), n, hip_out.data(), n) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(
-              ck, &ck_desc, modulus, A.data(), k, B.data(), n, ck_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, modulus, A.data(), k, B.data(), n,
+                                           cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, modulus, A.data(), k, B.data(), n,
+                                           hip_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ck, &ck_desc, modulus, A.data(), k, B.data(), n,
+                                           ck_out.data(), n) == RNS8_SUCCESS);
   require_same_u8(cpu_out, hip_out);
   require_same_u8(cpu_out, ck_out);
 
@@ -652,12 +709,12 @@ TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
   struct Case {
     rns8_semantics semantics;
     uint16_t modulus;
-    const char* selected_kernel;
+    std::string selected_kernel;
   };
   const Case cases[] = {
-      {RNS8_FINITE_FIELD_U8, 251, "ck_wmma_cshuffle_finite_u8_mod251_centered_epilogue_v2"},
-      {RNS8_FINITE_RING_U8, 255, "ck_wmma_cshuffle_finite_u8_mod255_centered_epilogue_v2"},
-      {RNS8_FINITE_RING_U8, 256, "ck_wmma_cshuffle_finite_u8_mod256_centered_epilogue_v2"},
+      {RNS8_FINITE_FIELD_U8, 251, rns8::detail::compiled_ck_implementation().selected_kernel(251)},
+      {RNS8_FINITE_RING_U8, 255, rns8::detail::compiled_ck_implementation().selected_kernel(255)},
+      {RNS8_FINITE_RING_U8, 256, rns8::detail::compiled_ck_implementation().selected_kernel(256)},
   };
   for (const auto& item : cases) {
     auto desc = finite_desc(64, 64, 64, item.semantics, RNS8_BACKEND_CK, item.modulus);
@@ -668,7 +725,8 @@ TEST_CASE("CK finite u8 common moduli report specialized reducer kernels") {
     info.abi_version = RNS8_ABI_VERSION;
     REQUIRE(rns8_get_plan_backend_info(plan, &info) == RNS8_SUCCESS);
     CHECK(std::string(info.selected_kernel) == item.selected_kernel);
-    CHECK(std::string(info.epilogue_mode) == "ck_fused_i32_to_centered_residue_then_canonical_u8_export");
+    CHECK(std::string(info.epilogue_mode) ==
+          "ck_fused_i32_to_centered_residue_then_canonical_u8_export");
     rns8_destroy_plan(plan);
   }
   rns8_destroy_context(ck);
@@ -707,12 +765,12 @@ TEST_CASE("CK finite u8 K-split preserves centered accumulation") {
   auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, 256);
   auto ck_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CK, 256);
 
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), n, cpu_out.data(), n) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, 256, A.data(), k, B.data(), n, hip_out.data(), n) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ck, &ck_desc, 256, A.data(), k, B.data(), n, ck_out.data(), n) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), n,
+                                           cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, 256, A.data(), k, B.data(), n,
+                                           hip_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ck, &ck_desc, 256, A.data(), k, B.data(), n,
+                                           ck_out.data(), n) == RNS8_SUCCESS);
   require_same_u8(cpu_out, hip_out);
   require_same_u8(cpu_out, ck_out);
 

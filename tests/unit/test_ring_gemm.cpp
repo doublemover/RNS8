@@ -7,22 +7,17 @@
 
 namespace {
 
-int8_t exact_cell_mod(
-    const std::vector<int8_t>& A,
-    const std::vector<int8_t>& B,
-    int64_t n,
-    int64_t k,
-    int64_t row,
-    int64_t col,
-    uint16_t modulus) {
+int8_t exact_cell_mod(const std::vector<int8_t>& A, const std::vector<int8_t>& B, int64_t n,
+                      int64_t k, int64_t row, int64_t col, uint16_t modulus) {
   boost::multiprecision::cpp_int acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
-    acc += boost::multiprecision::cpp_int(A[row * k + kk]) * boost::multiprecision::cpp_int(B[kk * n + col]);
+    acc += boost::multiprecision::cpp_int(A[row * k + kk]) *
+           boost::multiprecision::cpp_int(B[kk * n + col]);
   }
   return rns8::detail::centered_residue(acc, modulus);
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("scalar ring GEMM handles prime and composite moduli") {
   const int64_t m = 2;
@@ -51,4 +46,3 @@ TEST_CASE("scalar ring GEMM splits K above the int32 safe block") {
   boost::multiprecision::cpp_int expected = boost::multiprecision::cpp_int(127) * 127 * k;
   CHECK(C[0] == rns8::detail::centered_residue(expected, 256));
 }
-

@@ -1,0 +1,191 @@
+"""Source and loader controls for ordinary, independently owned contract cases."""
+
+from __future__ import annotations
+
+import ast
+import importlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+from python_test_inventory import cases
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class PythonCaseStructure(unittest.TestCase):
+    def test_production_schema_namespaces_are_explicit_and_import_in_fresh_processes(self):
+        paths = sorted((ROOT / "tools/benchmark_schema").glob("*.py"))
+        self.assertGreater(len(paths), 10)
+        for path in paths:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    self.assertFalse(any(alias.name == "*" for alias in node.names), str(path))
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    self.assertNotIn(node.func.id, ("globals", "exec", "eval"), str(path))
+        for name in (
+            "semantic_wrap64",
+            "semantic_finite",
+            "semantic_exact_wide",
+            "semantic_bounded",
+            "gpu_event_validation",
+            "reuse_timing",
+            "core",
+        ):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import importlib,sys; importlib.import_module(sys.argv[1])",
+                    "benchmark_schema." + name,
+                ],
+                cwd=ROOT / "tools",
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_dependency_modules_have_explicit_owner_imports(self):
+        paths = list((ROOT / "tools/check_dependencies_lib").glob("*.py"))
+        paths.append(ROOT / "tools/check_dependencies.py")
+        self.assertGreater(len(paths), 5)
+        for path in paths:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    self.assertNotIn("*", {alias.name for alias in node.names}, str(path))
+        for name in ("system", "discovery", "accelerators", "readiness", "report", "cli"):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import importlib,sys; importlib.import_module(sys.argv[1])",
+                    "check_dependencies_lib." + name,
+                ],
+                cwd=ROOT / "tools",
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_every_migrated_case_retains_assertions_and_loads_independently(self):
+        inventory = json.loads((ROOT / "metadata/python-contract-case-inventory.json").read_text())
+        self.assertEqual(inventory["schema"], "rns8_python_contract_case_inventory_v1")
+        self.assertEqual(len(inventory["cases"]), 11)
+        identifiers = set()
+        for row in inventory["cases"]:
+            path = ROOT / "tools" / (row["module"] + ".py")
+            source = ast.parse(path.read_text())
+            self.assertGreaterEqual(
+                sum(isinstance(node, ast.Assert) for node in ast.walk(source)),
+                row.get("minimum_direct_assertions", row["original_assertions"]),
+            )
+            references = {node.id for node in ast.walk(source) if isinstance(node, ast.Name)}
+            self.assertTrue(set(row.get("contract_helpers", [])).issubset(references))
+            module = importlib.import_module(row["module"])
+            suite = unittest.defaultTestLoader.loadTestsFromModule(module)
+            loaded = [test.id() for test in cases(suite)]
+            self.assertTrue(loaded)
+            self.assertEqual(len(loaded), len(set(loaded)))
+            self.assertTrue(all(name.startswith(module.__name__ + ".") for name in loaded))
+            cls, method = row["case"].split(".")
+            identifier = getattr(module, cls)(method).id()
+            self.assertIn(identifier, loaded)
+            for control in row.get("replacement_controls", []):
+                tree = ast.parse((ROOT / "tools" / (control["module"] + ".py")).read_text())
+                owner, method_name = control["case"].split(".")
+                cls_node = next(
+                    node
+                    for node in tree.body
+                    if isinstance(node, ast.ClassDef) and node.name == owner
+                )
+                method_node = next(
+                    node
+                    for node in cls_node.body
+                    if isinstance(node, ast.FunctionDef) and node.name == method_name
+                )
+                self.assertTrue(
+                    any(
+                        isinstance(node, ast.Assert)
+                        or (
+                            isinstance(node, ast.Call)
+                            and isinstance(node.func, ast.Attribute)
+                            and node.func.attr.startswith("assert")
+                        )
+                        for node in ast.walk(method_node)
+                    )
+                )
+                self.assertIn(control["ctest"], (ROOT / "cmake/rns8_tests.cmake").read_text())
+            self.assertNotIn(identifier, identifiers)
+            identifiers.add(identifier)
+        self.assertEqual(len(identifiers), 11)
+
+    def test_migrated_sources_have_no_dynamic_execution_or_wildcard_globals(self):
+        paths = list((ROOT / "tools").glob("test_benchmark_schema*.py"))
+        paths += list((ROOT / "tools").glob("test_benchmark_sweep*.py"))
+        for path in paths:
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    self.assertNotIn(node.func.id, {"exec", "eval"}, str(path))
+                if isinstance(node, ast.ImportFrom):
+                    self.assertNotIn("*", {name.name for name in node.names}, str(path))
+                    self.assertNotIn(
+                        node.module,
+                        {
+                            "test_benchmark_schema",
+                            "test_benchmark_sweep",
+                            "test_benchmark_schema_support",
+                        },
+                        str(path),
+                    )
+
+    def test_fixture_import_graph_is_acyclic(self):
+        paths = list((ROOT / "tools").glob("test_benchmark_schema_support_*.py"))
+        names = {path.stem for path in paths}
+        graph = {
+            path.stem: {
+                node.module
+                for node in ast.walk(ast.parse(path.read_text()))
+                if isinstance(node, ast.ImportFrom) and node.module in names
+            }
+            for path in paths
+        }
+        visited, active = set(), set()
+
+        def visit(name):
+            self.assertNotIn(name, active, "fixture dependency cycle: " + name)
+            if name in visited:
+                return
+            active.add(name)
+            for dependency in graph[name]:
+                visit(dependency)
+            active.remove(name)
+            visited.add(name)
+
+        for name in graph:
+            visit(name)
+
+    def test_sweep_cases_have_no_waived_behavioral_checks(self):
+        for path in (ROOT / "tools").glob("test_benchmark_sweep_case_*.py"):
+            tree = ast.parse(path.read_text())
+            self.assertFalse(any(isinstance(node, ast.Pass) for node in ast.walk(tree)), str(path))
+
+    def test_command_factories_do_not_share_mutable_namespaces(self):
+        from test_benchmark_sweep_support import exact_command_args, scenario_command_args
+
+        first, second = exact_command_args(), exact_command_args()
+        first.backends.append("authored_mutation")
+        self.assertEqual(second.backends, ["cpu", "hip-direct"])
+        scenario = scenario_command_args()
+        scenario.scenario.append("authored_mutation")
+        self.assertEqual(scenario_command_args().scenario, ["repeated-b"])
+        self.assertEqual(exact_command_args().semantics, ["exact_wide_signed"])
+
+
+if __name__ == "__main__":
+    unittest.main()

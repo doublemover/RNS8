@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/doublemover/RNS8/blob/main/tools/schemas/distributed-mock-v1.schema.json",
+  "title": "RNS8 CPU mock distributed modulus execution receipt",
+  "description": "A hardware-independent state/coverage receipt. This is not benchmark-schema evidence or GPU qualification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "execution_kind", "hardware_executed", "production_eligible", "axis",
+    "state", "operation", "epoch", "shape", "input_identities", "certificate_sha256",
+    "layout_sha256", "plan_identity", "semantics", "basis", "residue_encoding", "prefix",
+    "expected", "local_complete", "transfer_complete", "destination_visible", "proof_ready",
+    "published_cells", "status", "reason", "failed_rank", "failed_work", "elapsed_ns",
+    "deadline_ns", "clock", "performance_timing", "host_model_bytes", "pinned_staging_bytes",
+    "transfer_bytes", "retained_payload_bytes", "result_readers", "pending_host_stage_work", "allocator_overhead_known",
+    "basis_moduli", "tiles", "expected_work", "ranks", "missing_work",
+    "missing_rank_acknowledgments", "undrained_ranks"
+  ],
+  "properties": {
+    "schema": {"const": "rns8_distributed_mock_v1"},
+    "execution_kind": {"const": "cpu_mock_modulus_split"},
+    "hardware_executed": {"const": false},
+    "production_eligible": {"const": false},
+    "axis": {"const": "modulus"},
+    "state": {"enum": ["idle", "pending", "published", "draining", "failed", "canceled", "timed_out", "quarantined"]},
+    "operation": {"$ref": "#/$defs/uint64"},
+    "epoch": {"$ref": "#/$defs/uint64"},
+    "shape": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/positive"}},
+    "input_identities": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/positive"}}
+    },
+    "certificate_sha256": {"$ref": "#/$defs/digest"},
+    "layout_sha256": {"$ref": "#/$defs/digest"},
+    "plan_identity": {"type": "string", "minLength": 1},
+    "semantics": {"enum": [1, 2, 3, 4]},
+    "basis": {"const": "rns8_default_ordered_v1"},
+    "residue_encoding": {"const": "canonical_u8"},
+    "prefix": {"type": "integer", "minimum": 1, "maximum": 20},
+    "expected": {"$ref": "#/$defs/uint64"},
+    "local_complete": {"$ref": "#/$defs/uint64"},
+    "transfer_complete": {"$ref": "#/$defs/uint64"},
+    "destination_visible": {"$ref": "#/$defs/uint64"},
+    "proof_ready": {"$ref": "#/$defs/uint64"},
+    "published_cells": {"$ref": "#/$defs/uint64"},
+    "status": {"type": "integer", "minimum": 0, "maximum": 13},
+    "reason": {"type": "string", "minLength": 1},
+    "failed_rank": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "failed_work": {"$ref": "#/$defs/uint64"},
+    "elapsed_ns": {"$ref": "#/$defs/uint64"},
+    "deadline_ns": {"$ref": "#/$defs/uint64"},
+    "clock": {"const": "caller_supplied_mock_monotonic_ns"},
+    "performance_timing": {"type": "null"},
+    "host_model_bytes": {"$ref": "#/$defs/uint64"},
+    "pinned_staging_bytes": {"$ref": "#/$defs/uint64"},
+    "transfer_bytes": {"$ref": "#/$defs/uint64"},
+    "retained_payload_bytes": {"$ref": "#/$defs/uint64"},
+    "result_readers": {"$ref": "#/$defs/uint64"},
+    "pending_host_stage_work": {"$ref": "#/$defs/uint64"},
+    "allocator_overhead_known": {"const": false},
+    "basis_moduli": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": {"type": "integer", "minimum": 2, "maximum": 256}
+    },
+    "tiles": {"type": "array", "items": {"$ref": "#/$defs/tile"}},
+    "expected_work": {"type": "array", "items": {"$ref": "#/$defs/work"}},
+    "ranks": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/rank"}},
+    "missing_work": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/uint64"}},
+    "missing_rank_acknowledgments": {"$ref": "#/$defs/rank_ids"},
+    "undrained_ranks": {"$ref": "#/$defs/rank_ids"}
+  },
+  "$defs": {
+    "uint64": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "positive": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rank_ids": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 63}},
+    "tile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tile", "row", "col", "rows", "cols", "prefix", "magnitude_bound"],
+      "properties": {
+        "tile": {"$ref": "#/$defs/uint64"}, "row": {"$ref": "#/$defs/uint64"}, "col": {"$ref": "#/$defs/uint64"},
+        "rows": {"$ref": "#/$defs/positive"}, "cols": {"$ref": "#/$defs/positive"},
+        "prefix": {"type": "integer", "minimum": 0, "maximum": 20},
+        "magnitude_bound": {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"}
+      }
+    },
+    "work": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "rank", "tile", "logical_plane", "modulus", "k_begin", "k_end", "byte_offset", "bytes", "transport"],
+      "properties": {
+        "id": {"$ref": "#/$defs/uint64"}, "rank": {"type": "integer", "minimum": 0, "maximum": 63},
+        "tile": {"$ref": "#/$defs/uint64"}, "logical_plane": {"type": "integer", "minimum": 0, "maximum": 19},
+        "modulus": {"type": "integer", "minimum": 2, "maximum": 256}, "k_begin": {"const": 0},
+        "k_end": {"$ref": "#/$defs/positive"}, "byte_offset": {"$ref": "#/$defs/uint64"},
+        "bytes": {"$ref": "#/$defs/positive"}, "transport": {"enum": ["local", "peer", "pinned_host"]}
+      }
+    },
+    "rank": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rank", "ordinal", "physical_id", "target", "physical_package_id", "compute_partition",
+        "memory_partition", "expected_work", "idle", "reserved_peak_bytes"],
+      "properties": {
+        "rank": {"type": "integer", "minimum": 0, "maximum": 63},
+        "ordinal": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "physical_id": {"type": "string", "minLength": 1}, "target": {"type": "string", "minLength": 1},
+        "physical_package_id": {"type": "string"}, "compute_partition": {"type": "string"}, "memory_partition": {"type": "string"},
+        "expected_work": {"$ref": "#/$defs/uint64"}, "idle": {"type": "boolean"},
+        "reserved_peak_bytes": {"$ref": "#/$defs/uint64"}
+      }
+    }
+  }
+}

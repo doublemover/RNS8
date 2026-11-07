@@ -2,22 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Any
+from evidence_scalars import text_choice
 
-from .core import (
-    ACCELERATOR_GPU_EVENT_SCOPES,
+from typing import Any
+from timing_diagnostics import is_censored_gpu_event_capture, timing_failure_metadata_errors
+
+from .core_shared import (
     DEEP_ACCELERATOR_GPU_EVENT_SCOPE,
     DIRECT_HIP_FINITE_ONESHOT_GPU_EVENT_PHASES,
-    DIRECT_HIP_GPU_EVENT_SCOPES,
     DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES,
     DIRECT_HIP_ONESHOT_RESIDENT_FALLBACK_GPU_EVENT_PHASES,
-    HIPBLASLT_GPU_EVENT_SCOPES,
     OLD_ACCELERATOR_GPU_EVENT_SCOPE,
-    VECTOR_ALU_GPU_EVENT_SCOPES,
     _is_int,
     _is_number,
     wrap64_hip_expected_gemm_event_label,
 )
+from metadata_registry_constants import (
+    ACCELERATOR_GPU_EVENT_SCOPES,
+    DIRECT_HIP_GPU_EVENT_SCOPES,
+    HIPBLASLT_GPU_EVENT_SCOPES,
+    VECTOR_ALU_GPU_EVENT_SCOPES,
+)
+
 
 def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> None:
     backend = self.data.get("backend_selected")
@@ -27,11 +33,17 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             missing = [phase for phase in expected if phase not in phases]
             extra = [phase for phase in phases if phase not in expected]
             if missing:
-                self._error(f"direct-HIP finite one-shot GPU event phase set is incomplete; missing {', '.join(missing)}")
+                self._error(
+                    f"direct-HIP finite one-shot GPU event phase set is incomplete; missing {', '.join(missing)}"
+                )
             if extra:
-                self._error(f"direct-HIP finite one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                self._error(
+                    f"direct-HIP finite one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}"
+                )
             if not missing and not extra:
-                self._error("direct-HIP finite one-shot GPU event phase order must match the public API operation order")
+                self._error(
+                    "direct-HIP finite one-shot GPU event phase order must match the public API operation order"
+                )
         return
     if self._is_direct_hip_bounded_native_input_oneshot_capture() and backend == "hip-direct":
         expected = DIRECT_HIP_ONESHOT_GPU_EVENT_PHASES
@@ -39,11 +51,17 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             missing = [phase for phase in expected if phase not in phases]
             extra = [phase for phase in phases if phase not in expected]
             if missing:
-                self._error(f"direct-HIP one-shot GPU event phase set is incomplete; missing {', '.join(missing)}")
+                self._error(
+                    f"direct-HIP one-shot GPU event phase set is incomplete; missing {', '.join(missing)}"
+                )
             if extra:
-                self._error(f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                self._error(
+                    f"direct-HIP one-shot GPU event phase set contains undeclared phases: {', '.join(extra)}"
+                )
             if not missing and not extra:
-                self._error("direct-HIP one-shot GPU event phase order must match the public API operation order")
+                self._error(
+                    "direct-HIP one-shot GPU event phase order must match the public API operation order"
+                )
         return
     if self._is_direct_hip_bounded_resident_fallback_oneshot_capture() and backend == "hip-direct":
         expected = DIRECT_HIP_ONESHOT_RESIDENT_FALLBACK_GPU_EVENT_PHASES
@@ -92,7 +110,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP residue-channel fusion GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP residue-channel fusion GPU event phase order must match the operation order"
+                )
         return
     if self._is_direct_hip_bounded_uniform_small_transient_capture():
         expected = [
@@ -152,7 +172,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP streaming-overlap GPU event phase order must match the pipeline stage order")
+                self._error(
+                    "direct-HIP streaming-overlap GPU event phase order must match the pipeline stage order"
+                )
         return
     if self._is_direct_hip_bounded_native_a_reuse_b_capture():
         gemm_event = (
@@ -281,7 +303,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP skinny GEMV N=1 GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP skinny GEMV N=1 GPU event phase order must match the operation order"
+                )
         return
     if self._is_direct_hip_bounded_skinny_gemv_small_n_capture():
         expected = [
@@ -310,7 +334,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP skinny GEMV small-N GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP skinny GEMV small-N GPU event phase order must match the operation order"
+                )
         return
     if self._is_direct_hip_native_to_rns_bridge_capture():
         conversion_event = (
@@ -345,7 +371,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP native-to-RNS bridge GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP native-to-RNS bridge GPU event phase order must match the operation order"
+                )
         return
     if self._is_direct_hip_vector_to_rns_chain_capture():
         conversion_event = (
@@ -355,9 +383,19 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
         )
         signed = self.data.get("semantics") == "bounded_i64"
         if self.data.get("n") == 1 and self.data.get("k", 0) >= 4096:
-            vector_kernel = "vector_alu_i64_gemv_n1_kernel" if signed else "vector_alu_u64_gemv_n1_kernel"
-        elif isinstance(self.data.get("n"), int) and 1 < self.data.get("n") <= 8 and self.data.get("k", 0) >= 512:
-            vector_kernel = "vector_alu_i64_gemv_small_n_kernel" if signed else "vector_alu_u64_gemv_small_n_kernel"
+            vector_kernel = (
+                "vector_alu_i64_gemv_n1_kernel" if signed else "vector_alu_u64_gemv_n1_kernel"
+            )
+        elif (
+            isinstance(self.data.get("n"), int)
+            and 1 < self.data.get("n") <= 8
+            and self.data.get("k", 0) >= 512
+        ):
+            vector_kernel = (
+                "vector_alu_i64_gemv_small_n_kernel"
+                if signed
+                else "vector_alu_u64_gemv_small_n_kernel"
+            )
         else:
             vector_kernel = "vector_alu_i64_kernel" if signed else "vector_alu_u64_kernel"
         if self._is_direct_hip_vector_to_rns_host_repack_control_capture():
@@ -413,7 +451,9 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
                     f"{', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP vector-to-RNS chain GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP vector-to-RNS chain GPU event phase order must match the operation order"
+                )
         return
     if self.data.get("semantics") == "wrap_u64_mod_2_64" and backend == "hip-direct":
         expected = [
@@ -430,13 +470,17 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             missing = [phase for phase in expected if phase not in phases]
             extra = [phase for phase in phases if phase not in expected]
             if missing:
-                self._error(f"direct-HIP wrap64 GPU event phase set is incomplete; missing {', '.join(missing)}")
+                self._error(
+                    f"direct-HIP wrap64 GPU event phase set is incomplete; missing {', '.join(missing)}"
+                )
             if extra:
                 self._error(
                     f"direct-HIP wrap64 GPU event phase set contains undeclared phases: {', '.join(extra)}"
                 )
             if not missing and not extra:
-                self._error("direct-HIP wrap64 GPU event phase order must match the operation order")
+                self._error(
+                    "direct-HIP wrap64 GPU event phase order must match the operation order"
+                )
         return
     if backend == "hip-vector-alu-int64":
         expected = self._expected_vector_gpu_event_phases()
@@ -444,13 +488,22 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
             missing = [phase for phase in expected if phase not in phases]
             extra = [phase for phase in phases if phase not in expected]
             if missing:
-                self._error(f"vector-ALU GPU event phase set is incomplete; missing {', '.join(missing)}")
+                self._error(
+                    f"vector-ALU GPU event phase set is incomplete; missing {', '.join(missing)}"
+                )
             if extra:
-                self._error(f"vector-ALU GPU event phase set contains undeclared phases: {', '.join(extra)}")
+                self._error(
+                    f"vector-ALU GPU event phase set contains undeclared phases: {', '.join(extra)}"
+                )
             if not missing and not extra:
-                self._error("vector-ALU GPU event phase order must match the native int64 operation order")
+                self._error(
+                    "vector-ALU GPU event phase order must match the native int64 operation order"
+                )
         return
-    if backend not in {"ck", "rocwmma", "amdgpu-builtins"} or self._is_wrap64_rocwmma_candidate():
+    if (
+        not text_choice(backend, {"ck", "rocwmma", "amdgpu-builtins"})
+        or self._is_wrap64_rocwmma_candidate()
+    ):
         return
     deep_labels = [phase for phase in phases if self._is_deep_accelerator_gpu_event_label(phase)]
     if scope == OLD_ACCELERATOR_GPU_EVENT_SCOPE:
@@ -468,22 +521,30 @@ def validate_expected_gpu_event_phases(self, scope: Any, phases: list[str]) -> N
     missing = [phase for phase in expected if phase not in phases]
     extra = [phase for phase in phases if phase not in expected]
     if missing:
-        self._error(f"deep accelerator GPU event phase set is incomplete; missing {', '.join(missing)}")
+        self._error(
+            f"deep accelerator GPU event phase set is incomplete; missing {', '.join(missing)}"
+        )
     if extra:
-        self._error(f"deep accelerator GPU event phase set contains undeclared phases: {', '.join(extra)}")
+        self._error(
+            f"deep accelerator GPU event phase set contains undeclared phases: {', '.join(extra)}"
+        )
     if not missing and not extra:
-        self._error("deep accelerator GPU event phase order must match the selected backend operation order")
+        self._error(
+            "deep accelerator GPU event phase order must match the selected backend operation order"
+        )
+
 
 def expected_status_event_labels(self) -> list[str]:
     backend = self.data.get("backend_selected")
     semantics = self.data.get("semantics")
     if backend == "hip-vector-alu-int64":
         return ["vector_alu_status_memset", "vector_alu_status_d2h"]
-    if semantics in {"exact_wide_signed", "exact_wide_unsigned"}:
+    if text_choice(semantics, {"exact_wide_signed", "exact_wide_unsigned"}):
         return ["exact_wide_export_status_memset", "exact_wide_export_status_d2h"]
-    if semantics in {"bounded_i64", "bounded_u64"}:
+    if text_choice(semantics, {"bounded_i64", "bounded_u64"}):
         return ["crt_export_status_memset", "crt_export_status_d2h"]
     return []
+
 
 def known_status_event_labels(self) -> set[str]:
     return {
@@ -495,7 +556,10 @@ def known_status_event_labels(self) -> set[str]:
         "vector_alu_status_d2h",
     }
 
-def validate_status_event_consistency(self, phases: list[str], parsed: dict[str, list[float]]) -> None:
+
+def validate_status_event_consistency(
+    self, phases: list[str], parsed: dict[str, list[float]]
+) -> None:
     output_policy = self.data.get("output_policy")
     if not isinstance(output_policy, dict):
         return
@@ -506,11 +570,15 @@ def validate_status_event_consistency(self, phases: list[str], parsed: dict[str,
     if handling == "required":
         for label in expected:
             if label not in phase_set:
-                self._error(f"output_policy.status_handling=required requires GPU event phase {label}")
+                self._error(
+                    f"output_policy.status_handling=required requires GPU event phase {label}"
+                )
         return
     if handling == "not_applicable":
         for label in known_present:
-            self._error(f"output_policy.status_handling=not_applicable forbids GPU event phase {label}")
+            self._error(
+                f"output_policy.status_handling=not_applicable forbids GPU event phase {label}"
+            )
         return
     if handling == "structurally_elided":
         for label in known_present:
@@ -521,20 +589,31 @@ def validate_status_event_consistency(self, phases: list[str], parsed: dict[str,
                     f"gpu_event_timings_us.{label} to be zero-filled when present"
                 )
 
+
 def validate_gpu_events(self) -> None:
     metadata = self.data.get("timing_metadata")
     if not isinstance(metadata, dict):
         return
+    for error in timing_failure_metadata_errors(self.data):
+        self._error(error)
     enabled = metadata.get("gpu_event_timing")
-    repeats = self.data.get("repeats")
+    from .streaming_timing import gpu_stage_sample_count
+
+    repeats = gpu_stage_sample_count(self.data, self.data.get("repeats"))
     if not isinstance(enabled, bool) or not _is_int(repeats):
         return
     selected_backend = self.data.get("backend_selected")
     residue_current_chain = self._is_residue_current_chain_capture()
     if (
-        selected_backend in {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"}
+        text_choice(selected_backend, {"ck", "rocwmma", "amdgpu-builtins", "hip-vector-alu-int64"})
         and enabled is not True
+        and not is_censored_gpu_event_capture(self.data)
         and not residue_current_chain
+        and not (
+            metadata.get("host_instrumentation_state") == "hooks_disabled"
+            and metadata.get("gpu_event_timing_status") == "not_requested_production_timing"
+            and metadata.get("gpu_event_timing_reason") == "explicit_production_hooks_disabled"
+        )
     ):
         self._error(f"{selected_backend} captures must include HIP event operation-group timings")
     timings = self.data.get("gpu_event_timings_us")
@@ -545,32 +624,54 @@ def validate_gpu_events(self) -> None:
         if summary is not None:
             self._error("gpu_event_timing_summary_us must be null when gpu_event_timing is false")
         if metadata.get("gpu_event_phase_order") is not None:
-            self._error("timing_metadata.gpu_event_phase_order must be null when events are unavailable")
+            self._error(
+                "timing_metadata.gpu_event_phase_order must be null when events are unavailable"
+            )
         if metadata.get("gpu_event_timing_source") is not None:
-            self._error("timing_metadata.gpu_event_timing_source must be null when events are unavailable")
+            self._error(
+                "timing_metadata.gpu_event_timing_source must be null when events are unavailable"
+            )
         if metadata.get("gpu_event_timing_source_scope") is not None:
-            self._error("timing_metadata.gpu_event_timing_source_scope must be null when events are unavailable")
+            self._error(
+                "timing_metadata.gpu_event_timing_source_scope must be null when events are unavailable"
+            )
         return
     source = metadata.get("gpu_event_timing_source")
     scope = metadata.get("gpu_event_timing_source_scope")
     if not isinstance(source, str):
-        self._error("timing_metadata.gpu_event_timing_source must be a string when events are available")
+        self._error(
+            "timing_metadata.gpu_event_timing_source must be a string when events are available"
+        )
     elif source != "hipEventElapsedTime":
         self._error("timing_metadata.gpu_event_timing_source must be hipEventElapsedTime")
     if not isinstance(scope, str):
-        self._error("timing_metadata.gpu_event_timing_source_scope must be a string when events are available")
-    elif selected_backend == "hip-direct" and scope not in DIRECT_HIP_GPU_EVENT_SCOPES:
+        self._error(
+            "timing_metadata.gpu_event_timing_source_scope must be a string when events are available"
+        )
+    elif selected_backend == "hip-direct" and not text_choice(scope, DIRECT_HIP_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(DIRECT_HIP_GPU_EVENT_SCOPES))
-        self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}")
-    elif selected_backend == "hipblaslt" and scope not in HIPBLASLT_GPU_EVENT_SCOPES:
+        self._error(
+            f"timing_metadata.gpu_event_timing_source_scope must be a known direct-HIP scope: {expected}"
+        )
+    elif selected_backend == "hipblaslt" and not text_choice(scope, HIPBLASLT_GPU_EVENT_SCOPES):
         expected = ", ".join(sorted(HIPBLASLT_GPU_EVENT_SCOPES))
-        self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}")
-    elif selected_backend in {"ck", "rocwmma", "amdgpu-builtins"} and scope not in ACCELERATOR_GPU_EVENT_SCOPES:
+        self._error(
+            f"timing_metadata.gpu_event_timing_source_scope must be a known hipBLASLt scope: {expected}"
+        )
+    elif text_choice(selected_backend, {"ck", "rocwmma", "amdgpu-builtins"}) and not text_choice(
+        scope, ACCELERATOR_GPU_EVENT_SCOPES
+    ):
         expected = ", ".join(sorted(ACCELERATOR_GPU_EVENT_SCOPES))
-        self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}")
-    elif selected_backend == "hip-vector-alu-int64" and scope not in VECTOR_ALU_GPU_EVENT_SCOPES:
+        self._error(
+            f"timing_metadata.gpu_event_timing_source_scope must be a known accelerator scope: {expected}"
+        )
+    elif selected_backend == "hip-vector-alu-int64" and not text_choice(
+        scope, VECTOR_ALU_GPU_EVENT_SCOPES
+    ):
         expected = ", ".join(sorted(VECTOR_ALU_GPU_EVENT_SCOPES))
-        self._error(f"timing_metadata.gpu_event_timing_source_scope must be a known vector-ALU scope: {expected}")
+        self._error(
+            f"timing_metadata.gpu_event_timing_source_scope must be a known vector-ALU scope: {expected}"
+        )
     if not isinstance(timings, dict):
         self._error("gpu_event_timings_us must be an object when gpu_event_timing is true")
         return
@@ -599,11 +700,15 @@ def validate_gpu_events(self) -> None:
             self._error(f"gpu_event_timings_us.{phase} must be an array")
             continue
         if len(values) != repeats:
-            self._error(f"gpu_event_timings_us.{phase} length {len(values)} does not match repeats {repeats}")
+            self._error(
+                f"gpu_event_timings_us.{phase} length {len(values)} does not match repeats {repeats}"
+            )
         parsed_values: list[float] = []
         for index, value in enumerate(values):
             if not _is_number(value) or float(value) < 0.0:
-                self._error(f"gpu_event_timings_us.{phase}[{index}] must be a nonnegative finite number")
+                self._error(
+                    f"gpu_event_timings_us.{phase}[{index}] must be a nonnegative finite number"
+                )
             else:
                 parsed_values.append(float(value))
         parsed[phase] = parsed_values
@@ -617,10 +722,13 @@ def validate_gpu_events(self) -> None:
                     f"all-zero direct-HIP adaptive captures must report gpu_event_timings_us.{phase} as zero"
                 )
 
+
 def gpu_event_phases(self, metadata: dict[str, Any]) -> list[str]:
     phase_order = metadata.get("gpu_event_phase_order")
     if not isinstance(phase_order, list) or not all(isinstance(item, str) for item in phase_order):
-        self._error("timing_metadata.gpu_event_phase_order must be an array of strings when events are available")
+        self._error(
+            "timing_metadata.gpu_event_phase_order must be an array of strings when events are available"
+        )
         return []
     if len(set(phase_order)) != len(phase_order):
         self._error("timing_metadata.gpu_event_phase_order must not contain duplicates")

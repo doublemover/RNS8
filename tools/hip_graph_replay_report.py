@@ -5,11 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from benchmark_schema import load_capture, validate_capture
+from report_capture_inputs import load_report_capture
+from graph_caller_contract import graph_setup_us, caller_transaction_blockers, full_path_graph
+from timing_eligibility import pair_blockers, capture_identity
+from diagnostic_companion import production_evidence, binding_for_capture, load_bindings
+from reference_verdict import checksum_u64 as checksum_value
+from observation_cohorts import aggregate_captures, evidence, phase_median, best_implementation
 from benchmark_sweep_lib.capture_metadata import capture_execution_mode
 
 
@@ -22,9 +28,13 @@ NON_CAPTURE_JSON_NAMES = {
 }
 
 
-def timing_summary_value(capture: dict[str, Any] | None, phase: str, statistic: str) -> float | None:
+def timing_summary_value(
+    capture: dict[str, Any] | None, phase: str, statistic: str
+) -> float | None:
     if capture is None:
         return None
+    if statistic == "median" and "_observation_aggregate" in capture:
+        return phase_median(capture, phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -130,18 +140,18 @@ def comparison_key(capture: dict[str, Any]) -> str:
 
 
 def setup_inclusive_per_repeat(capture: dict[str, Any], *, graph: bool) -> float | None:
+    if "_graph_setup_inclusive_median_us" in capture:
+        return capture["_graph_setup_inclusive_median_us"]
     median = timing_summary_value(capture, "end_to_end", "median")
     repeats = capture.get("repeats")
     setup = prepack_setup_us(capture)
     if median is None or not isinstance(repeats, int) or repeats <= 0 or setup is None:
         return None
     if graph:
-        graph_info = graph_metadata(capture)
-        capture_us = numeric_value(graph_info, "capture_us")
-        instantiate_us = numeric_value(graph_info, "instantiate_us")
-        if capture_us is None or instantiate_us is None:
+        graph_setup = graph_setup_us(capture)
+        if graph_setup is None:
             return None
-        setup += capture_us + instantiate_us
+        setup += graph_setup
     return median + setup / float(repeats)
 
 
@@ -172,22 +182,15 @@ def graph_wall_clock_policy_valid(capture: dict[str, Any]) -> bool:
         return False
     return (
         metadata.get("gpu_event_timing") is False
-        and metadata.get("gpu_event_timing_reason") == "hip_graph_replay_wall_clock_only"
-        and metadata.get("gpu_event_timing_status") == "not_requested_graph_replay"
+        and metadata.get("host_instrumentation_state") == "hooks_disabled"
+        and metadata.get("gpu_event_timing_reason") == "explicit_production_hooks_disabled"
+        and metadata.get("gpu_event_timing_status") == "not_requested_production_timing"
     )
 
 
 def graph_status_available(capture: dict[str, Any]) -> bool:
     graph = graph_metadata(capture)
     return graph.get("status") == "available" and graph.get("capture_status") == "replayed"
-
-
-def checksum_value(capture: dict[str, Any] | None) -> Any:
-    if capture is None:
-        return None
-    if capture.get("checksum_u64") is not None:
-        return capture.get("checksum_u64")
-    return capture.get("checksum")
 
 
 def shape(capture: dict[str, Any]) -> dict[str, Any]:
@@ -199,22 +202,69 @@ def shape(capture: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any]:
+def compare_graph_capture(
+    graph: dict[str, Any], baseline: dict[str, Any] | None, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
     graph_setup = setup_inclusive_per_repeat(graph, graph=True)
-    baseline_setup = setup_inclusive_per_repeat(baseline, graph=False) if baseline is not None else None
+    baseline_setup = (
+        setup_inclusive_per_repeat(baseline, graph=False) if baseline is not None else None
+    )
     graph_median = timing_summary_value(graph, "end_to_end", "median")
-    baseline_median = timing_summary_value(baseline, "end_to_end", "median") if baseline is not None else None
-    speedup = baseline_setup / graph_setup if baseline_setup not in (None, 0.0) and graph_setup else None
-    steady_speedup = baseline_median / graph_median if baseline_median not in (None, 0.0) and graph_median else None
+    baseline_median = (
+        timing_summary_value(baseline, "end_to_end", "median") if baseline is not None else None
+    )
+    speedup = (
+        baseline_setup / graph_setup if baseline_setup not in (None, 0.0) and graph_setup else None
+    )
+    steady_speedup = (
+        baseline_median / graph_median
+        if baseline_median not in (None, 0.0) and graph_median
+        else None
+    )
 
-    blockers: list[str] = []
+    def bound_evidence(value):
+        records = value.get("_graph_bound_production_observations") if value is not None else None
+        if records is None:
+            records = [
+                production_evidence(value, binding_for_capture(value, diagnostic_bindings or {}))
+            ]
+        blockers = sorted({item for record in records for item in record["blockers"]})
+        if not records:
+            blockers.append("production_observations_missing")
+        return dict(
+            eligible=bool(records) and not blockers, blockers=blockers, observations=records
+        )
+
+    graph_evidence = bound_evidence(graph)
+    baseline_evidence = bound_evidence(baseline) if baseline is not None else None
+    blockers: list[str] = list(caller_transaction_blockers(graph)) + list(
+        graph_evidence["blockers"]
+    )
+    if baseline_evidence is not None:
+        blockers.extend("baseline:" + item for item in baseline_evidence["blockers"])
+    blockers.extend("cohort:" + item for item in evidence(graph)["blockers"])
+    if baseline is not None:
+        blockers.extend("baseline_cohort:" + item for item in evidence(baseline)["blockers"])
+        blockers.extend(pair_blockers(baseline, graph))
+        if graph_requested(baseline):
+            blockers.append("non_graph_baseline_is_graph")
+        if (
+            full_path_graph(graph)
+            and capture_execution_mode(baseline) != "persistent_resident_matrices"
+        ):
+            blockers.append("ordinary_caller_host_baseline_required")
+    for value in (graph, baseline):
+        if value is not None:
+            checksums = value.get("_graph_process_checksums", [checksum_value(value)])
+            if any(item is None for item in checksums) or len(set(checksums)) != 1:
+                blockers.append("process_checksum_conflict_or_missing")
     if baseline is None:
         blockers.append("missing_same_contract_non_graph_baseline")
     else:
         if not release_capture_satisfied(baseline):
             blockers.append("baseline_not_release_review")
-        if not baseline_events_available(baseline):
-            blockers.append("baseline_missing_required_gpu_events")
+        if checksum_value(graph) is None or checksum_value(baseline) is None:
+            blockers.append("checksum_comparison_missing")
         if (
             checksum_value(graph) is not None
             and checksum_value(baseline) is not None
@@ -245,6 +295,9 @@ def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None
         "graph_role": scenario_inner_metadata(graph).get("graph_role"),
         "graph_scope": graph_metadata(graph).get("scope"),
         "graph_execution_mode": capture_execution_mode(graph),
+        "graph_production_evidence": graph_evidence,
+        "baseline_production_evidence": baseline_evidence,
+        "graph_caller_transaction": graph_metadata(graph).get("caller_transaction"),
         "semantics": graph.get("semantics"),
         "shape": shape(graph),
         "backend": graph.get("backend_selected"),
@@ -258,10 +311,15 @@ def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None
         "baseline_median_end_to_end_us": baseline_median,
         "graph_setup_inclusive_per_repeat_us": graph_setup,
         "baseline_setup_inclusive_per_repeat_us": baseline_setup,
-        "steady_state_speedup": steady_speedup,
-        "setup_inclusive_speedup": speedup,
+        "observed_steady_state_ratio": steady_speedup,
+        "observed_setup_inclusive_ratio": speedup,
+        "steady_state_speedup": steady_speedup if not blockers else None,
+        "setup_inclusive_speedup": speedup if not blockers else None,
+        "common_setup_excluded": ["planning_workspace", "matrix_allocation"],
+        "measurement_cohort": evidence(graph),
         "release_review_satisfied": not any(
-            blocker in blockers for blocker in {"baseline_not_release_review", "graph_not_release_review"}
+            blocker in blockers
+            for blocker in {"baseline_not_release_review", "graph_not_release_review"}
         ),
         "baseline_gpu_events_available": baseline_events_available(baseline) if baseline else False,
         "graph_wall_clock_policy_valid": graph_wall_clock_policy_valid(graph),
@@ -277,36 +335,76 @@ def compare_graph_capture(graph: dict[str, Any], baseline: dict[str, Any] | None
     }
 
 
-def build_hip_graph_replay_report_from_captures(captures: list[dict[str, Any]]) -> dict[str, Any]:
+def build_hip_graph_replay_report_from_captures(
+    captures: list[dict[str, Any]], diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    raw = captures
+    by_hash = {capture_identity(capture): capture for capture in raw}
+    captures = aggregate_captures(raw)
     for capture in captures:
-        capture.setdefault("_path", "")
-    baselines: dict[str, dict[str, Any]] = {}
+        members = [
+            by_hash[item["capture_sha256"]]
+            for item in evidence(capture).get("submitted_observations", [])
+            if item["capture_sha256"] in by_hash
+        ]
+        capture["_graph_bound_production_observations"] = [
+            production_evidence(member, binding_for_capture(member, diagnostic_bindings or {}))
+            for member in members
+        ]
+        capture["_graph_process_checksums"] = [checksum_value(member) for member in members]
+        inclusive = [
+            setup_inclusive_per_repeat(member, graph=graph_requested(member)) for member in members
+        ]
+        capture["_graph_setup_inclusive_median_us"] = (
+            statistics.median(inclusive)
+            if inclusive and all(value is not None for value in inclusive)
+            else None
+        )
+    baselines: dict[str, list[dict[str, Any]]] = {}
     graphs: list[dict[str, Any]] = []
     for capture in captures:
         if graph_requested(capture):
             graphs.append(capture)
-        elif scenario_inner_metadata(capture).get("graph_role") == "same_contract_non_graph_baseline" or (
+        elif scenario_inner_metadata(capture).get(
+            "graph_role"
+        ) == "same_contract_non_graph_baseline" or (
             scenario_metadata(capture).get("family") == "hip-graph-replay"
         ):
-            baselines[comparison_key(capture)] = capture
+            baselines.setdefault(comparison_key(capture), []).append(capture)
         else:
-            baselines.setdefault(comparison_key(capture), capture)
+            baselines.setdefault(comparison_key(capture), []).append(capture)
 
-    comparisons = [compare_graph_capture(graph, baselines.get(comparison_key(graph))) for graph in graphs]
+    comparisons = []
+    for graph in graphs:
+        options = baselines.get(comparison_key(graph), [])
+        baseline = best_implementation(options, candidate=graph)
+        if baseline is None and options:
+            # Keep a diagnostic row even when no control qualifies.
+            baseline = sorted(options, key=lambda value: str(value.get("_path", "")))[0]
+        comparisons.append(compare_graph_capture(graph, baseline, diagnostic_bindings))
     decision_counts = Counter(str(item["decision"]) for item in comparisons)
     summary = {
-        "capture_count": len(captures),
+        "capture_count": len(raw),
+        "implementation_cohort_count": len(captures),
         "graph_candidate_count": len(graphs),
         "comparison_count": len(comparisons),
         "candidate_workload_wins": decision_counts.get("candidate_workload_win", 0),
         "deprioritized": decision_counts.get("deprioritize", 0),
         "experimental": decision_counts.get("keep_experimental", 0),
         "missing_baselines": sum(
-            1 for item in comparisons if "missing_same_contract_non_graph_baseline" in item["blockers"]
+            1
+            for item in comparisons
+            if "missing_same_contract_non_graph_baseline" in item["blockers"]
         ),
-        "release_review_satisfied": sum(1 for item in comparisons if item["release_review_satisfied"]),
-        "baseline_gpu_events_available": sum(1 for item in comparisons if item["baseline_gpu_events_available"]),
-        "graph_wall_clock_policy_valid": sum(1 for item in comparisons if item["graph_wall_clock_policy_valid"]),
+        "release_review_satisfied": sum(
+            1 for item in comparisons if item["release_review_satisfied"]
+        ),
+        "baseline_gpu_events_available": sum(
+            1 for item in comparisons if item["baseline_gpu_events_available"]
+        ),
+        "graph_wall_clock_policy_valid": sum(
+            1 for item in comparisons if item["graph_wall_clock_policy_valid"]
+        ),
         "checksum_matches": sum(1 for item in comparisons if item["checksum_match"]),
         "decisions": dict(sorted(decision_counts.items())),
     }
@@ -325,7 +423,8 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
             expanded.extend(
                 item
                 for item in sorted(path.rglob("*.json"))
-                if item.name not in NON_CAPTURE_JSON_NAMES and not item.name.endswith("-report.json")
+                if item.name not in NON_CAPTURE_JSON_NAMES
+                and not item.name.endswith("-report.json")
             )
         else:
             expanded.append(path)
@@ -333,15 +432,12 @@ def expand_inputs(paths: list[Path]) -> list[Path]:
 
 
 def load_validated_capture(path: Path) -> dict[str, Any]:
-    capture = load_capture(path)
-    validate_capture(capture, path)
-    capture["_path"] = str(path)
-    return capture
+    return load_report_capture(path, from_directory=False)
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
+def build_report(paths: list[Path], diagnostic_bindings: dict | None = None) -> dict[str, Any]:
     captures = [load_validated_capture(path) for path in expand_inputs(paths)]
-    return build_hip_graph_replay_report_from_captures(captures)
+    return build_hip_graph_replay_report_from_captures(captures, diagnostic_bindings)
 
 
 def fmt(value: Any) -> str:
@@ -401,8 +497,13 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> dict[str, str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories")
-    parser.add_argument("--capture", type=Path, action="append", help="additional capture file or directory")
+    parser.add_argument(
+        "captures", type=Path, nargs="*", help="schema-v4 benchmark JSON captures or directories"
+    )
+    parser.add_argument(
+        "--capture", type=Path, action="append", help="additional capture file or directory"
+    )
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true", help="print report JSON")
     return parser.parse_args()
@@ -413,7 +514,7 @@ def main() -> int:
     paths = [*(args.capture or []), *args.captures]
     if not paths:
         raise SystemExit("hip_graph_replay_report requires at least one capture path")
-    report = build_report(paths)
+    report = build_report(paths, load_bindings(args.diagnostic_binding))
     outputs = write_outputs(report, args.out_dir)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
