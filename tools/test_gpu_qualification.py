@@ -323,16 +323,18 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(
             [item["name"] for item in plan],
             [
+                "linux-resource-access-preflight",
                 "prepare-configure",
                 "prepare-build",
                 "prepare-manifest-admission",
                 "prepare-cpu-tests",
             ],
         )
-        self.assertIn("-DRNS8_ENABLE_HIP=OFF", plan[0]["argv"])
-        self.assertIn("-DFETCHCONTENT_FULLY_DISCONNECTED=ON", plan[0]["argv"])
-        self.assertIn("-DVCPKG_MANIFEST_INSTALL=OFF", plan[0]["argv"])
-        self.assertIn("linux-cpu-release", plan[0]["argv"])
+        self.assertIn("-DRNS8_ENABLE_HIP=OFF", plan[1]["argv"])
+        self.assertIn("-DFETCHCONTENT_FULLY_DISCONNECTED=ON", plan[1]["argv"])
+        self.assertIn("-DVCPKG_MANIFEST_INSTALL=OFF", plan[1]["argv"])
+        self.assertIn("linux-cpu-release", plan[1]["argv"])
+        self.assertFalse(plan[0]["host_resources"]["gpu_required"])
         for item in plan:
             self.assertNotIn("device", item)
             self.assertNotIn("inspect_target", item)
@@ -432,9 +434,12 @@ class QualificationTests(unittest.TestCase):
                     if item["name"].endswith("-configure"):
                         self.assertIn("-DVCPKG_MANIFEST_INSTALL=OFF", item["argv"])
                 self.assertTrue(any("hip-direct-graph" in item["name"] for item in plan))
+                environment = q.command_plan(
+                    target, ["hip-direct"], out, 1, [7], session_kind="environment"
+                )
                 self.assertEqual(
-                    q.command_plan(target, ["hip-direct"], out, 1, [7], session_kind="environment"),
-                    [],
+                    [item["name"] for item in environment],
+                    ["linux-resource-access-preflight"] if target == "mi300x" else [],
                 )
             smoke = q.command_plan("mi300x", ["hip-direct"], out, 1, [7], session_kind="smoke")
             self.assertFalse(any("junit" in item for item in smoke))

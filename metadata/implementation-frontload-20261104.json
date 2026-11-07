@@ -638,9 +638,14 @@
       "url": "https://github.com/doublemover/RNS8/issues/58",
       "requirements_sha256": "9f1f6190508b5957c74feae066b8558cd5df082d0d15503e748c753e5dd0f3cb",
       "comments_reviewed": 2,
-      "implementation_status": "pending",
-      "completed_slices": [],
-      "remaining_source_items": []
+      "implementation_status": "in_progress",
+      "completed_slices": [
+        "Read complete original session issue and both current comments. Add a read-only native Linux resource/access stage before configure/build, including CPU-only preparation and environment-only modes. Resolve current unified cgroup mount/root and visible ancestors; retain native CPU quota and memory-current/max observations, reconstruct limiting headroom with affinity/MemAvailable, and enforce requested jobs plus explicit measured per-job/floor/reserve models and available disk/inodes. GPU sessions additionally check loaded driver, actual character-device KFD/render access and positive native gfx942 KFD producer fields without converting node IDs to HIP ordinals or claiming HBM/device-count/driver-tuple qualification. Use pinned actual kernel mapping90402 rather than deriving architecture from hardware-IP digits. Preserve actionable blocked/unknown states and source-bind actual preflight process/policy in the existing session runner; no settings or installations changed. Register nested hierarchy/quota/memory, malformed/raw-versus-derived, missing access/target/disk, pre-probe policy and plan/consumer controls; update preparation/environment expectations. Four AST/pinned Ruff/static docs checks only, no proc/sys/device observation, fixture, project import, CLI, session or test executed."
+      ],
+      "remaining_source_items": [
+        "Repair positive CK bounded-u64 session cases through a shared source/backend/semantic contract, preserving explicit unsupported admission and distinguishing source support from compiled/runtime availability.",
+        "Finish original session requirement reconciliation: coherent supported dependency/driver/image tuple and frozen lock, complete no-GPU preparation/cache/ABI readiness, declared stage estimates and optional user-price budget, settings/topology/telemetry recipes and interruption/export closeout acceptance. Native rehearsal, target execution and measured resource/performance evidence remain deferred validation, not inferred from the new prebuild resource/access check."
+      ]
     },
     {
       "issue": 59,

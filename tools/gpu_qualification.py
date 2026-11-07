@@ -31,7 +31,11 @@ from session_environment import (
     runtime_mapping_snapshot,
 )
 from compiled_binary_identity import validate_document, bind_document
-from json_evidence import parse_evidence_json
+from session_resource_contract import (
+    evaluate as evaluate_host_resources,
+    resource_policy as host_resource_policy,
+)
+from json_evidence import parse_evidence_json, same_evidence_value
 from benchmark_request import request_identity, attach_capture_identity
 from device_observation import (
     IdentityUnavailable,
@@ -90,6 +94,7 @@ def command_plan(
     timeout: float = 1800,
     preset_override: str | None = None,
     all_enabled: bool = False,
+    resource_policy: dict | None = None,
 ) -> list[dict]:
     arch, system, preset = TARGETS[target]
     if session_kind != "prepare" and (
@@ -120,6 +125,30 @@ def command_plan(
             }
         )
 
+    if system == "Linux":
+        policy = dict(resource_policy or {})
+        policy.setdefault("minimum_free_bytes", 2 * 1024**3)
+        policy.setdefault("minimum_memory_bytes", 0)
+        policy.setdefault("peak_job_memory_bytes", 0)
+        policy.setdefault("memory_reserve_bytes", 0)
+        policy.update(
+            jobs=jobs,
+            gpu_required=session_kind != "prepare",
+            architecture=None if session_kind == "prepare" else arch,
+        )
+        policy = host_resource_policy(**policy)
+        resource_args = [python, "tools/session_resource_contract.py", "--output-root", str(out)]
+        for field in (
+            "jobs",
+            "minimum_free_bytes",
+            "minimum_memory_bytes",
+            "peak_job_memory_bytes",
+            "memory_reserve_bytes",
+        ):
+            resource_args += ["--" + field.replace("_", "-"), str(policy[field])]
+        if policy["architecture"] is not None:
+            resource_args += ["--architecture", policy["architecture"]]
+        add("linux-resource-access-preflight", resource_args, host_resources=policy)
     if session_kind == "environment":
         return commands
 
@@ -437,8 +466,26 @@ def device_command_plan(
 
 def validate_result(item: dict, result: dict, parent_info: dict | None = None) -> list[str]:
     errors = []
+    if "host_resources" in item:
+        try:
+            value = parse_evidence_json(result["stdout"])
+            if (
+                not isinstance(value, dict)
+                or type(value.get("process_id")) is not int
+                or type(result.get("process_id")) is not int
+                or value["process_id"] != result.get("process_id")
+            ):
+                raise ValueError("preflight process mismatch")
+            expected = evaluate_host_resources(value["observed"], **item["host_resources"])
+            expected["process_id"] = value["process_id"]
+            if not same_evidence_value(value, expected) or value["blockers"]:
+                raise ValueError("resource receipt differs from observed values/policy")
+        except (KeyError, ValueError, TypeError):
+            errors.append(
+                "native Linux resource/access preflight is missing, blocked or inconsistent"
+            )
     if not capture_succeeded(result):
-        return ["command failed, timed out or exceeded its capture budget"]
+        return errors + ["command failed, timed out or exceeded its capture budget"]
     if item.get("compiled_identity"):
         try:
             value = parse_evidence_json(result["stdout"])
@@ -1140,6 +1187,19 @@ def main(argv=None) -> int:
     parser.add_argument("--export-reserve-seconds", type=float, default=30)
     parser.add_argument("--min-free-gib", type=float, default=2)
     parser.add_argument(
+        "--minimum-host-memory-gib",
+        type=float,
+        default=0,
+        help="Explicit measured workload/build headroom floor; zero leaves the model unavailable",
+    )
+    parser.add_argument(
+        "--peak-build-job-memory-gib",
+        type=float,
+        default=0,
+        help="Measured peak per build job; combined with jobs and reserve",
+    )
+    parser.add_argument("--host-memory-reserve-gib", type=float, default=0)
+    parser.add_argument(
         "--artifact-inventory", type=Path, help="explicit frozen local artifact inventory"
     )
     parser.add_argument(
@@ -1197,6 +1257,24 @@ def main(argv=None) -> int:
         parser.error("jobs must be 1..256 and time/disk budgets must be finite positive numbers")
     if args.total_seconds <= args.export_reserve_seconds:
         parser.error("total session budget must exceed the export reserve")
+    if (
+        any(
+            not math.isfinite(value) or not 0 <= value < 2**34
+            for value in (
+                args.minimum_host_memory_gib,
+                args.peak_build_job_memory_gib,
+                args.host_memory_reserve_gib,
+            )
+        )
+        or args.min_free_gib >= 2**34
+    ):
+        parser.error("resource GiB budgets must be finite nonnegative values inside uint64 bytes")
+    if int(args.min_free_gib * 1024**3) < 1:
+        parser.error("minimum free-space budget must be at least one byte")
+    if TARGETS[args.target][1] != "Linux" and any(
+        (args.minimum_host_memory_gib, args.peak_build_job_memory_gib, args.host_memory_reserve_gib)
+    ):
+        parser.error("host memory model options currently require the native Linux session target")
     if args.execute and args.dry_run or args.resume and not args.execute:
         parser.error("--execute conflicts with --dry-run; --resume requires --execute")
     if args.accelerators and args.backend:
@@ -1266,6 +1344,12 @@ def main(argv=None) -> int:
         timeout=args.timeout_seconds,
         preset_override=args.preset,
         all_enabled=args.all_enabled,
+        resource_policy=dict(
+            minimum_free_bytes=int(args.min_free_gib * 1024**3),
+            minimum_memory_bytes=int(args.minimum_host_memory_gib * 1024**3),
+            peak_job_memory_bytes=int(args.peak_build_job_memory_gib * 1024**3),
+            memory_reserve_bytes=int(args.host_memory_reserve_gib * 1024**3),
+        ),
     )
     for item in commands:
         for index, value in enumerate(item["argv"]):

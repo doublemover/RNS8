@@ -67,8 +67,31 @@ shows stage/count/elapsed with a ten-second heartbeat. Full CTest uses a
 600-second per-test timeout. A free-space threshold is checked before execution
 and each command (`--min-free-gib`, default 2); it is a stop threshold, not a
 promise that a complete build will fit. `--jobs` bounds build/CTest concurrency.
-The runner does not impose an OS RSS, CPU affinity, GPU memory, thermal or power
-limit. Record and enforce allocation limits separately on the actual host.
+The runner does not impose OS RSS, CPU affinity, GPU memory, thermal or power
+limits. Record and enforce allocation limits separately on the actual host.
+
+Native Linux plans begin with a read-only resource/access receipt before any
+configure/build stage. CPU preparation checks host resources without requiring
+GPU access; environment-only execution performs just this preflight. It reads
+the current cpuset, visible cgroup-v2 hierarchy and ancestor CPU/memory limits,
+MemAvailable, available disk bytes and inodes. Requested jobs cannot exceed the
+observed affinity/quota ceiling. Optional `--minimum-host-memory-gib`, measured
+`--peak-build-job-memory-gib` and `--host-memory-reserve-gib` supply the declared
+headroom model; absent measurements stay explicitly unavailable. Available
+memory is a point-in-time observation, not a reservation or build-fit guarantee.
+
+GPU sessions additionally require a loaded amdgpu module, character-device
+KFD/render access and a positive native AMD gfx942 KFD inventory. The field
+serialization and target value follow the pinned Linux
+[topology producer](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/drivers/gpu/drm/amd/amdkfd/kfd_topology.c)
+and [device mapping](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/drivers/gpu/drm/amd/amdkfd/kfd_device.c).
+KFD node IDs and GPU IDs do not establish selected HIP ordinals, physical GPU
+count, usable HBM or a supported driver/OS tuple. The post-build native inspector
+still binds each selected runtime device. Missing hierarchy/permission/target
+facts stop the dependent build with operator guidance; no permissions, driver,
+affinity or cgroup settings are changed. The runner checks the preflight's actual
+PID and reconstructs its policy decisions from retained observations. New native
+resource, cgroup and orchestration controls remain authored and unexecuted.
 
 Execution rejects inherited `HIP_VISIBLE_DEVICES`, `ROCR_VISIBLE_DEVICES`,
 `GPU_DEVICE_ORDINAL` and `CUDA_VISIBLE_DEVICES`, including empty masks. It also
