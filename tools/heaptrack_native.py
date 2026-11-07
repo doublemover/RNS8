@@ -8,8 +8,9 @@ from pathlib import Path
 import re
 
 from execution_inventory import bounded_read
+from heaptrack_modules import recorded_stacks
 
-SCHEMA = "rns8_native_heaptrack_allocations_v1"
+SCHEMA = "rns8_native_heaptrack_allocations_v2"
 PRODUCER = "https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/libheaptrack.cpp"
 MAX_RECORDS = 100_000
 MAX_TRACES = 32_768
@@ -73,6 +74,7 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
     last_pointer = None
     module_generation = 0
     module_segments = 0
+    module_snapshot_closed = False
     for line_number, line in enumerate(lines, 1):
         if not 2 <= len(line.encode("utf-8")) <= 16_384 or line[1:2] != " ":
             raise ValueError("unsupported or over-budget native heaptrack record")
@@ -121,7 +123,12 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
                 if tail:
                     raise ValueError("native heaptrack module reset has extra fields")
                 module_generation += 1
+                module_snapshot_closed = False
             else:
+                if module_snapshot_closed:
+                    raise ValueError(
+                        "native heaptrack module snapshot extends after stack/allocation"
+                    )
                 values = [hexadecimal(part) for part in tail.split(" ")]
                 if len(values) < 3 or len(values) % 2 != 1 or len(modules) >= MAX_MODULES:
                     raise ValueError("native heaptrack module extent/budget differs")
@@ -138,11 +145,13 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
                     dict(generation=module_generation, name=name, base=base, segments=segments)
                 )
         elif mode == "t":
+            module_snapshot_closed = True
             address, parent = numbers(payload, 2)
             if len(traces) >= MAX_TRACES or parent > len(traces):
                 raise ValueError("native heaptrack trace has a future parent or exceeds budget")
             traces.append(dict(address=address, parent=parent, module_generation=module_generation))
         elif mode == "+":
+            module_snapshot_closed = True
             size, trace, pointer = numbers(payload, 3)
             if image is None or not pointer or not 0 < trace <= len(traces) or pointer in live:
                 raise ValueError(
@@ -232,6 +241,7 @@ def read_allocations(path: Path, *, pid: int, execution_id: str, executable: str
         allocations=allocations,
         trace_nodes=traces,
         module_records=modules,
+        recorded_stacks=recorded_stacks(allocations, traces, modules, image),
         unknown_frees=unknown,
         summary=dict(
             allocations=len(allocations),

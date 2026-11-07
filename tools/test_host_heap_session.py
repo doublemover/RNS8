@@ -143,6 +143,11 @@ class HeapSession(unittest.TestCase):
         self.assertEqual(result["benchmark_pid"], 123)
         self.assertEqual(allocations["summary"]["requested_bytes"], 32)
         self.assertEqual(allocations["execution_id"], result["execution_id"])
+        stacks = allocations["recorded_stacks"]
+        self.assertEqual(stacks["roots"][0]["requested_bytes"], 32)
+        self.assertEqual(stacks["frames"][0]["allocation_module_generation"], 1)
+        self.assertEqual(stacks["frames"][0]["recorded_module"]["state"], "unique_recorded_module")
+        self.assertFalse(stacks["loaded_module_bytes_verified"])
         self.assertFalse(result["production_latency"])
         bound = json.loads((self.out / "profiled.json").read_text())
         self.assertEqual(bound["external_instrumentation"]["mode"], "host_heap_interception")

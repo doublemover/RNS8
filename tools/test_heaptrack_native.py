@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 import heaptrack_native as native
+import heaptrack_modules
 
 
 def raw_fixture(events="", *, executable="/tmp/rns8 exact é"):
@@ -50,6 +51,63 @@ class NativeHeaptrack(unittest.TestCase):
         self.assertFalse(result["complete_interception_proven"])
         self.assertIn(
             "frees_without_observed_allocation_generation", result["partial_observations"]
+        )
+
+    def test_reused_trace_ids_bind_the_allocation_module_epoch_and_owned_executable_alias(self):
+        result = self.read(raw_fixture("+ 10 1 aa\nm 1 -\nm 4 /new 1000 0 100\n+ 20 1 bb\n- aa\n"))[
+            "recorded_stacks"
+        ]
+        self.assertEqual(len(result["frames"]), 2)
+        old, new = result["frames"]
+        self.assertEqual(old["recorded_module"]["module_path"], "/tmp/rns8 exact é")
+        self.assertEqual(new["recorded_module"]["module_path"], "/new")
+        self.assertEqual(new["trace_definition_module_generation"], 1)
+        self.assertEqual(new["allocation_module_generation"], 2)
+        self.assertEqual(new["recorded_address"], 0x1010)
+        self.assertEqual(new["recorded_module"]["module_virtual_address"], 0x10)
+        self.assertEqual(result["roots"][0]["freed_bytes"], 0x10)
+        self.assertEqual(result["roots"][1]["retained_bytes"], 0x20)
+        self.assertFalse(result["loaded_module_bytes_verified"])
+        self.assertFalse(result["complete_unwind_proven"])
+
+    def test_shared_parent_nodes_are_normalized_without_recursion_or_repeated_allocations(self):
+        result = self.read(raw_fixture("t 1020 1\nt 1030 1\n+ 10 2 aa\n+ 20 3 bb\n+ 30 2 cc\n"))[
+            "recorded_stacks"
+        ]
+        self.assertEqual(len(result["frames"]), 3)
+        self.assertEqual(len(result["roots"]), 2)
+        self.assertEqual([row["parent_frame_id"] for row in result["frames"]], [None, "1:1", "1:1"])
+        self.assertEqual(result["roots"][0]["allocations"], 2)
+        self.assertEqual(result["roots"][0]["requested_bytes"], 0x40)
+        self.assertEqual(result["roots"][1]["requested_bytes"], 0x20)
+        self.assertEqual(result["frame_mapping_states"], {"unique_recorded_module": 3})
+
+    def test_same_module_overlapping_segments_deduplicate_but_distinct_modules_stay_ambiguous(self):
+        source = raw_fixture("+ 10 1 aa\n").replace("m 1 x 1000 0 100", "m 1 x 1000 0 100 0 80")
+        module = self.read(source)["recorded_stacks"]["frames"][0]["recorded_module"]
+        self.assertEqual(module["state"], "unique_recorded_module")
+        source = source.replace("t 1010 0", "m 4 /new 1000 0 100\nt 1010 0")
+        module = self.read(source)["recorded_stacks"]["frames"][0]["recorded_module"]
+        self.assertEqual(module["reason"], "overlapping_recorded_modules")
+        self.assertIsNone(module["module_record_id"])
+        self.assertIsNone(module["module_virtual_address"])
+
+    def test_module_snapshot_cannot_look_forward_and_stack_join_budgets_are_bounded(self):
+        for source in (
+            raw_fixture("m 4 /new 1000 0 100\n+ 10 1 aa\n"),
+            raw_fixture("+ 10 1 aa\nm 4 /new 1000 0 100\n"),
+        ):
+            with self.assertRaisesRegex(ValueError, "snapshot extends"):
+                self.read(source)
+        for constant in ("MAX_FRAME_BINDINGS", "MAX_SEGMENT_VISITS"):
+            with (
+                mock.patch.object(heaptrack_modules, constant, 0),
+                self.assertRaisesRegex(ValueError, "budget"),
+            ):
+                self.read(raw_fixture("+ 1 1 aa\n"))
+        result = self.read(raw_fixture("m 1 -\n+ 10 1 aa\n"))["recorded_stacks"]
+        self.assertEqual(
+            result["frames"][0]["recorded_module"]["reason"], "recorded_module_missing"
         )
 
     def test_retained_payload_and_final_unbounded_time_do_not_become_zero_lifetime(self):

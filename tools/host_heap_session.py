@@ -27,6 +27,7 @@ SCHEMA = "rns8_host_heap_plan_v1"
 SOURCE_INPUTS = (
     "tools/host_heap_session.py",
     "tools/heaptrack_native.py",
+    "tools/heaptrack_modules.py",
     "tools/host_instrumentation_session.py",
     "tools/profiler_contract.py",
     "tools/profiler_artifacts.py",

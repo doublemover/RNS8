@@ -685,6 +685,17 @@ It retains allocation pointer generations, parent trace nodes and module-cache
 generations at allocation as well as trace-node creation. A reused trace ID
 after a module reset cannot inherit its original image mapping. Matched frees
 recover requested size from their live allocation.
+The version-two allocation report includes normalized recorded stack frames and
+allocation-epoch root totals. Shared parents are stored once per epoch, with
+explicit links from leaf to caller. Module association uses the epoch active at
+allocation, not trace creation; overlapping modules and missing maps stay
+unresolved. A module snapshot cannot acquire more entries after its first stack
+or allocation. Segment lookup and expanded frame bindings have separate budgets.
+The [native trace tree](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/tracetree.h)
+reuses numeric trace paths across module resets. The recorded addresses already
+include the producer's one-byte adjustment and are not adjusted again. This
+projection reads no current module/debug files and proves no loaded-byte identity,
+function/source location, complete unwind or operation-clock association.
 Duplicate live pointers, future trace parents, mixed processes, unknown record
 formats, reversed clocks, truncated strings and exhausted budgets fail closed.
 Unmatched frees retain unknown pre-capture lifetime instead of subtracting zero.
