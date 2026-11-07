@@ -518,6 +518,35 @@ phase and synthetic publication controls remain unexecuted.
 
 ## Separate Linux host allocation capture
 
+Windows allocation acquisition remains separate source work. Its settings
+transaction is implemented in `tools/windows_heap_settings.py` against the
+documented [IFEO TracingFlags setting](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/recording-for-heap-analysis).
+Planning an executable basename opens no registry key. Runtime use requires
+explicit image-heap authorization; it never elevates or changes unrelated
+values. A global named mutex coordinates RNS8 leases across Windows sessions.
+The owner persists and flushes the exact prior value/type/presence before
+attempting a write, checks enabled readback, and restores on success, native
+write/flush failure, workload failure or interruption. Existing value1 is
+borrowed without mutation; unknown types/bits and observed concurrent changes
+block overwriting. Registry access denial remains a distinct native error.
+
+Immutable before/after journals support explicit recovery after an owner crash:
+
+```powershell
+python tools/windows_heap_settings.py --restore-journal temp/host-heap/heap-settings-before.json `
+  --out temp/host-heap-recovery --authorize-image-heap-configuration
+```
+
+Recovery takes the same cooperative mutex and checks the current value against
+the saved/owned states. It does not inspect or stop unrelated processes. An
+empty key container created by the lease is retained, with its presence
+reported separately: deleting it could erase values added concurrently by
+another writer. The tracing value is restored; an unchanged empty container is
+not reported as an exact restoration of prior container presence. These are
+observed state checks, not an atomic transaction with arbitrary registry
+writers. Authored in-memory recovery/interruption controls remain unexecuted;
+no registry or mutex has been opened during source work.
+
 `tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
 native `libheaptrack_preload.so`. Its plan reads the existing admissible
 production observation, same optimized benchmark, ELF tuple and source/library
