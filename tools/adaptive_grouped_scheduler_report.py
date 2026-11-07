@@ -12,7 +12,7 @@ from typing import Any
 from report_capture_inputs import load_report_capture
 from observation_cohorts import phase_median, evidence
 from report_comparison import ComparisonPolicy, ReportCohorts
-from diagnostic_companion import file_digest, load_bindings
+from diagnostic_companion import load_bindings
 from timing_eligibility import capture_identity
 
 
@@ -100,24 +100,19 @@ def _baseline_map(
 
 def _diagnostic_events(candidate: dict, cohorts: ReportCohorts) -> bool:
     """GPU phases describe matched diagnostics, never production host timings."""
-    receipts = cohorts.production.receipts(candidate)
-    if len(receipts) != evidence(candidate).get("independent_runs") or not receipts:
+    try:
+        diagnostics = cohorts.diagnostic_observations(candidate)
+        return (
+            bool(diagnostics)
+            and len(diagnostics) == evidence(candidate).get("independent_runs")
+            and all(
+                row["binding"].get("diagnostic_kind") == "hip_events"
+                and _gpu_events_available(row["capture"])
+                for row in diagnostics
+            )
+        )
+    except (KeyError, OSError, TypeError, ValueError):
         return False
-    for receipt in receipts:
-        binding = receipt.get("diagnostic_companion") or {}
-        try:
-            path = Path(binding["diagnostic_capture"])
-            diagnostic = _load(path)
-            if (
-                binding.get("diagnostic_kind") != "hip_events"
-                or file_digest(path) != binding["diagnostic_file_sha256"]
-                or capture_identity(diagnostic) != binding["diagnostic_capture_sha256"]
-                or not _gpu_events_available(diagnostic)
-            ):
-                return False
-        except (KeyError, OSError, TypeError, ValueError):
-            return False
-    return True
 
 
 def _scheduler_blockers(capture: dict) -> list[str]:

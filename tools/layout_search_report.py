@@ -8,21 +8,36 @@ from reference_verdict import reference_verdict
 import argparse
 import json
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from report_capture_inputs import load_report_captures
 from observation_cohorts import (
-    aggregate_captures,
-    canonical_work,
     comparison_environment,
     phase_median,
     evidence,
-    qualified,
-    best_implementation,
 )
+from report_comparison import ComparisonPolicy, ReportCohorts
+from diagnostic_companion import load_bindings
 
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.02
+LAYOUT_POLICY = ComparisonPolicy(
+    "same_logical_output_physical_layout_v1",
+    work_exclusions=(
+        "export_variant.name",
+        "export_variant.selector_status_policy",
+        "export_variant.d2h_policy",
+        "export_variant.selector_key",
+        "reconstruction_variant.name",
+        "output_logical_ld",
+        "output_ld_padding",
+        "output_policy.destination_layout",
+        "export_variant.output_layout",
+        "requested_next_op.resolved",
+    ),
+    require_cpu_anchor=False,
+)
 
 
 def scenario_metadata(capture: dict[str, Any]) -> dict[str, Any]:
@@ -108,21 +123,7 @@ def contract_key(capture: dict[str, Any], baseline_name: str | None = None) -> t
     scenario = scenario_metadata(capture)
     return (
         baseline_name or scenario.get("name"),
-        canonical_work(
-            capture,
-            exclude=(
-                "export_variant.name",
-                "export_variant.selector_status_policy",
-                "export_variant.d2h_policy",
-                "export_variant.selector_key",
-                "reconstruction_variant.name",
-                "output_logical_ld",
-                "output_ld_padding",
-                "output_policy.destination_layout",
-                "export_variant.output_layout",
-                "requested_next_op.resolved",
-            ),
-        ),
+        LAYOUT_POLICY.work(capture),
         comparison_environment(capture),
         backend_id(capture),
         target_id(capture),
@@ -194,8 +195,31 @@ def actual_layout_deltas(candidate: dict[str, Any], baseline: dict[str, Any]) ->
     return list(dict.fromkeys(deltas))
 
 
-def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    captures = aggregate_captures(captures)
+def diagnostic_phase_rows(capture: dict, cohorts: ReportCohorts) -> tuple[list[dict], bool | None]:
+    if backend_id(capture) in {"cpu", "cpu-reference", "wrap64-byte-limb"}:
+        return [], None
+    try:
+        observations = cohorts.diagnostic_observations(capture)
+        rows = [
+            dict(
+                production_capture_sha256=row["production_capture_sha256"],
+                diagnostic_capture_sha256=row["binding"]["diagnostic_capture_sha256"],
+                capture_path=row["capture"]["_path"],
+                phases=phase_attribution(row["capture"]),
+                gpu_events_available=gpu_events_available(row["capture"]),
+            )
+            for row in observations
+        ]
+        return rows, bool(rows) and all(row["gpu_events_available"] for row in rows)
+    except (KeyError, OSError, TypeError, ValueError):
+        return [], False
+
+
+def candidate_rows(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> list[dict[str, Any]]:
+    cohorts = ReportCohorts(captures, diagnostic_bindings)
+    captures = cohorts.observations
     baselines: dict[tuple[Any, ...], dict[str, Any]] = {}
     for capture in captures:
         metadata = layout_metadata(capture)
@@ -209,12 +233,13 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         baseline_name = str(metadata.get("layout_baseline_name") or "")
         baseline_options = baselines.get(contract_key(capture, baseline_name=baseline_name), [])
-        baseline = best_implementation(baseline_options, candidate=capture)
+        baseline = cohorts.best(baseline_options, capture, LAYOUT_POLICY)
+        comparison = cohorts.compare(capture, baseline, LAYOUT_POLICY)
         numerical = reference_verdict(capture, baseline_options)
         baseline_numerical = (
             reference_verdict(baseline, [capture]) if baseline is not None else None
         )
-        blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
+        blockers: list[str] = list(comparison["blockers"]) + list(numerical.blockers)
         if baseline_numerical is not None:
             blockers.extend("baseline:" + item for item in baseline_numerical.blockers)
         baseline_median = None
@@ -240,27 +265,27 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
             blockers.append("missing_candidate_end_to_end_timing")
         if baseline is not None and baseline_median is None:
             blockers.append("missing_baseline_end_to_end_timing")
-        if (
-            qualified(capture)
-            and candidate_median is not None
-            and baseline_median
-            and baseline_median > 0
-        ):
-            speedup = baseline_median / candidate_median
+        speedup = comparison["speedup"]
         if not release_reviewed(capture):
             blockers.append("candidate_not_release_reviewed")
         if baseline is not None and not release_reviewed(baseline):
             blockers.append("baseline_not_release_reviewed")
-        if gpu_events_available(capture) is False:
+        diagnostics, candidate_events = diagnostic_phase_rows(capture, cohorts)
+        baseline_diagnostics, baseline_events = (
+            diagnostic_phase_rows(baseline, cohorts) if baseline else ([], False)
+        )
+        if candidate_events is False:
             blockers.append("missing_candidate_gpu_events")
-        if baseline is not None and gpu_events_available(baseline) is False:
+        if baseline is not None and baseline_events is False:
             blockers.append("missing_baseline_gpu_events")
         attribution = phase_attribution(capture)
         for phase in ("pack_us", "gemm_us", "export_us", "end_to_end_us"):
             if attribution[phase] is None:
                 blockers.append(f"missing_{phase}")
-        if attribution["d2h_us"] is None:
+        if not diagnostics or any(row["phases"]["d2h_us"] is None for row in diagnostics):
             blockers.append("missing_d2h_attribution")
+        margin = comparison["required_speedup_margin"]
+        required_margin = max(PROMOTION_SPEEDUP_THRESHOLD, margin) if margin is not None else None
         decision = "keep experimental"
         if speedup is not None and baseline is not None:
             hard_blockers = [
@@ -271,9 +296,9 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "missing_d2h_attribution",
                 }
             ]
-            if speedup < 1.0 and not hard_blockers:
+            if margin is not None and speedup < 1 / margin and not hard_blockers:
                 decision = "drop/deprioritize"
-            elif speedup >= PROMOTION_SPEEDUP_THRESHOLD and not blockers:
+            elif required_margin is not None and speedup > required_margin and not blockers:
                 decision = "promote locally"
         rows.append(
             {
@@ -303,10 +328,22 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "layout_deltas": deltas,
                 "actual_layout_variant": bool(deltas),
                 "candidate_phase_medians_us": attribution,
+                "candidate_diagnostic_phase_observations": diagnostics,
+                "baseline_diagnostic_phase_observations": baseline_diagnostics,
+                "diagnostic_d2h_median_us": median(
+                    {
+                        row["diagnostic_capture_sha256"]: row["phases"]["d2h_us"]
+                        for row in diagnostics
+                    }.values()
+                )
+                if diagnostics and all(row["phases"]["d2h_us"] is not None for row in diagnostics)
+                else None,
+                "comparison": comparison,
+                "required_speedup_margin": required_margin,
                 "baseline_end_to_end_us": baseline_median,
                 "candidate_end_to_end_us": candidate_median,
                 "speedup_vs_default_layout": speedup,
-                "candidate_gpu_events": gpu_events_available(capture),
+                "candidate_gpu_events": candidate_events,
                 "release_reviewed": release_reviewed(capture),
                 "promotion_blockers": list(dict.fromkeys(blockers)),
                 "decision": decision,
@@ -316,8 +353,10 @@ def candidate_rows(captures: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
-def build_report(captures: list[dict[str, Any]]) -> dict[str, Any]:
-    rows = candidate_rows(captures)
+def build_report(
+    captures: list[dict[str, Any]], *, diagnostic_bindings: dict | None = None
+) -> dict[str, Any]:
+    rows = candidate_rows(captures, diagnostic_bindings=diagnostic_bindings)
     decisions: dict[str, int] = {}
     for row in rows:
         decisions[row["decision"]] = decisions.get(row["decision"], 0) + 1
@@ -364,9 +403,10 @@ def main() -> int:
     parser.add_argument("captures", nargs="+", type=Path)
     parser.add_argument("--out-dir", type=Path)
     parser.add_argument("--json", action="store_true", dest="print_json")
+    parser.add_argument("--diagnostic-binding", action="append", type=Path, default=[])
     args = parser.parse_args()
     captures = load_report_captures(args.captures)
-    report = build_report(captures)
+    report = build_report(captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.out_dir:
         args.out_dir.mkdir(parents=True, exist_ok=True)
         (args.out_dir / "layout-search-report.json").write_text(

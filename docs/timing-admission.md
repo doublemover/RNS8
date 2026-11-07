@@ -22,6 +22,13 @@ decisions require a completed-output gain above both cohorts' observed noise.
 FHE proxy profile decisions use the same production/companion boundary and the
 larger of their workload margin and observed cohort noise. Instrumented or
 unbound captures remain descriptive and cannot approve a local workload profile.
+Layout comparisons preserve their declared physical/output-layout differences,
+but require qualified production cohorts and the observed noise margin. Host
+phase medians and per-process matched diagnostic observations remain separate;
+diagnostic D2H values never become production call samples. Shared diagnostic
+lookup rechecks file and public-record identity after decoding, even when prior
+production admission was cached. Legacy instrumented layout rows remain readable
+without gaining local promotion authority.
 
 Sweep reviews record the actual baseline path and canonical digests of both
 captures for their end-to-end timing comparison. Private loader path annotations

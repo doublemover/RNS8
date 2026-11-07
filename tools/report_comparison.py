@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -117,6 +118,46 @@ class ReportCohorts:
             for record in evidence(capture).get("observations", [])
             if record.get("capture_sha256") in self._raws
         ]
+
+    def diagnostic_observations(self, capture: dict) -> list[dict]:
+        """Read matched diagnostic phases without treating their host time as production.
+
+        Recheck both file and public-record identity after decoding; a receipt
+        cached by production admission does not authorize changed diagnostics.
+        """
+        from benchmark_schema import load_capture, validate_capture
+        from benchmark_request import file_digest
+        from execution_host_identity import is_gpu_capture
+
+        if self.production.blockers(capture):
+            raise ValueError("qualified production observations required for diagnostic lookup")
+        observations = self.production.receipts(capture)
+        if not observations:
+            raise ValueError("production observations missing for diagnostic lookup")
+        diagnostics = []
+        for observation in observations:
+            binding = observation.get("diagnostic_companion")
+            if not is_gpu_capture(capture):
+                continue
+            if not isinstance(binding, dict):
+                raise ValueError("matched GPU diagnostic binding missing")
+            path = Path(binding["diagnostic_capture"])
+            diagnostic = load_capture(path)
+            validate_capture(diagnostic, path)
+            if (
+                file_digest(path) != binding["diagnostic_file_sha256"]
+                or capture_identity(diagnostic) != binding["diagnostic_capture_sha256"]
+            ):
+                raise ValueError("matched diagnostic content changed after production admission")
+            diagnostic["_path"] = str(path)
+            diagnostics.append(
+                dict(
+                    production_capture_sha256=observation["capture_sha256"],
+                    binding=binding,
+                    capture=diagnostic,
+                )
+            )
+        return diagnostics
 
     def numerical(self, capture: dict, *, require_cpu_anchor: bool = True):
         key = (
