@@ -106,6 +106,12 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
                                                                 2, 101) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
         RNS8_SUCCESS);
+  for (auto* input : {a0, b0, a1, b1})
+    CHECK(input->materialized_rns_prefix == plan->prefix);
+  a0->materialized_rns_prefix = plan->prefix - 1;
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
+        RNS8_RANGE_ERROR);
+  a0->materialized_rns_prefix = plan->prefix;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_INVALID_ARGUMENT);
 

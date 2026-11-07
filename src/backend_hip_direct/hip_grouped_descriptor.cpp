@@ -931,6 +931,9 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_pack(
         task.b->source_version != expected_source_version) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (!api::materialized_rns_prefix_covers(*task.a, descriptor.prefix) ||
+        !api::materialized_rns_prefix_covers(*task.b, descriptor.prefix))
+      return RNS8_RANGE_ERROR;
   }
   return RNS8_SUCCESS;
 }
@@ -948,6 +951,9 @@ rns8_status hip_direct_validate_grouped_gemm_descriptor_after_gemm(
         task.c->source_version != (task.c->generation_exhausted ? 0 : task.c->content_generation)) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (api::uses_rns_storage(descriptor.semantics) &&
+        task.c->materialized_rns_prefix != descriptor.prefix)
+      return RNS8_RANGE_ERROR;
   }
   return RNS8_SUCCESS;
 }
