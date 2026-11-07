@@ -7,7 +7,7 @@ frontload adds build selection and sensitivity/concurrency controls under
 under [#103](https://github.com/doublemover/RNS8/issues/103). The native host
 session, native LLVM coverage and separate device-ASan preflight drivers are
 authored. Native test-process and installed-consumer loader bookends are also
-authored; additional launcher/application coverage and continuous CI reporting
+authored; additional launcher/application coverage and native CI qualification
 remain implementation work. A separately opted-in
 bounded ordinary device-correctness path is authored alongside the preflight.
 Python branch/subprocess collection source is authored.
@@ -68,7 +68,7 @@ modules and real test contexts. The authored
 baselines and intended native assertion/source-line observations. The authored
 [native C++ mutation lane](native-production-mutations.md) builds separate CPU
 production variants with ordinary assertion controls. All new lane execution,
-compatible optional Mull and continuous CI remain pending.
+compatible optional Mull execution and native CI qualification remain pending.
 
 `tools/host_instrumentation_session.py` prints a plan by default. Adding
 `--execute` configures a fresh build, builds its complete first-party targets,
@@ -140,7 +140,7 @@ libraries. A failed sensitivity control stops before application tests. No host
 session, loader query, sensitivity control or test has executed during this
 implementation frontload.
 
-The manual `Native Instrumentation Candidate` workflow selects one of the native
+The `Native Instrumentation Candidate` workflow's manual mode selects one of the native
 Linux debug/optimized ASan+UBSan, OpenMP-OFF TSan or separate ROCm10.1 device-ASan
 lanes. Its dedicated
 `rns8-host-checks`/`node24` image must already contain the selected locked LLVM
@@ -151,9 +151,14 @@ supported gfx942/gfx950 `xnack+` hardware, native HMM/KFD and existing
 The workflow installs only shared locked build tools, checks protocol controls,
 then invokes the same fresh bounded host session and installed consumers. It
 serializes image use, retains first-failure/process/JUnit evidence and adds no
-skip policy or suppression. It is authored, unexecuted and manual-only until a
-native pilot establishes detector sensitivity, complete inventory and measured
-cost for required PR/periodic activation. Host runs do not provide device-ASan
+skip policy or suppression. It is authored and unexecuted. After a native pilot
+establishes detector sensitivity, complete inventory and measured cost,
+`RNS8_NATIVE_HOST_CI=enabled` opts into affected same-repository PRs (debug
+ASan+UBSan) and a weekly debug/optimized/TSan matrix. The prepared LLVM prefix
+comes from `RNS8_NATIVE_LLVM_ROOT`; no image or variable is provisioned here.
+Source-only change classification skips expensive documentation-only jobs,
+and owned total deadlines leave an artifact reserve. The device lane remains
+explicit manual selection. Host runs do not provide device-ASan
 coverage, and the device lane leaves detector sensitivity unexecuted.
 
 The host sanitizer session also requests two bounded witnesses from each real

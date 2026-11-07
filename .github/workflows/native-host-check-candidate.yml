@@ -1,8 +1,11 @@
 name: Native Instrumentation Candidate
 
-# Activate required/periodic checks after native sensitivity, cost and inventory
-# qualification. Branch pushes do not launch new validation during frontloading.
+# Automatic lanes require native sensitivity, cost and inventory qualification
+# and explicit repository activation. This source change sets no variables.
 on:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 3"
   workflow_dispatch:
     inputs:
       preset:
@@ -47,12 +50,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  change-scope:
+    name: Native instrumentation source scope
+    uses: ./.github/workflows/native-check-scope.yml
+    with:
+      event: ${{ github.event_name }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
   native-host:
+    needs: change-scope
+    if: >-
+      needs.change-scope.outputs.source_required == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (vars.RNS8_NATIVE_HOST_CI == 'enabled' &&
+       (github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository)))
     runs-on: [self-hosted, linux, x64, rns8-host-checks, node24]
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        preset: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.preset) || (github.event_name == 'schedule' && '["cpu-asan-ubsan-debug","cpu-asan-ubsan-release","cpu-tsan-release"]' || '["cpu-asan-ubsan-debug"]')) }}
     env:
-      RNS8_NATIVE_LLVM_ROOT: ${{ inputs.llvm_root }}
-      RNS8_HOST_PRESET: ${{ inputs.preset }}
+      RNS8_NATIVE_LLVM_ROOT: ${{ inputs.llvm_root || vars.RNS8_NATIVE_LLVM_ROOT }}
+      RNS8_HOST_PRESET: ${{ matrix.preset }}
       RNS8_ASAN_ROCM_ROOT: ${{ inputs.rocm_root }}
       RNS8_ASAN_TARGET: ${{ inputs.target }}
       RNS8_ASAN_AGENT_INDEX: ${{ inputs.agent_index }}
@@ -65,7 +85,7 @@ jobs:
           python-version-file: .python-version
           allow-prereleases: false
       - name: Require the prepared compiler and runtime tools
-        if: ${{ inputs.preset != 'device-asan-10.1' }}
+        if: ${{ matrix.preset != 'device-asan-10.1' }}
         run: |
           test "${RNS8_NATIVE_LLVM_ROOT#/}" != "$RNS8_NATIVE_LLVM_ROOT"
           test -x "$RNS8_NATIVE_LLVM_ROOT/bin/clang++"
@@ -79,7 +99,7 @@ jobs:
           python tools/test_host_instrumentation.py
           python tools/test_device_asan.py
       - name: Run one fresh host lane and installed consumers
-        if: ${{ inputs.preset != 'device-asan-10.1' }}
+        if: ${{ matrix.preset != 'device-asan-10.1' }}
         run: >-
           python tools/host_instrumentation_session.py
           --preset "$RNS8_HOST_PRESET" --out temp/native-host-check
@@ -87,9 +107,9 @@ jobs:
           --nm "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-nm"
           --symbolizer "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-symbolizer"
           --cmake "$(command -v cmake)" --ctest "$(command -v ctest)"
-          --jobs 2 --timeout-seconds 3600 --execute
+          --jobs 2 --timeout-seconds 3600 --total-seconds 6000 --execute
       - name: Run supported device-ASan ordinary correctness and installed consumers
-        if: ${{ inputs.preset == 'device-asan-10.1' }}
+        if: ${{ matrix.preset == 'device-asan-10.1' }}
         run: >-
           python tools/device_asan_preflight.py
           --rocm-root "$RNS8_ASAN_ROCM_ROOT" --target "$RNS8_ASAN_TARGET"
@@ -100,7 +120,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-host-check-${{ inputs.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: native-host-check-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 14
           path: |

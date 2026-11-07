@@ -140,7 +140,7 @@ for those native observations. This is retained-file custody, not cryptographic
 execution attestation, and it launches no analyzer or compiler. External dependency trees are not
 fully rehashed, and static analysis does not qualify GPU execution or performance.
 The orchestration and controls are authored; their deferred batch execution,
-real platform pilots, reviewed diagnostic dispositions and CI gate remain open
+real platform pilots, reviewed diagnostic dispositions and CI activation remain open
 under #99.
 
 `tools/analysis_dispositions.py --receipt temp/analysis-session/results.json
@@ -160,12 +160,17 @@ applies replacements nor generates an accepted baseline automatically.
 Strict mode accepts only complete native analysis with no new findings and
 valid narrow dispositions. `--advisory` retains unclassified findings explicitly;
 it cannot accept incomplete/syntax-only coverage, stale entries or invalid
-evidence. The manual `Native CPU Analysis Candidate` workflow uses shared locked
+evidence. The `Native CPU Analysis Candidate` workflow uses shared locked
 tools, the non-unity CPU preset, native sensitivity controls and bounded serial
 passes, preserving raw failures and gate receipts. Its first native pilot,
-finding cleanup and measured cost must establish the required PR/periodic
-cadence; branch pushes do not start this candidate workflow during source
-frontloading. Windows/HIP configurations keep their separate pilot gates.
+finding cleanup and measured cost must establish required-check activation.
+`RNS8_NATIVE_ANALYSIS_CI=enabled` opts into affected same-repository PRs and the
+weekly native CPU analysis job; automatic runs use the strict disposition gate.
+The shared changed-tree classifier skips expensive checks for documentation-only
+edits without hiding deleted code through rename detection. Workflow invocation
+and schedule hooks are authored; no repository variables are set by source
+development and no native pilot is implied. Windows/HIP configurations keep
+their separate pilot gates.
 
 A GPU is unnecessary for portable reference, API and tooling work. On Windows,
 set `VCPKG_ROOT` to an installation containing the manifest packages, then use

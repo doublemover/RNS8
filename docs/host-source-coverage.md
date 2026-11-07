@@ -77,6 +77,23 @@ checked addition after a valid near-maximum extent product and requires range
 rejection without query-output publication. Mapping/control execution remains
 deferred; no coverage number or mutation kill is claimed.
 
+`CPU Source Assurance Candidate` reuses these collectors and the native/Python
+production-mutation owners, with four separate artifacts and exact source/test
+denominators. It requires a prepared native LLVM/CPU-dependency image, the shared
+locked tools, serial image use and a total child deadline. Python process-profile
+files remain in uploaded artifacts, including their hidden filenames. Mull stays
+an explicit local option and adds no automatic mutation campaign.
+
+Manual selection is available. Once native inventory, baseline, mandatory mutant
+detection and execution/storage cost are reviewed,
+`RNS8_SOURCE_ASSURANCE_CI=enabled` opts into affected same-repository PRs and the
+weekly four-lane expansion; `RNS8_NATIVE_LLVM_ROOT` selects the prepared compiler
+prefix. Missing opt-ins leave automatic native execution disabled. The shared
+changed-tree job runs on PRs so documentation-only changes can skip native work
+without hiding the workflow behind path filters. Scope/job skips are selection
+states, not coverage or detector qualification. No arbitrary percentage baseline
+or repository-variable update is included in this source pass.
+
 The authored Python inventory wrapper, `tools/python_test_inventory.py`, uses
 the existing native `unittest` loader/runner and each module's `load_tests`
 hook. It rejects empty/duplicate selections and disabled Python assertions,
