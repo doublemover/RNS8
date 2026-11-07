@@ -60,7 +60,7 @@ def task_scaling_contract(capture: dict[str, Any]) -> dict[str, Any]:
     elif (
         not single_task_batch_contract(capture)
         or tasks != 1
-        or capture.get("benchmark_execution_mode") != "persistent_resident"
+        or capture.get("benchmark_execution_mode") != "persistent_resident_matrices"
     ):
         raise ValueError("independent baseline must describe one complete task")
     if (

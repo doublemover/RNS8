@@ -27,6 +27,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ToolingContracts(unittest.TestCase):
+    def test_active_golden_cases_are_registered_with_ctest(self):
+        registration = (ROOT / "cmake/rns8_tests.cmake").read_text(encoding="utf-8")
+        for case in golden.DEFAULT_CASES:
+            if case.retired_reason is None:
+                with self.subTest(case=case.name):
+                    self.assertIn(case.command[-1], registration)
+
     def test_cache_path_table(self):
         for platform, env, expected in [
             (

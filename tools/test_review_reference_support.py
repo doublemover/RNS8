@@ -59,6 +59,11 @@ def synthetic_reference_controls(subject: dict) -> list[dict]:
     controls = []
     for backend in ("cpu-reference", "hip-direct"):
         capture = factory(backend, 500 if backend == "cpu-reference" else 300)
+        if semantics == "exact_wide_signed":
+            limbs = subject["exact_wide_limb_count"]
+            capture["exact_wide_limb_count"] = limbs
+            capture["exact_output_contract"]["limb_count"] = limbs
+            capture["export_variant"]["limb_count"] = limbs
         if "scenario_metadata" in subject:
             capture["scenario_metadata"] = copy.deepcopy(subject["scenario_metadata"])
         for name in ("verification_amortization", "error_detection_policy"):
@@ -114,22 +119,30 @@ def write_policy_review(
 
 def write_variant_review(path: Path, capture_paths: list[Path]) -> None:
     """A variant study keeps CPU mathematical anchors outside its GPU timing rows."""
-    subject = load_capture(capture_paths[0])
-    anchors = []
-    for control in synthetic_reference_controls(subject):
-        control.pop("export_variant", None)
-        control.pop("reconstruction_variant", None)
-        target = path.parent / (control["backend_selected"] + "-reference.json")
-        validate_capture(control, target)
-        target.write_text(json.dumps(control), encoding="utf-8")
-        control["_path"] = str(target)
-        anchors.append(control)
-    cpu = next(control for control in anchors if control["backend_selected"] == "cpu-reference")
     groups = []
+    anchors_by_contract = {}
     for capture_path in capture_paths:
         subject = load_capture(capture_path)
         validate_capture(subject, capture_path)
         subject["_path"] = str(capture_path)
+        # A study can contain several output widths. Keep independent reference
+        # fixtures for each contract rather than overwriting the first anchors.
+        contract_id = hashlib.sha256(capture_contract_key(subject).encode()).hexdigest()[:16]
+        if contract_id not in anchors_by_contract:
+            anchors = []
+            for control in synthetic_reference_controls(subject):
+                control.pop("export_variant", None)
+                control.pop("reconstruction_variant", None)
+                target = path.parent / (
+                    control["backend_selected"] + f"-{contract_id}-reference.json"
+                )
+                validate_capture(control, target)
+                target.write_text(json.dumps(control), encoding="utf-8")
+                control["_path"] = str(target)
+                anchors.append(control)
+            anchors_by_contract[contract_id] = anchors
+        anchors = anchors_by_contract[contract_id]
+        cpu = next(control for control in anchors if control["backend_selected"] == "cpu-reference")
         candidates = []
         for capture in [subject, *anchors]:
             match = capture["checksum_u64"] == cpu["checksum_u64"]

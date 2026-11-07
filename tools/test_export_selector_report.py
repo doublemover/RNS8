@@ -9,15 +9,7 @@ import tempfile
 from pathlib import Path
 
 import export_selector_report
-from test_benchmark_schema_support_chains_wrap64 import (
-    as_exact_wide_capture,
-)
-from test_benchmark_schema_support_core import (
-    expect_valid,
-)
-from test_benchmark_schema_support_metadata import (
-    add_helper_lane_fields,
-)
+from test_benchmark_sweep_support import exact_wide_capture
 from test_starfoundry_reports import starfoundry_capture
 
 
@@ -26,7 +18,8 @@ def write_capture(path: Path, capture: dict) -> None:
 
 
 def reviewable_fixed_limb_capture() -> dict:
-    capture = add_helper_lane_fields(as_exact_wide_capture(expect_valid("v4_bounded_i64_ck.json")))
+    capture = exact_wide_capture("ck", 100)
+    capture["exact_wide_limb_count"] = 4
     selected_kernel = "hip_direct_export_exact_wide_signed_fixed_prefix20_fixed_limbs_device"
     capture["backend_selected"] = "ck"
     capture["backend_requested"] = "ck"

@@ -117,9 +117,15 @@ def main() -> int:
     assert report["candidate_count"] == 4
     assert rows["packed-layout"]["decision"] == "keep experimental"
     assert rows["packed-layout"]["speedup_vs_default_layout"] is None
-    assert "residue_channel_fusion_enabled" in rows["packed-layout"]["layout_deltas"]
+    # Diagnostic-only records cannot supply an admitted production baseline.
+    assert rows["packed-layout"]["layout_deltas"] == []
+    assert "missing_default_layout_baseline" in rows["packed-layout"]["promotion_blockers"]
+    assert "residue_channel_fusion_enabled" in layout_search_report.actual_layout_deltas(
+        winner, baseline
+    )
     assert rows["metadata-only-layout"]["decision"] == "keep experimental"
-    assert "metadata_only_layout_candidate" in rows["metadata-only-layout"]["promotion_blockers"]
+    assert "missing_default_layout_baseline" in rows["metadata-only-layout"]["promotion_blockers"]
+    assert layout_search_report.actual_layout_deltas(metadata_only, baseline) == []
     assert rows["slow-layout"]["decision"] == "keep experimental"
     assert rows["missing-baseline-layout"]["decision"] == "keep experimental"
     assert (

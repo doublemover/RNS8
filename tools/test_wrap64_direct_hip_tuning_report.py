@@ -151,6 +151,7 @@ def production_cohort_controls():
                 _, _, paths = authored_capture_pair(lane, fixture)
                 capture = load_capture(paths[0])
                 validate_capture(capture, paths[0])
+                capture["_path"] = str(paths[0])
                 records.append(capture)
                 if backend != "wrap64-byte-limb":
                     binding = build_binding(*paths)
@@ -240,6 +241,7 @@ def production_cohort_controls():
                 encoding="utf-8",
             )
             renamed.append(load_capture(target))
+            renamed[-1]["_path"] = str(target)
             binding = bindings.get(str(Path(original["_path"]).resolve()))
             if binding:
                 renamed_bindings[str(target.resolve())] = build_binding(

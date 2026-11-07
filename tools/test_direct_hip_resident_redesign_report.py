@@ -67,7 +67,12 @@ def capture(
 
 def redesign_metadata(candidate: str = "layout_tile_export_prototype") -> dict:
     return {
+        "enabled": True,
         "candidate": candidate,
+        "policy": "explicit_experimental_resident_redesign",
+        "resource_evidence_required": True,
+        "promotion_eligible": False,
+        "cache_promotion_blocker": "experimental_resident_redesign_requires_resource_evidence",
         "dimensions": [
             "data_layout",
             "tile_shape",

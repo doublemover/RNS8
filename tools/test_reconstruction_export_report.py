@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import reconstruction_export_report
+from diagnostic_companion import build_binding
 from test_capture_identity_support import write_production_fixture_pair
 from test_export_selector_report import reviewable_fixed_limb_capture
 from test_review_reference_support import (
@@ -119,7 +120,12 @@ def main() -> int:
             ),
         ]
         prefix_base = as_default(base)
+        prefix_base["exact_wide_limb_count"] = 8
+        prefix_base["exact_output_contract"]["limb_count"] = 8
         prefix_base["export_variant"]["limb_count"] = 8
+        prefix_base["export_variant"]["selector_key"] = prefix_base["export_variant"][
+            "selector_key"
+        ].replace("limb_count=4", "limb_count=8")
         prefix_base["reconstruction_variant"]["prefix_count"] = 20
         captures.extend(
             [
@@ -190,6 +196,16 @@ def main() -> int:
         mismatch = json.loads(capture_paths[2].read_text(encoding="utf-8"))
         mismatch["checksum_u64"] ^= 1
         write_json(capture_paths[2], mismatch)
+        # Keep the companion honest about this changed output so rejection
+        # exercises the CPU oracle, rather than merely a stale binding hash.
+        for binding_path in binding_paths:
+            binding = json.loads(binding_path.read_text(encoding="utf-8"))
+            if Path(binding["production_capture"]).resolve() == capture_paths[2].resolve():
+                diagnostic_path = Path(binding["diagnostic_capture"])
+                diagnostic = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+                diagnostic["checksum_u64"] = mismatch["checksum_u64"]
+                write_json(diagnostic_path, diagnostic)
+                write_json(binding_path, build_binding(capture_paths[2], diagnostic_path))
         write_review_report(tmp / "review_report.json", capture_paths)
         rejected = reconstruction_export_report.build_report([tmp], binding_paths)
         assert rejected["variant_class_summary"]["compact_d2h_host_scatter"]["ready"] is False

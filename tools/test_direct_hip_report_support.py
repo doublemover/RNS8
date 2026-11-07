@@ -32,6 +32,7 @@ def collect_resident_processes(
             fixture = (
                 make_cpu_capture(200) if mode == "cpu" else direct_resident_capture(*kernels[mode])
             )
+            fixture["benchmark_execution_mode"] = "persistent_resident_matrices"
             if change is not None:
                 change(fixture, mode, run)
             add_synthetic_full_reference(fixture)

@@ -508,7 +508,7 @@ def wrap64_capture(backend: str, end_to_end: int) -> dict:
         metadata["selected_kernel"] = "cpu_wrap64_byte_limb_reference_v1"
         metadata["selected_backend"] = "wrap64-byte-limb"
         metadata["accelerator_library"] = None
-        metadata["capability_status"] = "implemented_cpu_wrap64_byte_limb_reference"
+        metadata["capability_status"] = "implemented_correctness_backend"
         metadata["workspace_mode"] = "host_byte_limb_reference_workspace"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"

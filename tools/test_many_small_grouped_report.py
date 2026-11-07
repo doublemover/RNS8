@@ -130,6 +130,10 @@ def production_controls():
     from test_benchmark_sweep_support import bounded_capture, set_phase
     from test_diagnostic_companion import authored_capture_pair
     from test_review_reference_support import add_synthetic_full_reference
+    from test_benchmark_schema_support_metadata import (
+        add_output_policy_fields,
+        add_requested_next_op_fields,
+    )
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -145,16 +149,16 @@ def production_controls():
             for run in range(2):
                 fixture = bounded_capture(backend, 400)
                 fixture.update(
-                    benchmark_execution_mode="persistent_resident",
+                    benchmark_execution_mode="persistent_resident_matrices",
                     pack_mode="per_repeat_repack",
                     reuse_packed_inputs=False,
                     prepack_reuse_operands=[],
                     prepack_reuse_strategy="none",
                     bound_source="static_profile",
                 )
-                fixture.setdefault("output_policy", {})["completion_boundary"] = (
-                    "per_task_host_destinations"
-                )
+                add_output_policy_fields(fixture)
+                add_requested_next_op_fields(fixture)
+                fixture["output_policy"]["completion_boundary"] = "per_task_host_destinations"
                 tasks = 1
                 if mode == "batch":
                     fixture = as_host_api_batch_capture(fixture)

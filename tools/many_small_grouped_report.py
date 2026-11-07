@@ -66,7 +66,7 @@ def benchmark_execution_mode(capture: dict[str, Any]) -> str:
     metadata = capture.get("timing_metadata")
     if isinstance(metadata, dict) and isinstance(metadata.get("benchmark_execution_mode"), str):
         return metadata["benchmark_execution_mode"]
-    return "persistent_resident"
+    return "persistent_resident_matrices"
 
 
 def is_grouped_dispatch(capture: dict[str, Any]) -> bool:
