@@ -32,6 +32,7 @@ inline Observation replay(const uint8_t* data, std::size_t size) {
   plan.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
   plan.bound = 32;
   plan.m = plan.n = plan.k = 1;
+  plan.tile_m = plan.tile_n = 128;
   plan.max_prefix = 20;
   check(rns8_create_plan(owner.ctx, &plan, &owner.plan), RNS8_SUCCESS, "history plan");
   auto matrix = abi<rns8_matrix_desc>();

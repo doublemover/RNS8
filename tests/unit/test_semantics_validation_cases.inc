@@ -394,7 +394,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
     auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     desc.requested_backend = unknown_backend;
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
   }
   {
@@ -437,7 +437,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
     options.abi_version = RNS8_ABI_VERSION;
     options.requested_backend = unknown_backend;
     rns8_context* unknown_ctx = nullptr;
-    CHECK(rns8_create_context(0, &options, &unknown_ctx) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_context(0, &options, &unknown_ctx) == RNS8_INVALID_ARGUMENT);
     CHECK(unknown_ctx == nullptr);
   }
 

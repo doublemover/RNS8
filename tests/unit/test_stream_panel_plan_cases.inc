@@ -204,7 +204,7 @@ TEST_CASE("overlapped panel storage reserves both rings and hard-budgeted pinned
   CHECK(overlap.streams == 3);
   CHECK(overlap.events == 8);
   CHECK(overlap.minimum_device_bytes == 3584);
-  CHECK(overlap.minimum_host_bytes == 2568);
+  CHECK(overlap.minimum_host_bytes == 2048 + 256 + 11 * sizeof(hip_deferred_buffer_cleanup));
   CHECK(overlap.total_steps == serial.total_steps);
   CHECK(overlap.tile_count == serial.tile_count);
   uint64_t end = 0;

@@ -13,6 +13,7 @@ TEST_CASE("Gram production directory and mirror retain independent ownership and
     for (auto orientation :
          {GramOrientation::transpose_times_self, GramOrientation::self_times_transpose}) {
       GramProblem p;
+      p.orientation = orientation;
       p.semantics = RNS8_EXACT_WIDE_SIGNED;
       p.rows = orientation == GramOrientation::transpose_times_self ? 3 : n;
       p.cols = orientation == GramOrientation::transpose_times_self ? n : 3;

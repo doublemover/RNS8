@@ -101,6 +101,8 @@ TEST_CASE("identity serialization and witness comparison retain availability and
 TEST_CASE("HIP identity inquiry reports observed availability on the selected runtime ordinal",
           "[hip][qualification]") {
   rns8_context_options options{};
+  options.struct_size = sizeof(options);
+  options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = RNS8_BACKEND_HIP_DIRECT;
   rns8_context* raw = nullptr;
   const auto status = rns8_create_context(0, &options, &raw);

@@ -35,6 +35,7 @@ TEST_CASE("stable import admission requires every requested materialization",
         matrix.hip_native_u64_bytes = 48;
       }
       matrix.device_residues_current = matrix.device_native_current = true;
+      matrix.host_residues_current = false;
       matrix.exact_range_prefix = 9;
       matrix.exact_max_magnitude = 17;
       auto hit = [&]() { return same_source_device_rns_import_current(ctx, matrix, 77); };

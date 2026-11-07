@@ -24,7 +24,7 @@ rns8_status export_host_integer(const rns8_context& ctx, const rns8_plan& plan,
     if (contract.zero)
       continue;
     const uint32_t prefix = entry ? entry->selected_prefix : plan.prefix;
-    const uint64_t bound = tiled ? plan.tile_bounds[i] : plan.desc.bound;
+    const uint64_t bound = tiled ? plan.tile_bounds[i] : bound_for_cell(plan, 0, 0);
     const auto status =
         prepare_reconstruction_contract(kind, prefix, bound, limbs, contract.arithmetic);
     if (status != RNS8_SUCCESS)

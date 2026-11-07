@@ -110,10 +110,10 @@ TEST_CASE("DAG discovery agrees with concrete resident graph backend ownership",
     hypothetical.backend = backend;
     rns8_resident_node invalid_node{};
     rns8_resident_graph* graph = nullptr;
-    // Unsupported families fail at ownership admission; admitted families reach
-    // descriptor validation. No plan, matrix, GPU probe or device allocation is needed.
+    // Public tags are validated before backend ownership. No plan, matrix,
+    // GPU probe or device allocation is needed for this malformed-node control.
     CHECK(rns8_create_resident_graph(&hypothetical, &invalid_node, 1, &graph) ==
-          (owns_graph ? RNS8_INVALID_ARGUMENT : RNS8_UNSUPPORTED_BACKEND));
+          RNS8_INVALID_ARGUMENT);
     CHECK(graph == nullptr);
     for (auto operation : {RNS8_OP_GEMM, RNS8_OP_PREPARED_GROUP}) {
       rns8_operation_query query{};
@@ -138,7 +138,9 @@ TEST_CASE("DAG discovery agrees with concrete resident graph backend ownership",
       if (!owns_graph) {
         CHECK(support.status == RNS8_UNSUPPORTED_BACKEND);
         if (support.source_implemented)
-          CHECK(support.reason_code == RNS8_SUPPORT_EXECUTION_MODE);
+          CHECK(support.reason_code == (backend == RNS8_BACKEND_AMDGPU_BUILTINS
+                                            ? RNS8_SUPPORT_TARGET
+                                            : RNS8_SUPPORT_EXECUTION_MODE));
         else
           CHECK(support.reason_code == RNS8_SUPPORT_SEMANTICS);
       }
@@ -222,7 +224,9 @@ TEST_CASE("operation inventory separates source semantics compilation and unknow
         CHECK(bool(support.compiled_inventory) == bool(capability.compiled_kernel_available));
         CHECK(std::string(support.target_id) == (row.device ? "" : "cpu"));
         if (!capability.compiled_kernel_available) {
-          CHECK(support.reason_code == RNS8_SUPPORT_NOT_COMPILED);
+          CHECK(support.reason_code == (row.backend == RNS8_BACKEND_AMDGPU_BUILTINS
+                                            ? RNS8_SUPPORT_TARGET
+                                            : RNS8_SUPPORT_NOT_COMPILED));
           CHECK(support.resource_status == 3);
           CHECK(support.required_device_bytes == 0);
           CHECK(support.required_host_bytes == 0);
@@ -236,7 +240,10 @@ TEST_CASE("operation inventory separates source semantics compilation and unknow
                             row.backend == RNS8_BACKEND_HIPBLASLT ||
                             row.backend == RNS8_BACKEND_CK || row.backend == RNS8_BACKEND_ROCWMMA ||
                             row.backend == RNS8_BACKEND_AMDGPU_BUILTINS;
-        if (caller) {
+        if (row.backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
+          CHECK(support.reason_code == RNS8_SUPPORT_TARGET);
+          CHECK(support.resource_status == 3);
+        } else if (caller) {
           CHECK(support.supported_execution_modes & RNS8_EXEC_CALLER_CAPTURE);
           CHECK(support.reason_code == (capability.compiled_kernel_available
                                             ? RNS8_SUPPORT_COMPATIBLE
@@ -834,6 +841,7 @@ TEST_CASE(
     auto group_query = q.operation;
     group_query.algorithm = method;
     group_query.output_limbs = 0;
+    group_query.problem.max_prefix = 20;
     group_query.execution_modes = RNS8_EXEC_GROUP;
     const auto group =
         rns8::detail::api::operation_support(target, group_query, RNS8_BACKEND_HIP_DIRECT);

@@ -40,6 +40,7 @@ TEST_CASE("five product compact storage omits composite planes and preserves reo
   using boost::multiprecision::cpp_int;
   const uint16_t basis[]{251, 256, 239, 255, 253, 233};
   GramProblem p;
+  p.source_instance = 1;
   p.rows = 5;
   p.cols = 3;
   p.source_ld = 3;
