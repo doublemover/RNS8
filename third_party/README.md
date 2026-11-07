@@ -62,9 +62,21 @@ probes and installation qualification remain tracked by
 ## Optional exact references and accelerator pins
 
 Boost.Multiprecision supplies exact CRT and wide-integer reference behavior. GMP and FLINT are optional
-differential references on Windows and must not be required for core
+differential references on native Windows and Linux and must not be required for core
 correctness. hipBLASLt, CK, rocWMMA, and AMDGPU builtins remain
 feature-detected accelerator paths and are not correctness requirements.
+
+Explicit reference-library builds compile/link the required APIs during
+configuration and register `optional_exact_libs_link_smoke` for runtime checks.
+The smoke requires the selected headers and loaded GMP/FLINT/MPFR versions to
+match, checks GMP's runtime limb width, then exercises exact arithmetic and
+FLINT's transitive GMP/MPFR calls. This strict selected-stack check detects mixed
+installations; it is not a general upstream ABI compatibility claim. Doctor
+compile/link probes do not execute this smoke or grant runtime readiness.
+The runtime identity interfaces are documented by
+[GMP](https://gmplib.org/manual/Useful-Macros-and-Constants),
+[FLINT](https://flintlib.org/doc/flint/index.html#version) and
+[MPFR](https://mpfr.org/mpfr-current/mpfr.html).
 
 Repo-local CK and rocWMMA source is tracked through pinned Git submodules;
 Linux can alternatively use compatible native package headers:
@@ -82,8 +94,9 @@ URL, and commit SHA:
 | rocWMMA | `third_party/rocm/rocWMMA` | `release/rocm-rel-7.1` | `1ab208f49945c38626b79e3f0c284d65ac44a781` |
 
 
-The user has explicitly deferred the ROCm10.1 migration. Keep these exact
-HIP7.1-era pins until that work resumes. The latest bundle source candidate is
+The local SDK10.1 lane uses its installed CK/rocWMMA headers. These exact
+HIP7.1-era source pins remain the prior fallback; SDK qualification does not
+move the submodules. The selected bundle and qualification history are
 recorded separately in the [version policy](../docs/dependency-versions.md);
 it is not selected, installed or qualified by these retained pins.
 Initialize and probe them with:

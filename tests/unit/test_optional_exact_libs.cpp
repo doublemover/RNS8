@@ -1,5 +1,7 @@
 #include <climits>
+#include <cstring>
 #include <iostream>
+#include <string>
 
 #if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
 #include <gmp.h>
@@ -19,11 +21,40 @@ static_assert(__FLINT_VERSION >= 3, "RNS8 exact references require FLINT >= 3");
 static_assert(MPFR_VERSION >= MPFR_VERSION_NUM(4, 1, 0), "FLINT requires MPFR >= 4.1.0");
 #endif
 
-int main() {
-#if defined(RNS8_ENABLE_GMP)
-  if (gmp_version == nullptr || gmp_version[0] == '\0') {
-    return 2;
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
+namespace {
+bool same_runtime_version(const char* component, const char* headers, const char* runtime) {
+  if (!runtime || std::strcmp(headers, runtime) != 0) {
+    std::cerr << component << " header/runtime mismatch: headers=" << headers
+              << " runtime=" << (runtime ? runtime : "<missing>") << '\n';
+    return false;
   }
+  return true;
+}
+} // namespace
+#endif
+
+int main() {
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
+  // Strict identity is deliberate for this selected-stack qualification smoke;
+  // it does not assert that every newer upstream ABI is incompatible.
+  const auto gmp_headers = std::to_string(__GNU_MP_VERSION) + "." +
+                           std::to_string(__GNU_MP_VERSION_MINOR) + "." +
+                           std::to_string(__GNU_MP_VERSION_PATCHLEVEL);
+  if (!same_runtime_version("GMP", gmp_headers.c_str(), gmp_version))
+    return 2;
+  if (mp_bits_per_limb != GMP_LIMB_BITS) {
+    std::cerr << "GMP header/runtime limb width mismatch: headers=" << GMP_LIMB_BITS
+              << " runtime=" << mp_bits_per_limb << '\n';
+    return 6;
+  }
+#endif
+#if defined(RNS8_ENABLE_FLINT)
+  if (!same_runtime_version("FLINT", FLINT_VERSION, flint_version) ||
+      !same_runtime_version("MPFR", MPFR_VERSION_STRING, mpfr_get_version()))
+    return 3;
+#endif
+#if defined(RNS8_ENABLE_GMP)
   mpz_t gmp_a, gmp_b, gmp_product, gmp_expected;
   mpz_inits(gmp_a, gmp_b, gmp_product, gmp_expected, nullptr);
   mpz_set_ui(gmp_a, 1);
@@ -42,9 +73,6 @@ int main() {
 #endif
 
 #if defined(RNS8_ENABLE_FLINT)
-  if (flint_version[0] == '\0') {
-    return 3;
-  }
   fmpz_t flint_a, flint_product, flint_expected;
   fmpz_init(flint_a);
   fmpz_init(flint_product);
