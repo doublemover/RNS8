@@ -13,10 +13,11 @@ import time
 from typing import Mapping, Sequence
 
 
-def capture_succeeded(result: dict) -> bool:
+def capture_succeeded(result: dict, *, expected_exit_code: int = 0) -> bool:
     return (
-        type(result.get("returncode")) is int
-        and result["returncode"] == 0
+        type(expected_exit_code) is int
+        and type(result.get("returncode")) is int
+        and result["returncode"] == expected_exit_code
         and result.get("timed_out") is False
         and result.get("limit_exceeded") is None
         and result.get("capture_error") is None

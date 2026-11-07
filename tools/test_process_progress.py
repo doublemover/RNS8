@@ -15,6 +15,21 @@ from gpu_qualification import validate_result
 
 
 class BoundedProcessCapture(unittest.TestCase):
+    def test_expected_information_exit_does_not_waive_capture_integrity(self):
+        result = dict(returncode=1, timed_out=False)
+        self.assertTrue(capture_succeeded(result, expected_exit_code=1))
+        self.assertFalse(capture_succeeded(result))
+        self.assertFalse(capture_succeeded(result, expected_exit_code=True))
+        for change in (
+            dict(timed_out=True),
+            dict(interrupted=True),
+            dict(capture_error="read failed"),
+            dict(limit_exceeded="stdout_stderr_bytes"),
+            dict(returncode=True),
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(capture_succeeded(dict(result, **change), expected_exit_code=1))
+
     def test_started_pid_observer_can_cancel_its_owned_child(self):
         cancelled, observed = threading.Event(), []
 

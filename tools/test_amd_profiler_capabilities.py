@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from amd_profiler_capabilities import (
+    probe_completed,
     probe_plan,
     preflight,
     support_matrix,
@@ -22,6 +23,45 @@ from test_target_qualification_support import write, reference
 
 
 class ProfilerCapabilities(unittest.TestCase):
+    def test_rdp_information_exit_is_narrow_and_preserves_failures(self):
+        command = dict(tool="RadeonDeveloperPanelCLI", name="version", argv=["tool", "--version"])
+        result = dict(
+            returncode=1, timed_out=False, stdout="RadeonDeveloperPanelCLI 1.0.0\n", stderr=""
+        )
+        self.assertTrue(probe_completed(result, command))
+        self.assertEqual(result["returncode"], 1)
+        for change in (
+            dict(stdout="RadeonDeveloperPanelCLI 3.5.1\n"),
+            dict(stderr="native error"),
+            dict(timed_out=True),
+            dict(interrupted=True),
+            dict(capture_error="incomplete"),
+            dict(limit_exceeded="stdout_stderr_bytes"),
+            dict(returncode=2),
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(probe_completed(dict(result, **change), command))
+        for change in (
+            dict(tool="rocprofv3"),
+            dict(name="workload"),
+            dict(argv=["tool", "--clocks"]),
+        ):
+            with self.subTest(change=change):
+                self.assertFalse(probe_completed(result, dict(command, **change)))
+        help_command = dict(command, name="help", argv=["tool", "--help=profiling"])
+        help_result = dict(
+            result,
+            stdout="RadeonDeveloperPanelCLI - GPU Capture Tool\nUsage:\n"
+            "--rgp-auto-capture --rgp-capture-mode --rgp-render-op-count\n",
+        )
+        self.assertTrue(probe_completed(help_result, help_command))
+        self.assertFalse(
+            probe_completed(
+                dict(help_result, stdout=help_result["stdout"].replace("--rgp-auto-capture", "")),
+                help_command,
+            )
+        )
+
     def test_preflight_consumer_reopens_native_outputs_and_recomputes_decisions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

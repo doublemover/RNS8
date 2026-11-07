@@ -10,7 +10,7 @@ temporary storage; derived report files describe their actual evidence scope.
 | --- | --- | --- |
 | Linux rocprofv3 | ROCprofiler-SDK 1.4.1 native JSON kernel dispatch | Process/agent/queue/dispatch, exact symbol and file-backed code-object association |
 | Linux rocpd | Native database schema 3.0.4 | Same dispatch join, native graph/stream/event relationships, individual counter observations and vendor definitions |
-| Windows RDP CLI | Candidate 3.5.1 preflight and bounded dispatch-range capture | Owned controller/workload with raw-file custody; opaque RGP remains manual-review evidence |
+| Windows RDP CLI | Candidate CLI 1.0.0 (RDP bundle 3.5.1) preflight and bounded dispatch-range capture | Owned controller/workload with raw-file custody; opaque RGP remains manual-review evidence |
 | Raw RGP, unsupported databases and exports | Inventory only | No inferred dispatch identity or fabricated counters |
 
 The Linux acquisition planner also accepts repeated `--counter NAME` options
@@ -43,9 +43,14 @@ evidence publication. This source change has no measured performance credit.
 
 ## Windows dispatch capture
 
-`tools/amd_profiler_windows.py` plans an RDP CLI 3.5.1 dispatch-range capture
+`tools/amd_profiler_windows.py` plans an RDP CLI 1.0.0 dispatch-range capture
 from an admitted production control and its retained Windows capability
-preflight. For example, planning is read-only:
+preflight. The CLI reports its own version 1.0.0, independently of the RDP
+bundle's 3.5.1 version. Its pinned parser returns exit 1 for successful help and
+version requests. Preflight accepts that exit only for the exact information
+commands with recognized output, empty stderr and complete capture; receipts
+retain the original exit code and replay the same policy. Workload success
+still requires exit zero. For example, planning is read-only:
 
     python tools/amd_profiler_windows.py temp/production.json --capabilities temp/windows-preflight/capabilities.json --out-dir temp/windows-rgp --first-dispatch 8 --dispatch-count 3
 

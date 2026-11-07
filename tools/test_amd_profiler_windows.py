@@ -38,14 +38,15 @@ class WindowsRdpCapture(unittest.TestCase):
 
         def probe(command, **options):
             output = (
-                "RadeonDeveloperPanelCLI version 3.5.1\n"
+                "RadeonDeveloperPanelCLI 1.0.0\n"
                 if options["label"] == "version"
-                else " ".join((*rdp.FLAGS, "--rgp-counter-collection", "--rgp-instruction-tracing"))
+                else "RadeonDeveloperPanelCLI - GPU Capture Tool\nUsage:\nRadeonDeveloperPanelCLI [OPTION...]\n"
+                + " ".join((*rdp.FLAGS, "--rgp-counter-collection", "--rgp-instruction-tracing"))
             )
             return dict(
                 command=command,
                 process_id=99,
-                returncode=0,
+                returncode=1,
                 timed_out=False,
                 elapsed_seconds=0.01,
                 stdout=output,
@@ -141,6 +142,12 @@ class WindowsRdpCapture(unittest.TestCase):
 
     def test_actual_synthetic_chain_reopens_owned_bytes_without_machine_evidence_credit(self):
         plan = self.plan()
+        capabilities = json.loads(self.capabilities.read_text())
+        self.assertEqual(capabilities["tools"]["RadeonDeveloperPanelCLI"]["version"], "1.0.0")
+        self.assertTrue(all(row["completed"] for row in capabilities["observations"]))
+        self.assertTrue(
+            all(row["result"]["returncode"] == 1 for row in capabilities["observations"])
+        )
         self.assertEqual(self.execute(plan), 0)
         summary = rdp.review_capture(self.out / "plan.json")
         self.assertEqual(summary["capture_state"], "raw_saved_unqualified")

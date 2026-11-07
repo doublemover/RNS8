@@ -46,7 +46,7 @@ FEATURES = (
 )
 CDNA = frozenset(("gfx90a", "gfx942", "gfx950"))
 RDNA = frozenset(("gfx1030", "gfx1100", "gfx1200", "gfx1201"))
-SUPPORTED_VERSIONS = {"rocprofv3": "1.4.1", "RadeonDeveloperPanelCLI": "3.5.1"}
+SUPPORTED_VERSIONS = {"rocprofv3": "1.4.1", "RadeonDeveloperPanelCLI": "1.0.0"}
 SCHEMA = "rns8_amd_profiler_capabilities_v1"
 
 
@@ -191,6 +191,35 @@ def _version(text: str, tool: str) -> str | None:
     )
     matches = set(re.findall(pattern + r"(\d+\.\d+\.\d+)(?![\w.+-])", text, re.I))
     return next(iter(matches)) if len(matches) == 1 else None
+
+
+def probe_completed(process: dict, command: dict) -> bool:
+    if capture_succeeded(process):
+        return True
+    # The pinned RDP bundle 3.5.1 CLI has its own 1.0.0 information surface.
+    # ParseCommandLine returns false after valid help/version; main returns 1.
+    # Admit only those exact information commands and complete recognized text.
+    if (
+        command["tool"] != "RadeonDeveloperPanelCLI"
+        or not capture_succeeded(process, expected_exit_code=1)
+        or process.get("stderr") != ""
+    ):
+        return False
+    output = process.get("stdout")
+    if not isinstance(output, str):
+        return False
+    if command["name"] == "version" and command["argv"][1:] == ["--version"]:
+        return output.strip() == "RadeonDeveloperPanelCLI 1.0.0"
+    return (
+        command["name"] == "help"
+        and command["argv"][1:] == ["--help=profiling"]
+        and output.startswith("RadeonDeveloperPanelCLI - GPU Capture Tool\n")
+        and "Usage:" in output
+        and all(
+            flag in output
+            for flag in ("--rgp-auto-capture", "--rgp-capture-mode", "--rgp-render-op-count")
+        )
+    )
 
 
 def availability_inventory(output: str) -> list[dict]:
@@ -346,7 +375,7 @@ def preflight(
                 raw.write_text(observed[stream], encoding="utf-8")
                 artifacts[str(raw.resolve())] = file_digest(raw)
             stable = file_digest(path) == before
-            complete = capture_succeeded(observed) and stable
+            complete = probe_completed(observed, command) and stable
             result["observations"].append(
                 dict(
                     name=command["name"],
@@ -470,7 +499,7 @@ def validate_preflight(reference: dict, *, store: EvidenceReader, parent: Path) 
                 raise ValueError(
                     "preflight stream summary differs from its retained process output"
                 )
-        complete = capture_succeeded(process)
+        complete = probe_completed(process, command)
         if row.get("completed") is not complete:
             raise ValueError("preflight completion label contradicts its process status")
         if command["name"] == "version":
