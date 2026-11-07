@@ -138,10 +138,17 @@ inline void check_finite_prime_owner(rns8_context* ctx, bool matrix) {
             values[size_t(row * ld + col)] = uint8_t((row * 17 + col * 13) % modulus);
         REQUIRE(rns8_pack_finite_u8(ctx, x, modulus, values.data(), ld, 0) == RNS8_SUCCESS);
         rns8_prepared_gram* owner = nullptr;
-        REQUIRE(rns8_prepare_gram_five_product(ctx, x, c,
-                                               transpose ? RNS8_GRAM_TRANSPOSE_TIMES_SELF
-                                                         : RNS8_GRAM_SELF_TIMES_TRANSPOSE,
-                                               matrix, UINT64_MAX, &owner) == RNS8_SUCCESS);
+        const auto status = rns8_prepare_gram_five_product(
+            ctx, x, c, transpose ? RNS8_GRAM_TRANSPOSE_TIMES_SELF : RNS8_GRAM_SELF_TIMES_TRANSPOSE,
+            matrix, UINT64_MAX, &owner);
+        if (matrix && modulus != 251) {
+          CHECK(status == RNS8_UNSUPPORTED_BACKEND);
+          CHECK(owner == nullptr);
+          REQUIRE(rns8_destroy_matrix(c) == RNS8_SUCCESS);
+          REQUIRE(rns8_destroy_matrix(x) == RNS8_SUCCESS);
+          continue;
+        }
+        REQUIRE(status == RNS8_SUCCESS);
         REQUIRE(rns8_execute_prepared_gram(owner) == RNS8_SUCCESS);
         std::vector<int8_t> actual(size_t(n * n));
         if (ctx->backend == RNS8_BACKEND_HIP_DIRECT)

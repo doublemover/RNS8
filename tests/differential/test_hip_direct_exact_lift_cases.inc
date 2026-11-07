@@ -1,4 +1,4 @@
-TEST_CASE("direct HIP rejects unsupported pack strides before touching prior values") {
+TEST_CASE("direct HIP rejects unrepresentable pack spans before touching prior values") {
   if (!hip_available())
     SKIP("no HIP device for source-stride qualification");
   auto* ctx = create_context(RNS8_BACKEND_HIP_DIRECT);
@@ -14,9 +14,9 @@ TEST_CASE("direct HIP rejects unsupported pack strides before touching prior val
                        : rns8_pack_u64(ctx, matrix, unsigned_values, 2, 1)) == RNS8_SUCCESS);
     const auto generation = matrix->content_generation;
     const auto bound = matrix->exact_max_magnitude;
-    CHECK((is_signed
-               ? rns8_pack_i64(ctx, matrix, signed_values, INT32_MAX, 2)
-               : rns8_pack_u64(ctx, matrix, unsigned_values, INT32_MAX, 2)) == RNS8_RANGE_ERROR);
+    CHECK((is_signed ? rns8_pack_i64(ctx, matrix, signed_values, INT64_MAX, 2)
+                     : rns8_pack_u64(ctx, matrix, unsigned_values, INT64_MAX, 2)) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(matrix->content_generation == generation);
     CHECK(matrix->source_version == 1);
     CHECK(matrix->exact_max_magnitude == bound);

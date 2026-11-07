@@ -265,7 +265,7 @@ TEST_CASE("direct HIP finite u8 public grouped GEMM matches CPU") {
   CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
   rns8::test::set_device_residues_current(*hip_a[1], true);
   preserved();
-  hip_a[1]->finite_modulus = 251;
+  hip_a[1]->finite_modulus = modulus - 1;
   CHECK(rns8_gemm_finite_u8_grouped(hip, hip_plan, modulus, tasks, 2) == RNS8_INVALID_ARGUMENT);
   hip_a[1]->finite_modulus = modulus;
   preserved();

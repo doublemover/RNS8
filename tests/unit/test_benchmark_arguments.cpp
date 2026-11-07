@@ -51,6 +51,8 @@ TEST_CASE(
     for (const auto mode : {"--vector-to-rns-chain", "--vector-to-rns-chain-host-repack-control"}) {
       const auto verified = parse_benchmark_arguments({
           "rns8-bench",
+          "--backend",
+          "auto",
           "--semantics",
           semantics,
           "--m",
@@ -72,6 +74,8 @@ TEST_CASE(
             (std::string(mode) == "--vector-to-rns-chain-host-repack-control"));
       const auto cached = parse_benchmark_arguments({
           "rns8-bench",
+          "--backend",
+          "auto",
           "--semantics",
           semantics,
           "--m",

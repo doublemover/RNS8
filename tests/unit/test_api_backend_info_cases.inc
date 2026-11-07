@@ -219,13 +219,10 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(std::string(capability.selected_kernel) ==
             rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
-#if RNS8_CK_USE_XDL
       CHECK(std::string(capability.workspace_mode) ==
-            "resident_device_buffers_with_ck_centered_pack_workspace");
-#else
-      CHECK(std::string(capability.workspace_mode) ==
-            "resident_device_buffers_with_ck_canonical_pack_workspace");
-#endif
+            (rns8::detail::compiled_ck_implementation().signed_operands
+                 ? "resident_device_buffers_with_ck_centered_pack_workspace"
+                 : "resident_device_buffers_with_ck_canonical_pack_workspace"));
       CHECK(std::string(capability.isa_evidence) == "ck_cshuffle_int8_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
