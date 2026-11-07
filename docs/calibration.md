@@ -58,9 +58,9 @@ The evidence plumbing is accompanied by authored instruction-chain,
 [system/LDS/memory and launch/event/descriptor probes](system-roof-calibration.md),
 conversion, reconstruction and interaction controls. Executing those collectors,
 ISA/resource/counter evidence, sustainable clock verification and qualified
-held-out prediction remain open in #31. Tests
-for this addition are covered as registered applicable cases in the
-[dated validation](local-all-features-20261023.md).
+held-out prediction remain open in #31. The current source and authored controls
+await the combined runtime batch; historical validation does not qualify these
+newer collectors or models.
 
 ## CRT collection executable
 

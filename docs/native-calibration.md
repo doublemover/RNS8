@@ -291,9 +291,9 @@ case. Actual GPU correctness and timing collection remain separate work.
 The linked VS2026/gfx1100 collection now covers all listed product cases and
 groups one, two and four on the recorded dense shape. Calibrated clock resolution,
 per-capture ISA and counter evidence remain absent; raw records cannot promote a
-candidate. Instruction-dependency/throughput roofs,
-dedicated HBM/LDS probes, measured reuse break-even and held-out planner regret
-remain separate #31 acceptance work.
+candidate. Instruction-dependency/throughput roofs, dedicated HBM/LDS probes and
+reuse-curve collectors are source-written. Their target qualification, measured
+reuse break-even and held-out planner regret remain separate #31 acceptance work.
 
 ## Four-wave register and LDS controls
 
