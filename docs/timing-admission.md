@@ -35,6 +35,16 @@ complete native CPU-oracle coverage and preserve any conflicting explicit CPU
 reference; unknown numerical coverage cannot become a winner. These maps grant
 no production qualification or runtime promotion.
 
+Bound-discovery comparisons charge the named one-time scan plus one completed
+call within each process, then take the cohort median and observed spread. They
+do not sum independently chosen cohort medians or fabricate whole-call samples.
+Every charged scan needs uncensored measured timing. The result is a component
+estimate, with full cold-lifecycle qualification kept separate. Intentional
+bound/prefix differences retain identical native input keys, complete CPU oracles
+and matching output checksums; conflicting explicit CPU observations still block
+the comparison. The report requires production/companion admission and both
+comparators' noise margins, without granting cache promotion.
+
 Sweep reviews record the actual baseline path and canonical digests of both
 captures for their end-to-end timing comparison. Private loader path annotations
 are excluded from content digests. The ledger requires that binding even if a

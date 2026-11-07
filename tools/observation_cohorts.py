@@ -582,17 +582,67 @@ def best_row(rows: list[dict], backend: str | None = None) -> dict | None:
 
 
 def compound_median(capture: dict, phases: list[str]) -> float | None:
+    return phase_sum_measurement(capture, tuple(phases))["median_us"]
+
+
+def phase_sum_measurement(capture: dict, phases: tuple[str, ...]) -> dict:
+    """Sum named phase medians within each process before estimating its cohort.
+
+    This is explicit component accounting, not a new raw whole-call sample or
+    an inferred distribution of correlated phases. One-time phases are charged
+    once per estimate; this policy does not amortize them over repeat counts.
+    """
+    if not phases or len(phases) > 16 or len(set(phases)) != len(phases):
+        raise ValueError("bounded unique phase-sum contract required")
     observations = evidence(capture).get("observations")
+    blockers = []
     if not observations:
         values = [phase_median(capture, phase) for phase in phases]
-        return sum(values) if all(v is not None for v in values) else None
-    sums = []
+        total = (
+            _number(sum(v for v in values if v is not None))
+            if all(v is not None for v in values)
+            else None
+        )
+        return dict(
+            policy="explicit_process_phase_median_sum",
+            phases=list(phases),
+            median_us=total,
+            process_relative_range=None,
+            observations=[],
+            blockers=["phase_sum_process_observations_missing"],
+        )
+    sums, records = [], []
     for observation in observations:
-        values = [observation["phase_medians_us"].get(phase) for phase in phases]
-        if any(v is None for v in values):
-            return None
-        sums.append(sum(values))
-    return statistics.median(sums)
+        values = [_number(observation["phase_medians_us"].get(phase)) for phase in phases]
+        if any(value is None or value <= 0 for value in values):
+            blockers.append("phase_sum_positive_observation_missing")
+            continue
+        total = _number(sum(value for value in values if value is not None))
+        if total is None or total <= 0:
+            blockers.append("phase_sum_nonfinite_total")
+            continue
+        sums.append(total)
+        records.append(
+            dict(
+                capture_sha256=observation.get("capture_sha256"),
+                phase_medians_us=dict(zip(phases, values)),
+                total_us=total,
+            )
+        )
+    duration = _number(statistics.median(sums)) if sums and not blockers else None
+    spread = (max(sums) - min(sums)) / duration if duration is not None and duration > 0 else None
+    if spread is None or not math.isfinite(spread):
+        blockers.append("phase_sum_process_spread_unavailable")
+    elif spread > DEFAULT_MAX_RUN_TO_RUN_REL_SPREAD:
+        blockers.append("phase_sum_process_spread_exceeds_ten_percent")
+    return dict(
+        policy="explicit_process_phase_median_sum",
+        phases=list(phases),
+        median_us=duration,
+        process_relative_range=spread,
+        observations=records,
+        blockers=sorted(set(blockers)),
+    )
 
 
 def amortized_prepack_measurement(capture: dict) -> dict:

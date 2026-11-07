@@ -20,10 +20,11 @@ from observation_cohorts import (
     phase_median,
     row_identity,
     amortized_prepack_measurement,
+    phase_sum_measurement,
 )
 from reference_verdict import CPUReferenceIndex, reference_verdict
 from review_contract import release_capture_satisfied
-from timing_eligibility import capture_identity
+from timing_eligibility import capture_identity, phase_blockers
 
 
 PHYSICAL_TILE_WORK_EXCLUSIONS = (
@@ -75,6 +76,11 @@ class ComparisonPolicy:
         return opposite if self.cpu_gpu_comparison else not opposite
 
     def measurement(self, capture: dict) -> dict:
+        phases = self.additional_timing_phases(capture)
+        if phases:
+            if self.amortize_prepack_setup:
+                raise ValueError("combined phase-sum/prepack amortization needs an explicit policy")
+            return phase_sum_measurement(capture, ("end_to_end", *phases))
         if self.amortize_prepack_setup and capture.get("reuse_packed_inputs") is True:
             return amortized_prepack_measurement(capture)
         return dict(
@@ -83,6 +89,16 @@ class ComparisonPolicy:
             process_relative_range=None,
             blockers=[],
         )
+
+    def additional_timing_phases(self, capture: dict) -> tuple[str, ...]:
+        return ()
+
+    def pair_numerical_blockers(self, candidate: dict, baseline: dict) -> list[str]:
+        if self.require_cpu_anchor:
+            return []
+        return list(reference_verdict(candidate, [baseline]).blockers) + [
+            "baseline:" + value for value in reference_verdict(baseline, [candidate]).blockers
+        ]
 
 
 class ReportCohorts:
@@ -179,6 +195,8 @@ class ReportCohorts:
             evidence(capture).get("implementation_key"),
             anchor,
             setup,
+            (type(policy), policy.name) if policy is not None else None,
+            policy.additional_timing_phases(capture) if policy is not None else (),
         )
         if key not in self._admission:
             blockers = self.production.blockers(capture) + list(
@@ -188,6 +206,13 @@ class ReportCohorts:
                 blockers.append("not_release_review")
             if policy is not None:
                 blockers.extend(policy.measurement(capture)["blockers"])
+                phases = policy.additional_timing_phases(capture)
+                for raw in self.raw_observations(capture):
+                    observed_phases = policy.additional_timing_phases(raw)
+                    if observed_phases != phases:
+                        blockers.append("measurement_phase_contract_conflicts")
+                    for phase in observed_phases:
+                        blockers.extend(phase_blockers(raw, phase))
             self._admission[key] = tuple(sorted(set(blockers)))
         return list(self._admission[key])
 
@@ -258,12 +283,7 @@ class ReportCohorts:
                 blockers.append("comparison_processor_class_mismatch")
             # Embedded CPU oracles still need the same mathematical input key
             # and output checksum across the two physical implementations.
-            if not policy.require_cpu_anchor:
-                blockers.extend(reference_verdict(candidate, [baseline]).blockers)
-                blockers.extend(
-                    "baseline:" + value
-                    for value in reference_verdict(baseline, [candidate]).blockers
-                )
+            blockers.extend(policy.pair_numerical_blockers(candidate, baseline))
         baseline_measurement = policy.measurement(baseline) if baseline is not None else None
         candidate_measurement = policy.measurement(candidate)
         left = baseline_measurement["median_us"] if baseline_measurement is not None else None

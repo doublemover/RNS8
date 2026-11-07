@@ -4,13 +4,22 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from pathlib import Path
 import tempfile
 
 from report_inputs import expand_inputs, load_validated_capture
 
 import bound_discovery_report
-from test_capture_identity_support import synthetic_independent_runs
+from test_capture_identity_support import write_production_fixture_pair
+from test_review_reference_support import add_synthetic_full_reference
+from report_capture_inputs import load_report_captures
+from test_benchmark_schema_support_core import (
+    add_global_bound_scan_fields,
+    add_per_tile_input_scan_fields,
+)
+from test_benchmark_sweep_support import bounded_capture
 from benchmark_schema import load_capture, validate_capture
 
 
@@ -18,7 +27,32 @@ FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benc
 
 
 def compare_bound_discovery(captures):
-    return bound_discovery_report.compare_bound_discovery(synthetic_independent_runs(captures))
+    with tempfile.TemporaryDirectory() as directory:
+        root, bindings = Path(directory), {}
+        for index, source in enumerate(captures):
+            capture = add_synthetic_full_reference(copy.deepcopy(source))
+            # Authored native-style identity: proof bounds/prefixes do not change
+            # the cloned logical inputs. This is not a real data/oracle digest.
+            identity = {
+                key: capture.get(key)
+                for key in (
+                    "semantics",
+                    "m",
+                    "n",
+                    "k",
+                    "seed",
+                    "input_profile",
+                    "input_distribution",
+                )
+            }
+            identity["input_profile"] = capture.get("input_profile", "uniform-small")
+            capture["native_reference_verification"]["cache_key"] = hashlib.sha256(
+                ("synthetic-bound-inputs\n" + json.dumps(identity, sort_keys=True)).encode()
+            ).hexdigest()
+            write_production_fixture_pair(root / f"case-{index}.json", capture, bindings)
+        return bound_discovery_report.compare_bound_discovery(
+            load_report_captures([root]), diagnostic_bindings=bindings
+        )
 
 
 def with_path(capture: dict, path: str) -> dict:
@@ -67,8 +101,9 @@ def set_phase(capture: dict, end_to_end: int) -> None:
             }
 
 
-def static_global_capture(end_to_end: int = 1000) -> dict:
-    capture = load_capture(FIXTURE_DIR / "v4_bounded_i64_ck.json")
+def static_global_capture(end_to_end: int = 1000, *, backend: str = "ck") -> dict:
+    names = {"ck": "v4_bounded_i64_ck.json", "hipblaslt": "v4_bounded_i64_hipblaslt.json"}
+    capture = load_capture(FIXTURE_DIR / names[backend])
     validate_capture(capture)
     capture = with_path(capture, "static-global-ck.json")
     mark_release_counts(capture)
@@ -94,6 +129,7 @@ def static_global_capture(end_to_end: int = 1000) -> dict:
 
 def input_scan_global_capture(static_capture: dict, end_to_end: int, setup_us: int) -> dict:
     capture = with_path(static_capture, "input-scan-global-ck.json")
+    add_global_bound_scan_fields(capture)
     capture["bound_source"] = "input_scan"
     capture["bound"] = min(int(capture["bound"]), 4096)
     capture["bound_discovery"] = {
@@ -130,6 +166,7 @@ def proof_mask_capture(
     capture["bound_mode"] = "per_tile"
     capture["bound_kind"] = "per_tile_max_abs"
     capture["bound"] = 0
+    add_per_tile_input_scan_fields(capture)
     capture["tile_m"] = 64
     capture["tile_n"] = 64
     capture["tile_bounds_u64"] = {
@@ -166,6 +203,19 @@ def proof_mask_capture(
     )
     capture["avg_tile_bound_scan_us"] = float(setup_us)
     capture["tile_bound_scan_us"] = setup_us
+    capture["timing_metadata"]["phase_order"] = [
+        "tile_bound_scan",
+        *capture["timing_metadata"]["phase_order"],
+    ]
+    capture["timing_metadata"]["phase_notes"]["tile_bound_scan"] = (
+        "one-time exact seeded input tile scan before planning"
+    )
+    capture["timing_metadata"]["phase_availability"]["tile_bound_scan"] = dict(
+        timed=True,
+        timing_key="tile_bound_scan",
+        scope="exact_seeded_input_prepass",
+        reason="authored one-time exact tile-bound scan",
+    )
     capture["raw_timings_us"]["tile_bound_scan"] = [setup_us]
     capture["timing_summary_us"]["tile_bound_scan"] = {
         "avg": float(setup_us),
@@ -205,6 +255,44 @@ def main() -> int:
         "proof_mask_per_tile",
     }
     assert all(item["candidate_setup_inclusive_median_us"] < 1000 for item in report["comparisons"])
+    assert all(item["same_backend_comparison"]["qualified"] for item in report["comparisons"])
+    assert all(
+        item["same_backend_comparison"]["candidate_measurement"]["policy"]
+        == "explicit_process_phase_median_sum"
+        for item in report["comparisons"]
+    )
+
+    # Component sums need their own process spread, not only the stable GEMM spread.
+    varied = copy.deepcopy(input_scan_win)
+    varied["global_bound_scan_us"] = 900
+    varied["avg_global_bound_scan_us"] = 900.0
+    varied["raw_timings_us"]["global_bound_scan"] = [900]
+    varied["timing_summary_us"]["global_bound_scan"] = dict(avg=900.0, median=900.0, p95=900.0)
+    varied_report = compare_bound_discovery([static, input_scan_win, varied])
+    assert varied_report["summary"]["candidate_wins"] == 0
+    assert any(
+        "phase_sum_process_spread_exceeds_ten_percent" in row["blockers"]
+        for row in varied_report["comparisons"]
+    )
+
+    censored = input_scan_global_capture(static, 700, 0)
+    censored_report = compare_bound_discovery([static, censored])
+    assert censored_report["summary"]["candidate_wins"] == 0
+    assert all(
+        row["speedup_vs_same_backend_static_setup_inclusive"] is None
+        for row in censored_report["comparisons"]
+    )
+
+    cpu = bounded_capture("cpu-reference", 500)
+    cpu["checksum_u64"] = static["checksum_u64"] ^ 1
+    for field in ("input_profile", "input_distribution"):
+        if field in static:
+            cpu[field] = static[field]
+        else:
+            cpu.pop(field, None)
+    mismatch_report = compare_bound_discovery([static, input_scan_win, cpu])
+    assert mismatch_report["summary"]["candidate_wins"] == 0
+    assert "checksum_mismatch_vs_reference" in mismatch_report["comparisons"][0]["blockers"]
 
     input_scan_loss = input_scan_global_capture(static, 950, 100)
     input_scan_loss["_path"] = "input-scan-global-ck-loss.json"
@@ -216,9 +304,9 @@ def main() -> int:
         in loss_report["comparisons"][0]["blockers"]
     )
 
-    missing_baseline = input_scan_global_capture(static, 700, 100)
-    missing_baseline["backend_selected"] = "hipblaslt"
-    missing_baseline["backend_requested"] = "hipblaslt"
+    missing_baseline = input_scan_global_capture(
+        static_global_capture(backend="hipblaslt"), 700, 100
+    )
     missing_baseline["_path"] = "input-scan-global-hipblaslt-missing.json"
     missing_report = compare_bound_discovery([static, missing_baseline])
     assert missing_report["summary"]["missing_baselines"] == 1
