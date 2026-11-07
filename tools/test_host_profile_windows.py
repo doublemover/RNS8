@@ -20,7 +20,8 @@ from test_target_qualification_support import QualificationFixture, write
 from test_wpa_sample_reader import sample_fields
 from test_etl_process_contract import native_metadata
 from test_etl_image_contract import image
-from test_etl_range_contract import marker_metadata, windows_snapshot
+from test_etl_range_contract import windows_snapshot
+from test_etl_cpu_contract import cpu_metadata
 from wpa_sample_reader import HEADERS
 
 
@@ -89,7 +90,7 @@ class WindowsHostProfile(unittest.TestCase):
                 dict(
                     schema="rns8_etl_inspector_identity_v1",
                     process_id=333,
-                    source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
+                    source_sha256=host.etl_source_identity(),
                     pointer_bytes=8,
                 )
             )
@@ -99,7 +100,7 @@ class WindowsHostProfile(unittest.TestCase):
                 parent_pid=host.os.getpid(),
                 decoder_pid=333,
                 image=self.binary.name,
-                source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
+                source_sha256=host.etl_source_identity(),
                 file_bytes=(self.out / "raw/profile.etl").stat().st_size,
             )
             metadata.update(
@@ -110,8 +111,21 @@ class WindowsHostProfile(unittest.TestCase):
                 ],
             )
             if self.ranges:
-                markers = marker_metadata()
-                for key in ("observed_marker_events", "undecoded_marker_events", "marker_events"):
+                markers = cpu_metadata()
+                for key in (
+                    "observed_events",
+                    "observed_marker_events",
+                    "undecoded_marker_events",
+                    "marker_events",
+                    "observed_thread_events",
+                    "undecoded_thread_events",
+                    "thread_events",
+                    "sample_walk_events",
+                    "observed_sample_events",
+                    "undecoded_sample_events",
+                    "excluded_sample_events",
+                    "sample_events",
+                ):
                     metadata[key] = markers[key]
             result["stdout"] = json.dumps(metadata)
         elif name == "status":
@@ -316,6 +330,12 @@ class WindowsHostProfile(unittest.TestCase):
             ranges["phase_attribution"]["threads"][0]["exclusive_phase_wall_ns"]["proof"], 10_000
         )
         self.assertEqual(ranges["wpa_relative_clock_join"], "unbound")
+        cpu = json.loads(Path(result["native_cpu_observations"]["path"]).read_text())
+        self.assertEqual(cpu["selected_operation"]["sample_count"], 2)
+        self.assertEqual(
+            [row["phase"] for row in cpu["selected_operation"]["samples"]], ["proof", "public_call"]
+        )
+        self.assertIsNone(cpu["CPU_duration_ns"])
         self.assertFalse(result["promotion_allowed"])
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):

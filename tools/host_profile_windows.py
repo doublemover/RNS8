@@ -23,6 +23,8 @@ from execution_environment_contract import relevant_environment_key
 from etl_process_contract import process_contract
 from etl_image_contract import image_catalog
 from etl_range_contract import operation_ranges as bind_operation_ranges
+from etl_cpu_contract import cpu_catalog
+from etl_inspector_identity import source_identity as etl_source_identity
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
 from json_evidence import parse_evidence_json, same_evidence_value
@@ -36,6 +38,7 @@ from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "rns8_windows_host_profile_plan_v3"
+MAX_ETL_METADATA_BYTES = 48 * 1024**2
 SUCCESS_STAGES = (
     "wpr_help",
     "exporter_help",
@@ -54,6 +57,9 @@ SOURCE_INPUTS = (
     "tools/etl_process_contract.py",
     "tools/etl_image_contract.py",
     "tools/etl_range_contract.py",
+    "tools/etl_cpu_contract.py",
+    "tools/etl_inspector_identity.py",
+    "src/diagnostics/etl_sample_payload.hpp",
     "tools/host_range_contract.py",
     "tools/native_phase_attribution.py",
     "tools/interval_observations.py",
@@ -312,8 +318,7 @@ def validate_preflight_stages(plan, stages):
         or inspector.get("schema") != "rns8_etl_inspector_identity_v1"
         or type(inspector.get("process_id")) is not int
         or inspector["process_id"] != stages["inspector_identity"]["process_id"]
-        or inspector.get("source_sha256")
-        != reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"]
+        or inspector.get("source_sha256") != etl_source_identity()
         or type(inspector.get("pointer_bytes")) is not int
         or inspector["pointer_bytes"] != 8
     ):
@@ -391,7 +396,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         parent_pid=owner_pid,
         executable=plan["benchmark"]["path"],
         decoder_pid=metadata_stage["process_id"],
-        source_sha256=reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"],
+        source_sha256=etl_source_identity(),
         file_bytes=(out / "raw/profile.etl").stat().st_size,
     )
     images = image_catalog(native_metadata, process_identity)
@@ -399,6 +404,9 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         bind_operation_ranges(native_metadata, process_identity, raw.get("profiler_ranges"))
         if plan["operation_ranges"]
         else None
+    )
+    native_cpu = cpu_catalog(
+        native_metadata, process_identity, snapshot=raw.get("profiler_ranges"), native_ranges=ranges
     )
     profiled = bind_host_profile_output(
         production,
@@ -443,6 +451,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
     publish("samples.json", samples)
     publish("native-process-metadata.json", native_metadata)
     publish("native-image-catalog.json", images)
+    publish("native-cpu-observations.json", native_cpu)
     if ranges is not None:
         publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
@@ -457,6 +466,7 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         symbols=plan["symbols"],
         native_process_metadata=reference(out / "native-process-metadata.json"),
         native_image_catalog=reference(out / "native-image-catalog.json"),
+        native_cpu_observations=reference(out / "native-cpu-observations.json"),
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",
@@ -519,7 +529,7 @@ def execute_capture(
             env=child,
             label="windows-host-profile:" + name,
             timeout_seconds=min(15 if cleanup else plan["budgets"]["timeout_seconds"], remaining),
-            max_output_bytes=4 * 1024**2,
+            max_output_bytes=MAX_ETL_METADATA_BYTES if name == "inspect_etl" else 4 * 1024**2,
             artifact_roots=() if cleanup else (out,),
             max_artifact_bytes=plan["budgets"]["max_artifact_bytes"],
             return_on_interrupt=True,
@@ -690,7 +700,7 @@ def review_capture(plan_path, *, runner=run_capture):
         env={"SystemRoot": os.environ.get("SystemRoot", r"C:\Windows")},
         label="windows-host-review:inspect_etl",
         timeout_seconds=min(120, plan["budgets"]["timeout_seconds"]),
-        max_output_bytes=4 * 1024**2,
+        max_output_bytes=MAX_ETL_METADATA_BYTES,
         return_on_interrupt=True,
     )
     if (

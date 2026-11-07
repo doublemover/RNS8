@@ -20,9 +20,11 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include "../src/diagnostics/etl_sample_payload.hpp"
 
 #ifndef RNS8_ETL_INSPECT_SOURCE_SHA256
 #error "CMake must bind the ETL inspector to its compiled source"
@@ -39,6 +41,11 @@ constexpr GUID image_provider = {
     0x2cb15d1d, 0x5fc1, 0x11d2, {0xab, 0xe1, 0x00, 0xa0, 0xc9, 0x11, 0xf5, 0x18}};
 constexpr GUID marker_provider = {
     0xac42f789, 0x71b2, 0x4a0b, {0xa4, 0x5c, 0x5c, 0x66, 0xf4, 0x1a, 0xb8, 0x13}};
+constexpr GUID thread_provider = {
+    0x3d6fa8d1, 0xfe05, 0x11d0, {0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c}};
+constexpr GUID profile_provider = {
+    0xce1dbfb4, 0x137e, 0x4da6, {0x87, 0xb0, 0x3f, 0x59, 0xaa, 0x10, 0x2c, 0xbc}};
+enum class EventFamily : uint32_t { process, image, thread };
 
 struct Property {
   USHORT type = 0;
@@ -56,13 +63,19 @@ struct State {
   uint64_t undecoded_image_events = 0;
   size_t image_text_bytes = 0;
   uint64_t marker_events = 0, undecoded_marker_events = 0;
+  uint64_t thread_events = 0, undecoded_thread_events = 0;
+  uint64_t sample_walk_events = 0, sample_events = 0, undecoded_sample_events = 0,
+           excluded_sample_events = 0;
   uint32_t selected_pid = 0;
   bool stopped = false;
+  bool sample_pass = false;
   const char* error = nullptr;
   json selected = json::array();
   json selected_images = json::array();
   json selected_markers = json::array();
-  std::map<uint32_t, Schema> schemas;
+  json selected_threads = json::array(), selected_samples = json::array();
+  std::map<uint32_t, std::pair<uint64_t, uint64_t>> sample_thread_windows;
+  std::map<std::tuple<EventFamily, USHORT, UCHAR, UCHAR, USHORT, bool>, Schema> schemas;
 };
 
 [[noreturn]] void fail(const char* message) {
@@ -88,12 +101,11 @@ std::wstring bounded_name(const std::vector<BYTE>& bytes, ULONG offset) {
   fail("TDH property name is unterminated or exceeds budget");
 }
 
-const Schema& schema(EVENT_RECORD* event, State& state, bool image_event) {
+const Schema& schema(EVENT_RECORD* event, State& state, EventFamily family) {
   const auto& descriptor = event->EventHeader.EventDescriptor;
-  const uint32_t key =
-      uint32_t(descriptor.Version) | (uint32_t(descriptor.Opcode) << 8) |
-      (uint32_t(event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) << 16) |
-      (uint32_t(image_event) << 24);
+  const auto key =
+      std::make_tuple(family, descriptor.Id, descriptor.Version, descriptor.Opcode, descriptor.Task,
+                      (event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0);
   const auto found = state.schemas.find(key);
   if (found != state.schemas.end()) {
     if (!found->second.valid)
@@ -124,9 +136,11 @@ const Schema& schema(EVENT_RECORD* event, State& state, bool image_event) {
     const std::wstring name = bounded_name(value.bytes, field.NameOffset);
     const bool selected =
         name == L"ProcessId" ||
-        (image_event
+        (family == EventFamily::image
              ? (name == L"ImageBase" || name == L"ImageSize" || name == L"ImageChecksum" ||
                 name == L"TimeDateStamp" || name == L"FileName")
+         : family == EventFamily::thread
+             ? name == L"TThreadId"
              : (name == L"ParentId" || name == L"UniqueProcessKey" || name == L"ImageFileName"));
     if (!selected)
       continue;
@@ -216,10 +230,83 @@ json ascii_image(const std::vector<BYTE>& bytes) {
   return std::string(begin, end);
 }
 
+void sample_event(EVENT_RECORD* event, State& state) noexcept {
+  if (++state.sample_walk_events > max_events) {
+    state.stopped = true;
+    state.error = "ETL sample walk event budget exhausted";
+    return;
+  }
+  if (!IsEqualGUID(event->EventHeader.ProviderId, profile_provider) ||
+      event->EventHeader.EventDescriptor.Opcode != 46)
+    return;
+  ++state.sample_events;
+  const bool is32 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0;
+  const bool is64 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0;
+  const size_t width = is32 ? 4u : 8u;
+  // Pinned Microsoft SampledProfile v2: pointer, TID, uint16 count,
+  // DPC/ISR/priority byte and rank byte. Preserve the packed word as well.
+  rns8::detail::trace::EtwProfileSample sample;
+  if (is32 == is64 ||
+      !rns8::detail::trace::decode_etw_profile_sample(event->UserData, event->UserDataLength,
+                                                      event->EventHeader.EventDescriptor.Version,
+                                                      static_cast<uint32_t>(width), sample) ||
+      event->EventHeader.TimeStamp.QuadPart < 0) {
+    ++state.undecoded_sample_events;
+    return;
+  }
+  const uint64_t ip = sample.instruction_pointer;
+  const uint32_t tid = sample.thread_id, packed = sample.packed_count_flags_rank;
+  const uint32_t pid = event->EventHeader.ProcessId;
+  const auto window = state.sample_thread_windows.find(tid);
+  const uint64_t stamp = uint64_t(event->EventHeader.TimeStamp.QuadPart);
+  const bool unknown_pid_selected = pid == UINT32_MAX &&
+                                    window != state.sample_thread_windows.end() &&
+                                    window->second.first <= stamp && stamp < window->second.second;
+  if (pid != state.selected_pid && !unknown_pid_selected) {
+    ++state.excluded_sample_events;
+    return;
+  }
+  if (!tid) {
+    ++state.undecoded_sample_events;
+    return;
+  }
+  if (state.selected_samples.size() >= 100000) {
+    state.stopped = true;
+    state.error = "selected ETL sample budget exhausted";
+    return;
+  }
+  const bool processor_index = (event->EventHeader.Flags & EVENT_HEADER_FLAG_PROCESSOR_INDEX) != 0;
+  try {
+    state.selected_samples.push_back(
+        json{{"tid", tid},
+             {"native_header_pid", pid},
+             {"native_header_tid", event->EventHeader.ThreadId},
+             {"time_filetime_100ns", stamp},
+             {"instruction_pointer", ip},
+             {"pointer_bytes", width},
+             {"packed_count_flags_rank", packed},
+             {"count", packed & 0xffff},
+             {"sample_flags", (packed >> 16) & 0xff},
+             {"rank", packed >> 24},
+             {"processor", processor_index ? event->BufferContext.ProcessorIndex
+                                           : event->BufferContext.ProcessorNumber},
+             {"processor_index_mode", processor_index},
+             {"record_index", state.sample_walk_events},
+             {"wire_contract", "windows_kernel_SampledProfile_v2"}});
+  } catch (...) {
+    state.stopped = true;
+    state.error = "ETL sample decoder allocation failed";
+  }
+}
+
 void WINAPI event_callback(EVENT_RECORD* event) noexcept {
   auto& state = *static_cast<State*>(event->UserContext);
   if (state.stopped)
     return;
+  if (state.sample_pass) {
+    sample_event(event, state);
+    return;
+  }
   if (++state.events > max_events) {
     state.stopped = true;
     state.error = "ETL event budget exhausted";
@@ -262,18 +349,27 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     return;
   }
   const bool image_event = IsEqualGUID(event->EventHeader.ProviderId, image_provider);
-  if (!image_event && !IsEqualGUID(event->EventHeader.ProviderId, process_provider))
+  const bool thread_event = IsEqualGUID(event->EventHeader.ProviderId, thread_provider);
+  if (!image_event && !thread_event &&
+      !IsEqualGUID(event->EventHeader.ProviderId, process_provider))
     return;
   const UCHAR opcode = event->EventHeader.EventDescriptor.Opcode;
   if (opcode != 2 && opcode != 3 && opcode != 4 &&
-      !(image_event ? opcode == 10 : opcode == 1 || opcode == 39))
+      !(image_event    ? opcode == 10
+        : thread_event ? opcode == 1
+                       : opcode == 1 || opcode == 39))
     return;
   if (image_event)
     ++state.image_events;
+  else if (thread_event)
+    ++state.thread_events;
   else
     ++state.process_events;
   try {
-    const Schema& fields = schema(event, state, image_event);
+    const Schema& fields = schema(event, state,
+                                  image_event    ? EventFamily::image
+                                  : thread_event ? EventFamily::thread
+                                                 : EventFamily::process);
     const uint32_t pid = uint32_property(event, fields, L"ProcessId");
     if (pid != state.selected_pid)
       return;
@@ -284,6 +380,22 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     const size_t width = is32 ? 4u : 8u;
     if (event->EventHeader.TimeStamp.QuadPart < 0)
       fail("native ETL converted timestamp is invalid");
+    if (thread_event) {
+      if (state.selected_threads.size() >= max_process_events)
+        throw DecoderBudgetExceeded{"selected ETL thread event budget exhausted"};
+      const uint32_t tid = uint32_property(event, fields, L"TThreadId");
+      if (!tid)
+        fail("native ETL thread ID is zero");
+      state.selected_threads.push_back(
+          json{{"pid", pid},
+               {"tid", tid},
+               {"opcode", opcode},
+               {"time_filetime_100ns", event->EventHeader.TimeStamp.QuadPart},
+               {"event_version", event->EventHeader.EventDescriptor.Version},
+               {"pointer_bytes", width},
+               {"record_index", state.events}});
+      return;
+    }
     if (image_event) {
       if (state.selected_images.size() >= 4096)
         throw DecoderBudgetExceeded{"selected ETL image event budget exhausted"};
@@ -338,6 +450,8 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     // PID property itself was unavailable. Keep the whole identity scope partial.
     if (image_event)
       ++state.undecoded_image_events;
+    else if (thread_event)
+      ++state.undecoded_thread_events;
     else
       ++state.undecoded_process_events;
   }
@@ -360,6 +474,52 @@ struct TraceHandle {
       fail("native ETL read handle did not close successfully");
   }
 };
+
+TRACE_LOGFILE_HEADER decode_log(std::wstring& filename, State& state) {
+  EVENT_TRACE_LOGFILEW logfile{};
+  logfile.LogFileName = filename.data();
+  logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
+  logfile.Context = &state;
+  logfile.EventRecordCallback = event_callback;
+  logfile.BufferCallback = buffer_callback;
+  TraceHandle trace;
+  trace.value = OpenTraceW(&logfile);
+  if (trace.value == INVALID_PROCESSTRACE_HANDLE)
+    fail("native OpenTrace file decode failed");
+  if (!logfile.LogfileHeader.EndTime.QuadPart || logfile.LogfileHeader.StartTime.QuadPart < 0 ||
+      logfile.LogfileHeader.EndTime.QuadPart < logfile.LogfileHeader.StartTime.QuadPart ||
+      logfile.LogfileHeader.PointerSize != sizeof(void*))
+    fail("finalized native-width ETL header required");
+  const ULONG status = ProcessTrace(&trace.value, 1, nullptr, nullptr);
+  if (status != ERROR_SUCCESS || state.stopped)
+    fail(state.error ? state.error : "native ProcessTrace did not finish the complete file");
+  trace.close();
+  return logfile.LogfileHeader;
+}
+
+void select_sample_windows(State& state) {
+  struct Bounds {
+    uint32_t starts = 0, stops = 0;
+    uint64_t start = 0, stop = 0;
+  };
+  std::map<uint32_t, Bounds> bounds;
+  for (const auto& row : state.selected_threads) {
+    auto& value = bounds[row.at("tid").get<uint32_t>()];
+    const auto opcode = row.at("opcode").get<uint32_t>();
+    if (opcode == 1) {
+      ++value.starts;
+      value.start = row.at("time_filetime_100ns").get<uint64_t>();
+    } else if (opcode == 2) {
+      ++value.stops;
+      value.stop = row.at("time_filetime_100ns").get<uint64_t>();
+    }
+  }
+  for (const auto& entry : bounds)
+    if (entry.second.starts == 1 && entry.second.stops == 1 &&
+        entry.second.start < entry.second.stop)
+      state.sample_thread_windows.emplace(entry.first,
+                                          std::make_pair(entry.second.start, entry.second.stop));
+}
 
 uint32_t parse_pid(const wchar_t* text) {
   uint64_t result = 0;
@@ -409,59 +569,65 @@ int wmain(int argc, wchar_t** argv) {
     if (!before || before > max_bytes)
       fail("ETL file byte budget exceeded");
     std::wstring filename = path.wstring();
-    EVENT_TRACE_LOGFILEW logfile{};
-    logfile.LogFileName = filename.data();
-    logfile.ProcessTraceMode = PROCESS_TRACE_MODE_EVENT_RECORD;
-    logfile.Context = &state;
-    logfile.EventRecordCallback = event_callback;
-    logfile.BufferCallback = buffer_callback;
-    TraceHandle trace;
-    trace.value = OpenTraceW(&logfile);
-    if (trace.value == INVALID_PROCESSTRACE_HANDLE)
-      fail("native OpenTrace file decode failed");
-    if (!logfile.LogfileHeader.EndTime.QuadPart || logfile.LogfileHeader.StartTime.QuadPart < 0 ||
-        logfile.LogfileHeader.EndTime.QuadPart < logfile.LogfileHeader.StartTime.QuadPart ||
-        logfile.LogfileHeader.PointerSize != sizeof(void*))
-      fail("finalized native-width ETL header required");
-    const ULONG status = ProcessTrace(&trace.value, 1, nullptr, nullptr);
-    if (status != ERROR_SUCCESS || state.stopped)
-      fail(state.error ? state.error : "native ProcessTrace did not finish the complete file");
-    trace.close();
+    const auto header = decode_log(filename, state);
+    select_sample_windows(state);
+    state.sample_pass = true;
+    const auto sample_header = decode_log(filename, state);
+    if (state.sample_walk_events != state.events ||
+        sample_header.StartTime.QuadPart != header.StartTime.QuadPart ||
+        sample_header.EndTime.QuadPart != header.EndTime.QuadPart ||
+        sample_header.PerfFreq.QuadPart != header.PerfFreq.QuadPart ||
+        sample_header.ReservedFlags != header.ReservedFlags ||
+        sample_header.EventsLost != header.EventsLost ||
+        sample_header.BuffersLost != header.BuffersLost)
+      fail("native ETL metadata and sample walks disagree");
     if (std::filesystem::file_size(path) != before ||
         std::filesystem::last_write_time(path) != modified)
       fail("ETL file changed during native decoding");
-    const auto& header = logfile.LogfileHeader;
-    json result{{"schema", "rns8_native_etl_process_metadata_v1"},
-                {"reader_source_sha256", RNS8_ETL_INSPECT_SOURCE_SHA256},
-                {"decoder_pid", GetCurrentProcessId()},
-                {"selected_pid", state.selected_pid},
-                {"native_process_trace_status", status},
-                {"complete_event_walk", true},
-                {"file_bytes", before},
-                {"observed_events", state.events},
-                {"observed_process_events", state.process_events},
-                {"undecoded_process_events", state.undecoded_process_events},
-                {"process_events", std::move(state.selected)},
-                {"observed_image_events", state.image_events},
-                {"undecoded_image_events", state.undecoded_image_events},
-                {"image_events", std::move(state.selected_images)},
-                {"observed_marker_events", state.marker_events},
-                {"undecoded_marker_events", state.undecoded_marker_events},
-                {"marker_events", std::move(state.selected_markers)},
-                {"header",
-                 {{"pointer_bytes", header.PointerSize},
-                  {"clock_type", header.ReservedFlags},
-                  {"perf_frequency", header.PerfFreq.QuadPart},
-                  {"start_filetime_100ns", header.StartTime.QuadPart},
-                  {"end_filetime_100ns", header.EndTime.QuadPart},
-                  {"events_lost", header.EventsLost},
-                  {"buffers_lost", header.BuffersLost},
-                  {"buffers_written", header.BuffersWritten}}},
-                {"event_timestamp_domain", "native_ProcessTrace_converted_FILETIME_100ns"},
-                {"complete_loss_free_acquisition_proven", false},
-                {"image_path_or_loaded_PDB_verified", false},
-                {"production_latency", false},
-                {"promotion_allowed", false}};
+    json result{
+        {"schema", "rns8_native_etl_process_metadata_v1"},
+        {"reader_source_sha256", RNS8_ETL_INSPECT_SOURCE_SHA256},
+        {"decoder_pid", GetCurrentProcessId()},
+        {"selected_pid", state.selected_pid},
+        {"native_process_trace_status", ERROR_SUCCESS},
+        {"complete_event_walk", true},
+        {"file_bytes", before},
+        {"observed_events", state.events},
+        {"observed_process_events", state.process_events},
+        {"undecoded_process_events", state.undecoded_process_events},
+        {"process_events", std::move(state.selected)},
+        {"observed_image_events", state.image_events},
+        {"undecoded_image_events", state.undecoded_image_events},
+        {"image_events", std::move(state.selected_images)},
+        {"observed_marker_events", state.marker_events},
+        {"undecoded_marker_events", state.undecoded_marker_events},
+        {"marker_events", std::move(state.selected_markers)},
+        {"observed_thread_events", state.thread_events},
+        {"undecoded_thread_events", state.undecoded_thread_events},
+        {"thread_events", std::move(state.selected_threads)},
+        {"sample_walk_events", state.sample_walk_events},
+        {"observed_sample_events", state.sample_events},
+        {"undecoded_sample_events", state.undecoded_sample_events},
+        {"excluded_sample_events", state.excluded_sample_events},
+        {"sample_events", std::move(state.selected_samples)},
+        {"sample_filter",
+         "known_selected_header_PID_or_unique_selected_thread_Start_End_for_unknown_header_PID"},
+        {"sample_record_namespace", "second_native_event_walk"},
+        {"complete_selected_sample_coverage_proven", false},
+        {"header",
+         {{"pointer_bytes", header.PointerSize},
+          {"clock_type", header.ReservedFlags},
+          {"perf_frequency", header.PerfFreq.QuadPart},
+          {"start_filetime_100ns", header.StartTime.QuadPart},
+          {"end_filetime_100ns", header.EndTime.QuadPart},
+          {"events_lost", header.EventsLost},
+          {"buffers_lost", header.BuffersLost},
+          {"buffers_written", header.BuffersWritten}}},
+        {"event_timestamp_domain", "native_ProcessTrace_converted_FILETIME_100ns"},
+        {"complete_loss_free_acquisition_proven", false},
+        {"image_path_or_loaded_PDB_verified", false},
+        {"production_latency", false},
+        {"promotion_allowed", false}};
     std::cout << result.dump() << '\n';
     return 0;
   } catch (const std::exception& error) {

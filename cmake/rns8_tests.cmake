@@ -489,6 +489,8 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
   add_test(NAME session_resource_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_session_resource_contract.py")
   add_test(NAME source_gemm_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_source_gemm_contract.py")
   add_test(NAME session_budget_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_session_budget.py")
+  add_test(NAME etl_cpu_contract_self_test COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_etl_cpu_contract.py")
+  set_tests_properties(etl_cpu_contract_self_test PROPERTIES LABELS "tools;profiling;host;evidence")
   set_tests_properties(session_budget_self_test PROPERTIES LABELS "tools;qualification;budget")
   set_tests_properties(source_gemm_contract_self_test PROPERTIES LABELS "tools;qualification;source-contract")
   set_tests_properties(session_resource_contract_self_test PROPERTIES LABELS "tools;qualification;host;evidence")
@@ -1168,6 +1170,7 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
     tests/unit/test_public_abi.cpp
     tests/unit/test_device_identity.cpp
     tests/unit/test_trace_ranges.cpp
+    tests/unit/test_etl_sample_payload.cpp
     tests/unit/test_json_output.cpp
     tests/unit/test_execution_environment.cpp
     tests/unit/test_execution_host_identity.cpp

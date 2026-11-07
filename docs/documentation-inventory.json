@@ -6137,6 +6137,7 @@
       "anchors": [
         "host-cpu-and-allocation-diagnostics",
         "native-linux-cpu-sample-decoding",
+        "native-windows-cpu-points",
         "native-windows-operation-markers",
         "separate-linux-host-allocation-capture",
         "windows-acquisition-boundary"

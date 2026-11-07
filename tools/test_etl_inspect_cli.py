@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from benchmark_request import file_digest
+from etl_inspector_identity import source_identity
 from json_evidence import parse_evidence_json
 from process_progress import run_capture, capture_succeeded
 
@@ -32,7 +33,7 @@ def main(argv=None):
     if (
         type(value) is not dict
         or value.get("schema") != "rns8_etl_inspector_identity_v1"
-        or value.get("source_sha256") != file_digest(ROOT / "tools/rns8_etl_inspect.cpp")
+        or value.get("source_sha256") != source_identity()
         or type(value.get("process_id")) is not int
         or value["process_id"] != result["process_id"]
         or type(value.get("pointer_bytes")) is not int

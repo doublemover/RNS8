@@ -376,8 +376,9 @@ or parent containment are rejected. Complete native windows feed the shared
 exclusive phase partition, retaining foreign/async scope exclusions and avoiding
 double-counted nested wall time. The private snapshot's QPC brackets remain a
 different clock: this step does not align QPC, WPA-relative sample times or GPU
-events. Consequently native operation windows can be bound while Windows
-sample-to-operation and source attribution remain pending. Raw traces and marker
+events. Native CPU points can instead join these windows within the same file,
+as described below; WPA sample clocks and source attribution remain separate.
+Raw traces and marker
 receipts never become production latency or loss-free qualification.
 
 The native provider/decoder and exception controls pass C++17 frontend checks;
@@ -397,6 +398,40 @@ configuration is invoked. The review has its own identity and does not create
 another production execution or resolve outstanding symbol/clock attribution.
 Rejection controls cover resealed stage commands/status, owner, derived samples,
 tool changes and disagreement with fresh native decoding. They remain unexecuted.
+
+## Native Windows CPU points
+
+The file-only inspector retains selected-PID TDH thread Start/End and rundown
+observations, then makes a bounded second walk for the pinned Microsoft
+[`SampledProfile` v2 format](https://github.com/microsoft/perfview/blob/4f3118c0fe7f624ae93a3249ae2ff7b6e1800e98/src/TraceEvent/Parsers/KernelTraceEventParser.cs).
+This avoids assigning samples online before late thread records are known.
+Known selected header PIDs can be retained directly. An absent native PID is
+admitted only inside one observed selected-thread Start/End window; neither a
+matching TID alone nor a rundown snapshot establishes process ownership.
+Known foreign PIDs are excluded. Both complete walks must agree on event count,
+clock/header and unchanged input. Native sample ordinals have a separate walk
+namespace from thread/image/marker records.
+
+The portable payload helper checks version, native width, exact length and null
+input before copying unaligned fields; rejection preserves its output. Reader
+identity includes both this header and the inspector source. The receipt keeps
+instruction addresses, native header IDs, processor-index mode and the packed
+count/flags/rank word. The consumer reconstructs these fields and actual thread
+generations, handling missing ends, reuse, same-time ambiguity, undecodable
+threads and loss explicitly. DPC/ISR and reserved-flag observations do not gain
+useful-process CPU credit. Unknown-PID filtering is conservative and does not
+prove complete selected-sample coverage.
+
+Resolved points can select exclusive measured native ETW phases without aligning
+WPA-relative time or QPC clocks. Native marker boundaries include unseparated
+provider-call overhead. Point counts are not CPU-seconds: actual weighted
+sampling exposure and CPU duration remain unavailable until interval semantics
+are bound. Raw addresses are ready for the remaining loaded-module/PDB/source
+adapter; they do not themselves establish source ownership. The Windows owner
+publishes and replays `native-cpu-observations.json` alongside the raw native
+metadata, using a bounded larger decoder-output allowance. Portable native-byte,
+typed thread/sample/phase and full synthetic publication controls are authored;
+no ETL, payload fixture, decoder, profiler or runtime test has executed.
 
 ## Separate Linux host allocation capture
 
