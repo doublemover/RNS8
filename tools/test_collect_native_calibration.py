@@ -42,6 +42,7 @@ from collect_native_calibration import (
     validate_capture,
     validate_case,
     generated_variant_contract,
+    generated_objective_contract,
     read_generated_family,
 )
 from native_locality_contract import private_contract as locality_contract
@@ -88,6 +89,8 @@ def case_for(candidate, **changes):
 
 def capture_for(case, run_id="fixture-run", repeats=3, warmups=1):
     capture = capture_contract(case, run_id, repeats, warmups)
+    if case["candidate"] in OPTIONAL_GENERATED:
+        capture["generated_objectives"] = generated_objective_contract(case, 2500.5)
     if case["candidate"] in ("queue_prepared", "grid_prepared"):
         capture.update(queue_prepare_ns=2000.25, queue_descriptor_storage_bytes=1024)
     if case["candidate"].startswith("complex_"):
@@ -203,6 +206,24 @@ class CaseTest(unittest.TestCase):
                 capture = capture_for(case)
                 capture["generated_variant"] = generated_variant_contract(case, manifest)
                 validate_capture(capture, case, "fixture-run", 3, 1, manifest)
+                for key, value in (
+                    ("prepare_ns", None),
+                    ("prepare_ns", True),
+                    ("prepare_ns", float("inf")),
+                    ("prepare_ns", -1),
+                    ("payload_bytes", 0),
+                    ("native_a_bytes", True),
+                    ("reference_residue_bytes", 1),
+                    ("output_bytes", 17 * 19 * 3),
+                    ("oracle_included", True),
+                    ("driver_allocator_overhead_included", True),
+                    ("code_storage_included", True),
+                    ("prepare_scope", "all_setup"),
+                ):
+                    bad = copy.deepcopy(capture)
+                    bad["generated_objectives"][key] = value
+                    with self.assertRaises(ValueError):
+                        validate_capture(bad, case, "fixture-run", 3, 1, manifest)
                 self.assertEqual(capture["sustained"]["gemm_calls"], 128)
                 with self.assertRaises(ValueError):
                     validate_capture(capture, case, "fixture-run", 3, 1)

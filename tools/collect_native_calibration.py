@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 from pathlib import Path
-import random
 import statistics
 import subprocess
 import time
@@ -13,7 +12,11 @@ import uuid
 from build_manifest import manifest_diagnostic_shape_valid, manifest_provenance_complete
 from benchmark_request import file_digest
 from json_evidence import parse_evidence_json as strict_json
-from native_variant_search import regression_scope, summarize as summarize_generated_search
+from native_variant_search import (
+    collection_schedule,
+    regression_scope,
+    summarize as summarize_generated_search,
+)
 from modulus_set_search import DEFAULT_MODULI
 from native_locality_contract import (
     private_contract as native_locality_contract,
@@ -799,6 +802,8 @@ def capture_contract(case, run_id, repeats, warmups):
     expected.update(conversion_contract(case))
     if case["candidate"] in CONVERSION and case["candidate"] != "conversion_pack_gemm":
         expected["residue_input_storage_bytes"] = 0
+    if case["candidate"] in OPTIONAL_GENERATED:
+        expected["residue_input_storage_bytes"] = 0
     return expected
 
 
@@ -855,6 +860,26 @@ def generated_variant_contract(case, manifest):
     }
 
 
+def generated_objective_contract(case, prepare_ns):
+    a_bytes = case["m"] * case["k"] * 8
+    b_bytes = case["k"] * case["n"] * 8
+    output_bytes = case["m"] * case["n"] * case["prefix"] + 64
+    return dict(
+        schema="rns8_generated_native_objectives_v1",
+        payload_bytes=a_bytes + b_bytes + output_bytes,
+        payload_scope="owned_native_inputs_and_guarded_residue_output",
+        native_a_bytes=a_bytes,
+        native_b_bytes=b_bytes,
+        output_bytes=output_bytes,
+        reference_residue_bytes=0,
+        prepare_ns=prepare_ns,
+        prepare_scope="host_variant_binding_probe_payload_allocation_and_upload",
+        oracle_included=False,
+        driver_allocator_overhead_included=False,
+        code_storage_included=False,
+    )
+
+
 def validate_capture(capture, case, run_id, repeats, warmups, generated_manifest=None):
     if not isinstance(capture, dict):
         raise ValueError("capture must be a JSON object")
@@ -867,7 +892,19 @@ def validate_capture(capture, case, run_id, repeats, warmups, generated_manifest
             raise ValueError(
                 "generated variant/symbol/target binding differs from the verified source family"
             )
-    elif capture.get("generated_variant") is not None:
+        objectives = capture.get("generated_objectives")
+        if (
+            not isinstance(objectives, dict)
+            or not positive_number(objectives.get("prepare_ns"))
+            or not same_value(
+                objectives, generated_objective_contract(case, objectives["prepare_ns"])
+            )
+        ):
+            raise ValueError("generated native payload/preparation receipt differs from owned work")
+    elif (
+        capture.get("generated_variant") is not None
+        or capture.get("generated_objectives") is not None
+    ):
         raise ValueError("ordinary control cannot carry generated dispatch metadata")
     for key, value in capture_contract(case, run_id, repeats, warmups).items():
         if key not in capture or not same_value(capture[key], value):
@@ -1221,6 +1258,12 @@ def main():
                     "schema": "rns8_native_dataset_preflight_v2",
                     "cases": preflight,
                     "gpu_work_executed": False,
+                    "collection_schedule": [
+                        dict(case_index=index, independent_repeat=repeat, stage=stage)
+                        for index, repeat, stage in collection_schedule(
+                            cases, args.runs, args.order_seed
+                        )
+                    ],
                     "generated_family_required": any(
                         case["candidate"] in OPTIONAL_GENERATED for case in cases
                     ),
@@ -1319,8 +1362,7 @@ def main():
                     "generated family or proof/source dependencies changed during collection"
                 )
 
-    jobs = [(c, independent) for independent in range(args.runs) for c in cases]
-    random.Random(args.order_seed).shuffle(jobs)
+    jobs = collection_schedule(cases, args.runs, args.order_seed)
     campaign_identity = None
     reuse_observations = []
     conversion_observations = []
@@ -1332,7 +1374,8 @@ def main():
             json.dumps(work, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
 
-    for ordinal, (case, independent) in enumerate(jobs):
+    for ordinal, (case_index, independent, search_stage) in enumerate(jobs):
+        case = cases[case_index]
         if hashlib.sha256(exe.read_bytes()).hexdigest() != artifact:
             raise RuntimeError("native executable changed during collection")
         run_id = str(uuid.uuid4())
@@ -1398,6 +1441,7 @@ def main():
             "started_unix_ns": time.time_ns(),
             "ordinal": ordinal,
             "independent_repeat": independent,
+            "search_stage": search_stage,
             "order_seed": args.order_seed,
             "promotion_eligible": False,
         }
@@ -1513,8 +1557,8 @@ def main():
                     cohort=generated_cohort(case),
                     run_id=run_id,
                     latency_ns=capture["sustained"]["mean_call_ns"],
-                    payload_bytes=None,
-                    prepare_ns=None,
+                    payload_bytes=capture["generated_objectives"]["payload_bytes"],
+                    prepare_ns=capture["generated_objectives"]["prepare_ns"],
                     capture=dict(path=str(record_path.resolve()), sha256=file_digest(record_path)),
                 )
             )
@@ -1554,7 +1598,15 @@ def main():
                 if case["candidate"] in OPTIONAL_GENERATED
             },
             baseline_rule="lowest_admitted_group_per_signedness",
-            objective_missingness="native_payload_and_variant_preparation_observations_not_yet_recorded",
+            preparation_scope="host_variant_binding_probe_payload_allocation_and_upload",
+            payload_scope="owned_native_inputs_and_guarded_residue_output_not_driver_or_code_storage",
+            search_schedule=dict(
+                coarse_invocations=sum(stage == "coarse_single_invocation" for _, _, stage in jobs),
+                fine_invocations=sum(stage == "fine_independent_repeats" for _, _, stage in jobs),
+                planned_invocations=len(jobs),
+                search_runs_saved=0,
+                pruning="none_without_complete_measured_and_qualified_cohort_coverage",
+            ),
             known_regression_corpus=dict(
                 path=str(corpus_path), sha256=hashlib.sha256(corpus_path.read_bytes()).hexdigest()
             ),

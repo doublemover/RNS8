@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import unittest
 
-from native_variant_search import regression_scope, summarize
+from native_variant_search import collection_schedule, regression_scope, summarize
 
 A, B, C = (letter * 64 for letter in "abc")
 FAMILY = dict(
@@ -47,6 +47,37 @@ def report(rows=None):
 
 
 class Search(unittest.TestCase):
+    def test_coarse_to_fine_preserves_all_controls_and_held_out_repeats(self):
+        cases = [
+            dict(candidate=name, m=m, n=n, k=257)
+            for name in ("generated_wmma", "wmma", "pack_gemm")
+            for m, n in ((256, 256), (1, 33), (17, 19))
+        ]
+        jobs = collection_schedule(cases, 5, 3135)
+        self.assertEqual(jobs, collection_schedule(cases, 5, 3135))
+        self.assertEqual(len(jobs), 45)
+        self.assertEqual(len({(index, repeat) for index, repeat, _ in jobs}), 45)
+        self.assertTrue(
+            all(
+                repeat == 0 and stage == "coarse_single_invocation" for _, repeat, stage in jobs[:9]
+            )
+        )
+        self.assertTrue(
+            all(repeat > 0 and stage == "fine_independent_repeats" for _, repeat, stage in jobs[9:])
+        )
+        work = [
+            cases[index]["m"] * cases[index]["n"] * cases[index]["k"] for index, _, _ in jobs[:9]
+        ]
+        self.assertEqual(work, sorted(work))
+        self.assertEqual(len(collection_schedule(cases, 1, 1)), 9)
+        ordinary = [dict(candidate="wmma")]
+        self.assertTrue(
+            all(stage == "ordinary" for _, _, stage in collection_schedule(ordinary, 5, 1))
+        )
+        for runs in (True, 0, 101, 1.0):
+            with self.assertRaises(ValueError):
+                collection_schedule(cases, runs, 1)
+
     def test_all_cohort_dominance_preserves_explicit_baseline_and_held_out_diversity(self):
         value = report()
         decisions = {row["variant_id"]: row for row in value["decisions"]}

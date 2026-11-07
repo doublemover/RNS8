@@ -94,11 +94,21 @@ preparation interval across every required cohort. Missing shapes or costs keep
 a variant; overlapping ranges do not establish dominance. This report edits no
 shipped set and grants no promotion or ISA qualification.
 
-The current native producer does not record variant-specific preparation and
-payload observations, so those objectives remain null and retirement stays
-blocked. Their native bridge, coarse-to-fine collection and complete regression/
-interaction coverage remain source work. Source-authored search/collector
-controls are registered and unexecuted.
+The native producer records owned native A/B and guarded residue-output bytes,
+plus host time for variant binding, capability probing, allocation and upload.
+It excludes the exact oracle from setup time and does not count driver allocation
+overhead or code storage as payload. Generated calls no longer allocate or fill
+the unused packed A/B device controls. The collector checks each byte count
+against the actual case and retains the observation's raw capture identity.
+
+Collection first explores every declared case once, cheapest shapes first, then
+randomizes the remaining independent repetitions. Ordinary controls and all
+declared skinny, rectangular and tail cases remain in both stages. A coarse
+sample cannot prune an unqualified variant; the report records zero saved runs
+until complete measured coverage can justify a reviewed reduction. Plan-only
+output exposes this schedule without opening the executable. Complete assurance
+joins and regression/interaction coverage remain source work. Source-authored
+search/collector controls are registered and unexecuted.
 
 The compact [known-regression corpus](../metadata/native-known-regressions.json)
 records five CK failure classes described in AMD's

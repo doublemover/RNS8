@@ -4,9 +4,50 @@ from __future__ import annotations
 
 from collections import defaultdict
 import re
+import random
 import statistics
 
 from evidence_scalars import finite_number
+
+
+def collection_schedule(cases, runs, seed):
+    """One bounded exploration pass precedes independent confirmation repeats.
+
+    Nothing is pruned from an unmeasured coarse pass. In particular, every
+    declared tail/skinny case and ordinary control survives into the fine pass.
+    Return indices so the existing collector remains the only launch owner.
+    """
+    if (
+        not isinstance(cases, list)
+        or not 1 <= len(cases) <= 80
+        or type(runs) is not int
+        or not 1 <= runs <= 100
+        or type(seed) is not int
+        or any(not isinstance(case, dict) for case in cases)
+    ):
+        raise ValueError("bounded native collection schedule required")
+    rng = random.Random(seed)
+    jobs = [(index, repeat, "ordinary") for repeat in range(runs) for index in range(len(cases))]
+    if not any(case.get("candidate") == "generated_wmma" for case in cases):
+        rng.shuffle(jobs)
+        return jobs
+    if any(
+        type(case.get(axis)) is not int or not 1 <= case[axis] < 1 << 31
+        for case in cases
+        for axis in ("m", "n", "k")
+    ):
+        raise ValueError("positive bounded native shape required")
+    coarse = [(index, 0, "coarse_single_invocation") for index in range(len(cases))]
+    fine = [
+        (index, repeat, "fine_independent_repeats")
+        for repeat in range(1, runs)
+        for index in range(len(cases))
+    ]
+    rng.shuffle(coarse)
+    rng.shuffle(fine)
+    # Early failures should be cheap, without grouping a candidate's repeats.
+    coarse.sort(key=lambda job: cases[job[0]]["m"] * cases[job[0]]["n"] * cases[job[0]]["k"])
+    return coarse + fine
 
 
 def regression_scope(corpus, *, component, target, features, version):

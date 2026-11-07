@@ -328,8 +328,10 @@ int main(int argc, char** argv) {
                                                    : "not_applicable";
     rns8_device_info device{};
     const rns8::generated::NativeVariant* generated_variant = nullptr;
+    double generated_prepare_ns = 0;
     if (generated) {
 #if defined(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+      const auto binding_start = std::chrono::steady_clock::now();
       for (const auto& variant : rns8::generated::native_variants)
         if (variant.group == group && variant.unsigned_inputs == bool(unsigned_inputs)) {
           if (generated_variant)
@@ -350,6 +352,9 @@ int main(int argc, char** argv) {
         return 77;
       }
       check(available);
+      generated_prepare_ns =
+          std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - binding_start)
+              .count();
 #else
       std::cerr << "generated native WMMA family was not compiled\n";
       return 77;
@@ -449,9 +454,10 @@ int main(int argc, char** argv) {
         }
     }
     hip_direct_device_buffer da, db, ra, rb, rd, intermediate, dc;
+    const auto payload_prepare_start = std::chrono::steady_clock::now();
     check(da.allocate(0, a.size() * 8));
     check(db.allocate(0, b.size() * 8));
-    const bool reserve_residue_inputs = !conversion || conversion_pack;
+    const bool reserve_residue_inputs = !generated && (!conversion || conversion_pack);
     if (reserve_residue_inputs) {
       check(ra.allocate(0, expected_a.size()));
       check(rb.allocate(0, expected_b.size()));
@@ -459,6 +465,11 @@ int main(int argc, char** argv) {
     check(dc.allocate(0, expected.size()));
     check(hip_direct_copy_host_to_device(0, da.get(), a.data(), a.size() * 8));
     check(hip_direct_copy_host_to_device(0, db.get(), b.data(), b.size() * 8));
+    if (generated)
+      generated_prepare_ns +=
+          std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() -
+                                                 payload_prepare_start)
+              .count();
     if (epilogue) {
       check(rd.allocate(0, expected_d.size()));
       check(hip_direct_copy_host_to_device(0, rd.get(), expected_d.data(), expected_d.size()));
@@ -776,6 +787,22 @@ int main(int argc, char** argv) {
                                             {"dispatch", "exact_compiled_function_pointer"},
                                             {"qualified", false}}
                            : nlohmann::json(nullptr)},
+        {"generated_objectives",
+         generated_variant
+             ? nlohmann::json{
+                   {"schema", "rns8_generated_native_objectives_v1"},
+                   {"payload_bytes", da.bytes() + db.bytes() + dc.bytes()},
+                   {"payload_scope", "owned_native_inputs_and_guarded_residue_output"},
+                   {"native_a_bytes", da.bytes()},
+                   {"native_b_bytes", db.bytes()},
+                   {"output_bytes", dc.bytes()},
+                   {"reference_residue_bytes", ra.bytes() + rb.bytes()},
+                   {"prepare_ns", generated_prepare_ns},
+                   {"prepare_scope", "host_variant_binding_probe_payload_allocation_and_upload"},
+                   {"oracle_included", false},
+                   {"driver_allocator_overhead_included", false},
+                   {"code_storage_included", false}}
+             : nlohmann::json(nullptr)},
         {"sustained", sustained},
         {"queue_prepare_ns", queue_prepare_ns},
         {"queue_preparation_scope",
