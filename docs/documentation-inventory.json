@@ -4529,6 +4529,10 @@
           "reference": "roadmap.md"
         },
         {
+          "source": "docs/platform-windows.md",
+          "reference": "roadmap.md"
+        },
+        {
           "source": "docs/research/README.md",
           "reference": "../roadmap.md"
         },
