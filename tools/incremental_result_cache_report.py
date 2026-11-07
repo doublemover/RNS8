@@ -22,7 +22,10 @@ from report_capture_inputs import load_report_captures
 DEFAULT_OUT_DIR = Path("temp") / "incremental-result-cache-reports"
 
 PROMOTION_SPEEDUP_THRESHOLD = 1.10
-COMPARISON_POLICY = ComparisonPolicy("same_completed_output_result_cache_vs_full_recompute_v1")
+COMPARISON_POLICY = ComparisonPolicy(
+    "same_completed_output_result_cache_vs_full_recompute_v1",
+    work_exclusions=("export_variant.selector_key",),
+)
 
 
 def _scenario(capture: dict[str, Any]) -> dict[str, Any]:

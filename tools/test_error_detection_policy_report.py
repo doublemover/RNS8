@@ -74,9 +74,7 @@ def main() -> int:
         no_cpu_report = error_detection_policy_report.build_report([no_cpu])
         assert no_cpu_report["rank39_gate_complete"] is False
         assert "cpu_reference_baseline_missing" in no_cpu_report["rows"][0]["blockers"]
-        assert (
-            "cpu_reference_marked_missing_required_baseline" in no_cpu_report["rows"][0]["blockers"]
-        )
+        assert "review_cpu_reference_binding_missing" in no_cpu_report["rows"][0]["blockers"]
 
         cache_eligible = tmp / "cache-eligible"
         cache_eligible.mkdir()

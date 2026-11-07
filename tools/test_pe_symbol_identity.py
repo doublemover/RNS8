@@ -107,6 +107,18 @@ class SymbolIdentity(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "content changed"):
                 pe.pe_identity(self.binary)
 
+    def test_old_directory_pages_may_be_free_but_current_info_pages_must_be_allocated(self):
+        data = symbols()
+        struct.pack_into("<I", data, 44, 20)
+        struct.pack_into("<5I", data, 4 * 512, 2, 512, 28, 6, 5)
+        data[512] |= 1 << 6
+        self.pdb.write_bytes(data)
+        self.assertEqual(pe.pdb_identity(self.pdb)["guid"], str(GUID))
+        data[512] |= 1 << 5
+        self.pdb.write_bytes(data)
+        with self.assertRaisesRegex(ValueError, "marked free"):
+            pe.pdb_identity(self.pdb)
+
 
 if __name__ == "__main__":
     unittest.main()

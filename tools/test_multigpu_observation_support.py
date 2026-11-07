@@ -151,6 +151,15 @@ class ObservationFixture:
                     capture["finite_modulus"] = modulus
                     metadata = capture["backend_metadata"]
                     metadata["accumulator_safety"]["modulus"] = modulus
+                    if modulus not in (251, 255, 256):
+                        old_kernel = capture["selected_kernel"]
+                        capture["selected_kernel"] = metadata["selected_kernel"] = (
+                            "direct_hip_tiled_finite_u8_gemm_v1"
+                        )
+                        metadata["isa_evidence"] = "rns8_hip_direct_reciprocal_isa_gate"
+                        metadata["autotune_key"] = metadata["autotune_key"].replace(
+                            old_kernel, capture["selected_kernel"]
+                        )
                     metadata["autotune_key"] = metadata["autotune_key"].replace(
                         "finite_modulus=255;", f"finite_modulus={modulus};"
                     )

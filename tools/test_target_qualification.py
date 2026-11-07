@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from benchmark_request import file_digest
+from cache_promotion import make_receipt
 from compiled_binary_identity import canonical_digest
 from target_qualification import (
     EvidenceStore,
@@ -74,7 +75,6 @@ class TargetQualification(unittest.TestCase):
                 )
                 # Other promotion gates are independent of this target test.
                 ledger.update(promotion_blockers=[], performance_validated=True)
-                ledger_path = write(fixture.root / "ledger.json", dict(entries=[ledger]))
                 entry = dict(
                     key=fixture.capture["backend_metadata"]["autotune_key"],
                     selected_backend="hip-direct",
@@ -83,6 +83,24 @@ class TargetQualification(unittest.TestCase):
                     target_id=target,
                     shape={key: fixture.capture[key] for key in ("m", "n", "k")},
                 )
+                # This control isolates the target gate. Other gate contents
+                # are authored placeholders, not numerical/performance evidence.
+                review_control = write(
+                    fixture.root / "review-control.json", dict(synthetic_fixture_only=True)
+                )
+                variance_control = write(
+                    fixture.root / "variance-control.json", dict(synthetic_fixture_only=True)
+                )
+                ledger["cache_promotion_receipt"] = make_receipt(
+                    entry,
+                    [
+                        ("candidate", fixture.capture_path),
+                        ("target", report_path),
+                        ("review", review_control),
+                        ("variance", variance_control),
+                    ],
+                )
+                ledger_path = write(fixture.root / "ledger.json", dict(entries=[ledger]))
                 validate_promotion_ledger_gate(
                     [entry], [ledger_path], require_target_validation_gate=True
                 )

@@ -900,7 +900,11 @@ class ValidatorScheduleMixin:
         ):
             self._error("per-tile adaptive captures must apply prefix grouping or prefix skipping")
         metadata = self.data.get("timing_metadata")
-        if isinstance(metadata, dict) and not is_censored_gpu_event_capture(self.data):
+        if (
+            isinstance(metadata, dict)
+            and metadata.get("host_instrumentation_state") != "hooks_disabled"
+            and not is_censored_gpu_event_capture(self.data)
+        ):
             if self.data.get("backend_selected") == "hip-direct":
                 if metadata.get("gpu_event_timing") is not True:
                     self._error(

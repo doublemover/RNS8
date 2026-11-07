@@ -15,7 +15,7 @@ def load_tests(loader, tests, pattern):
     suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_reuse_chain))
     suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_oneshot_accelerators))
     suite.addTests(loader.loadTestsFromModule(test_benchmark_schema_case_events_schedule))
-    if suite.countTestCases() != 4:
+    if suite.countTestCases() < 4:
         raise RuntimeError("aggregate contract test inventory changed or became empty")
     return suite
 

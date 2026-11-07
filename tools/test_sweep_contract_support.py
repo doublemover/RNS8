@@ -52,7 +52,6 @@ def assert_scenario_commands(entries: Sequence[SweepCommand]) -> None:
             assert option(command, "--" + dimension) == str(scenario["shape"][dimension])
         assert option(command, "--semantics") == scenario["semantics"]
         cli_backend = {
-            "cpu": "cpu-reference",
             "hip-vector-alu-int64": "hip-vector-alu-int64-runtime",
         }.get(scenario["backend"], scenario["backend"])
         assert option(command, "--backend") == cli_backend

@@ -195,6 +195,7 @@ def pdb_identity(path, *, max_bytes=MAX_BYTES):
             raise ValueError("bounded MSF7 stream directory required")
         sizes = struct.unpack_from("<" + "I" * streams, directory, 4)
         cursor, info_page = 4 + streams * 4, None
+        old_directory_pages = set()
         for index, size in enumerate(sizes):
             count = 0 if size == 0xFFFFFFFF else (size + block_size - 1) // block_size
             if count > blocks or cursor + count * 4 > len(directory):
@@ -202,6 +203,8 @@ def pdb_identity(path, *, max_bytes=MAX_BYTES):
             for position in range(count):
                 page = struct.unpack_from("<I", directory, cursor + 4 * position)[0]
                 admit(page)
+                if index == 0:
+                    old_directory_pages.add(page)
                 if index == 1 and position == 0:
                     info_page = page
             cursor += count * 4
@@ -209,6 +212,11 @@ def pdb_identity(path, *, max_bytes=MAX_BYTES):
             raise ValueError("complete MSF7 PDB info stream required")
         free_maps = {}
         for page in used:
+            # Stream 0 names the previous directory, whose pages may already
+            # be free in the active transaction. Never decode them as live data.
+            # https://llvm.org/docs/PDB/index.html#streams
+            if page in old_directory_pages:
+                continue
             interval, bit = divmod(page, block_size * 8)
             if interval not in free_maps:
                 free_maps[interval] = image.read(

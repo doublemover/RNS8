@@ -149,7 +149,12 @@ def authored_reuse_pair(root, operands):
 
 
 def authored_graph_pair(root, transform):
-    production, diagnostic, paths = authored_pair(root)
+    fixture = (
+        "v4_wrap64_hip.json"
+        if transform is as_hip_graph_full_wrap64_capture
+        else ("v4_bounded_i64_adaptive_hip.json")
+    )
+    production, diagnostic, paths = authored_pair(root, fixture)
     result = []
     for index, (capture, path) in enumerate(zip((production, diagnostic), paths)):
         capture = transform(capture)

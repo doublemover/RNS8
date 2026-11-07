@@ -297,7 +297,8 @@ def main() -> int:
         assert "GPU Roofline Priority" in markdown
         assert "Roofline Priority" in markdown
         assert "bottleneck us" in markdown
-        assert "median GOP/s" in markdown
+        assert "useful GOP/s" in markdown
+        assert "representation GOP/s" in markdown
         assert "Scenario Metadata" in markdown
         assert "large_shape_role" in markdown
         assert "throughput_probe" in markdown

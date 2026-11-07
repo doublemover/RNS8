@@ -2089,10 +2089,15 @@ def fastest_route(
 
 
 GENERIC_REVIEW_POLICY = ComparisonPolicy(
-    "generic_review_completed_output", amortize_prepack_setup=True
+    "generic_review_completed_output",
+    work_exclusions=("export_variant.selector_key",),
+    amortize_prepack_setup=True,
 )
 GENERIC_CPU_POLICY = ComparisonPolicy(
-    "generic_review_same_host_cpu_gpu", cpu_gpu_comparison=True, amortize_prepack_setup=True
+    "generic_review_same_host_cpu_gpu",
+    work_exclusions=("export_variant.selector_key",),
+    cpu_gpu_comparison=True,
+    amortize_prepack_setup=True,
 )
 
 GENERIC_REUSE_POLICY = ComparisonPolicy(
@@ -2118,7 +2123,8 @@ GENERIC_CPU_REUSE_POLICY = ComparisonPolicy(
 def _review_observation_groups(cohorts: ReportCohorts):
     groups, cpus = defaultdict(list), defaultdict(list)
     for capture in cohorts.observations:
-        contract, work = capture_contract_key(capture), canonical_work(capture)
+        contract = capture_contract_key(capture)
+        work = canonical_work(capture, exclude=("export_variant.selector_key",))
         if backend_id(capture) in {"cpu", "cpu-reference", "wrap64-byte-limb"}:
             cpus[(contract, work, comparison_environment(capture, cpu_anchor=True))].append(capture)
         else:

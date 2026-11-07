@@ -266,6 +266,8 @@ def main() -> int:
             "baseline:diagnostic_instrumented_host_time_not_production_evidence",
             "baseline:matched_diagnostic_companion_missing",
             "baseline:missing_variance_gate_entry",
+            "review_measurement:unsupported_review_schema",
+            "review_measurement:review_capture_receipt_missing_or_unsupported",
         }
 
         # Admission does not depend on a variance report honestly carrying its

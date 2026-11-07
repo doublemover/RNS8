@@ -156,7 +156,7 @@ class CommandMatrixCases(unittest.TestCase):
             for _, command, _ in exact_commands
         )
         assert [option(command, "--backend") for _, command, _ in exact_commands] == [
-            "cpu-reference",
+            "cpu",
             "hip-direct",
         ]
 

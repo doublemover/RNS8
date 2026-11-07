@@ -111,7 +111,7 @@ def row_for_capture(
     if median is None:
         blockers.append("missing_end_to_end_median")
     return {
-        **row_identity(capture),
+        **row_identity(capture, exclude=("export_variant.selector_key",)),
         "path": _path(capture),
         "backend": backend,
         "target_boundary": _target_boundary(capture),
