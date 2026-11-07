@@ -1,0 +1,43 @@
+<!-- Native CPU sampling table/column GUIDs inspected in WPT's
+     Catalog/HtmlResponsivenessAnalysis.wpaprofile. No network symbol source. -->
+<WpaProfile SavedWith="6.3.9600.16422" AppendNtSymbolPath="" AppendNtSymCachePath="" xmlns="clr-namespace:Microsoft.Performance.Shell;assembly=Microsoft.Performance.Shell">
+  <WpaProfile.UISessions>
+    <UISessionProperties Index="0" />
+  </WpaProfile.UISessions>
+  <WpaProfile.Views>
+    <AnalysisView Name="971bc759-eb54-4852-91dd-5faf12df640e" IsSelected="True" IsVisible="True" xmlns="clr-namespace:Microsoft.Performance.Shell.Graphing;assembly=Microsoft.Performance.Shell">
+      <AnalysisView.Title>
+        <ViewTitle Title="RNS8 sampled CPU" xmlns="clr-namespace:Microsoft.Performance.Shell;assembly=Microsoft.Performance.Shell" />
+      </AnalysisView.Title>
+      <AnalysisView.UISessionRef>
+        <UISessionRef Index="0" xmlns="clr-namespace:Microsoft.Performance.Shell;assembly=Microsoft.Performance.Shell" />
+      </AnalysisView.UISessionRef>
+      <CpuSamplingGraphTreeItem LayoutStyleFree="DataTable" xmlns="clr-namespace:Microsoft.Performance.Shell.Tables;assembly=Microsoft.Performance.Shell">
+        <CpuSamplingGraphTreeItem.HdvViewModelPreset>
+          <HdvViewModelPreset Name="RNS8 individual samples" GraphColumnCount="9" KeyColumnCount="7" RightFrozenColumnCount="8" InitialFilterQuery="" InitialSelectionQuery="" InitialExpansionQuery="" xmlns="clr-namespace:Microsoft.Performance.UI.DataEngine.ViewModelPresets;assembly=Microsoft.Performance.UI.DataEngine">
+            <HdvViewModelPreset.ColumnMetadataEntries>
+              <ColumnMetadataEntry Guid="05100ece-df05-40c7-aad6-ffff99b60491" Name="Thread ID" ColumnMetadata="EndThreadId" />
+              <ColumnMetadataEntry Guid="0bbf4299-0176-445e-b1d9-991df475d631" Name="TimeStamp" ColumnMetadata="StartTime" />
+            </HdvViewModelPreset.ColumnMetadataEntries>
+            <HdvViewModelPreset.HighlightEntries />
+            <HdvViewModelPreset.ConfigurableColumns>
+              <HdvColumnViewModelPreset Guid="5b77e48f-6d24-4f29-8972-69c30e32f87d" Name="Process" IsVisible="True" Width="200" />
+              <HdvColumnViewModelPreset Guid="05100ece-df05-40c7-aad6-ffff99b60491" Name="Thread ID" IsVisible="True" Width="80" />
+              <HdvColumnViewModelPreset Guid="55d56ebb-77af-4af5-a056-6122751ea093" Name="CPU" IsVisible="True" Width="40" />
+              <HdvColumnViewModelPreset Guid="0bbf4299-0176-445e-b1d9-991df475d631" Name="TimeStamp" IsVisible="True" Width="120" />
+              <HdvColumnViewModelPreset Guid="842af11e-661d-477e-b7b6-556ed8181177" Name="Stack" IsVisible="True" Width="240">
+                <HdvColumnViewModelPreset.Parameter>
+                  <PresetStackOptions xmlns="clr-namespace:Microsoft.Performance.Shell.Stacks;assembly=Microsoft.Performance.Shell" />
+                </HdvColumnViewModelPreset.Parameter>
+              </HdvColumnViewModelPreset>
+              <HdvColumnViewModelPreset Guid="ccdb05c1-04a9-4289-aaa6-a376d1d66012" Name="Module" IsVisible="True" Width="120" />
+              <HdvColumnViewModelPreset Guid="7ad93780-708c-471c-9e3f-5a497cbefdd7" Name="Function" IsVisible="True" Width="200" />
+              <HdvColumnViewModelPreset Guid="e0c6cb9e-04c2-4bb5-ba5f-4ed765f4ecaa" Name="Weight" AggregationMode="Sum" IsVisible="True" Width="100" />
+              <HdvColumnViewModelPreset Guid="01a82c2c-5048-4c9d-ac37-eaf6556f6af5" Name="Count" AggregationMode="Sum" IsVisible="True" Width="60" />
+            </HdvViewModelPreset.ConfigurableColumns>
+          </HdvViewModelPreset>
+        </CpuSamplingGraphTreeItem.HdvViewModelPreset>
+      </CpuSamplingGraphTreeItem>
+    </AnalysisView>
+  </WpaProfile.Views>
+</WpaProfile>

@@ -20,6 +20,7 @@ from check_dependencies_lib.config import (
     RADEON_TOOLS,
     WINDOWS_CORE_COMMANDS,
     WINDOWS_HIP_COMMANDS,
+    WINDOWS_OPTIONAL_PROFILER_COMMANDS,
 )
 from .resolution import ACTIVE_RESOLUTION, compiler_environment, selected_command
 
@@ -97,6 +98,8 @@ def command_names_for_host(host_system: str | None = None) -> list[str]:
     )
     if host != "Windows":
         names = [name for name in names if name != "hipInfo"]
+    else:
+        names += WINDOWS_OPTIONAL_PROFILER_COMMANDS
     deduped: list[str] = []
     for name in names:
         if name not in deduped:
@@ -154,6 +157,15 @@ def find_command(name: str) -> str | None:
     if name in RADEON_TOOLS:
         for tools_dir in user_tools_dirs():
             candidates.extend([tools_dir / f"{name}.exe", tools_dir / name])
+
+    if name in WINDOWS_OPTIONAL_PROFILER_COMMANDS and platform.system() == "Windows":
+        program_files = os.environ.get("ProgramFiles(x86)")
+        if program_files:
+            candidates.append(
+                Path(program_files)
+                / "Windows Kits/10/Windows Performance Toolkit"
+                / (name + ".exe")
+            )
 
     for candidate in candidates:
         if candidate.exists():

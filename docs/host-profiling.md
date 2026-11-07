@@ -82,7 +82,7 @@ Leaf module custody is checked separately with a bounded ELF reader over the
 actual current file, using the [Linux ELF ABI](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/include/uapi/linux/elf.h).
 The reader accepts native little-endian x86-64/AArch64 executable/shared files,
 walks program/section notes (including extended section counts), rejects
-contradictory GNU build IDs and hashes complete file contents. Limits are128
+contradictory GNU build IDs and hashes complete file contents. Limits are 128
 module identities, 512MiB per file, 2GiB aggregate module-file bytes and bounded
 header/note extents. Files that fail format inspection consume the byte budget
 and are not repeatedly decoded. Earlier files and native path aliases are
@@ -208,19 +208,64 @@ matching GUID and age, retains complete file hashes and repeats content checks.
 Section/RVA/raw-file disagreement, contradictory CodeView records, unsupported
 legacy formats and missing info streams are errors. MSF directory/stream blocks
 must be bounded, disjoint, outside reserved pages and allocated in the active
-free-page map. Only documented512/1,024/2,048/4,096-byte MSF blocks and the
-VC70 info layout are admitted; each file is limited to512MiB and directories
-to8MiB. GUID/age agreement identifies the selected symbol file; it does not
+free-page map. Only documented 512/1,024/2,048/4,096-byte MSF blocks and the
+VC70 info layout are admitted; each file is limited to 512 MiB and directories
+to 8 MiB. GUID/age agreement identifies the selected symbol file; it does not
 establish usable function/source coverage or compilation-source checksums.
 The authored byte-layout, mismatch, extent, alias, format and hash controls remain
 unexecuted. Native Windows symbolization remains a separate qualification step.
 
-The maintained source workflow will use uniquely named WPR instances and a
-reviewed WPA export profile. Microsoft requires `-instancename` last on all
-commands affecting that instance; an unnamed stop/cancel must never affect
-another recording. [WPR command reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/wpr-command-line-options)
-and [WPA exporter reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/exporter)
-own the native command contracts. Windows acquisition/export, allocator and wait
-adapters, range/cross-clock joins and the source-linked critical-path report
-remain implementation work. No WPR recording, elevation, persistent heap
-configuration or system profiler has been started by the source frontload.
+`tools/host_profile_windows.py` now authors the bounded acquisition/export path:
+
+```powershell
+python tools/host_profile_windows.py --production temp/production.json --pdb build/Release/rns8-bench.pdb --out temp/host-profile/windows
+```
+
+Plan-only reads source/artifact/symbol identities without launching a tool.
+Dependency discovery locates optional `wpr` and `wpaexporter` through PATH or
+the standard Windows Performance Toolkit installation. Explicit `--wpr` and
+`--wpaexporter` paths override discovery. The tools and benchmark require the
+same native PE architecture. No tool is installed and no GUI is launched.
+
+Recording additionally requires both `--execute` and
+`--authorize-system-recording`: the short ETW window includes system CPU
+samples even though decoding selects the benchmark PID. No elevation is
+launched. The maintained WPR profile requests sampled stacks, process/thread
+and image records, with 128 KiB buffers, 64 buffers and a 128 MiB sequential trace
+cap. It does not change the global sampling interval, heap settings, registry,
+driver, service startup or security policy. Native help, profile listing and
+the actual benchmark build-identity query precede recording.
+
+Every run has a fresh random WPR instance name. The native absence HRESULT is
+required before arming ownership; an access error or partial query cannot stand
+in for absence. Microsoft requires `-instancename` last on all commands affecting
+that instance. Start, status, stop and cancellation retain that suffix. Failed
+or interrupted workload/start attempts still stop the owned instance; a failed
+stop attempts only its named cancellation. Cleanup retains a separate time
+reserve and can run after the artifact monitor's budget is exhausted. It never
+uses an unnamed stop/cancel or alters another recording. Partial files and the
+first failed native stage remain in the failure receipt; unconfirmed cleanup is
+reported explicitly. Native command contracts follow the
+[WPR reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/wpr-command-line-options)
+and [WPA exporter reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/exporter).
+
+The maintained WPA candidate uses CPU sampling table/column GUIDs inspected in
+the installed Toolkit's `Catalog/HtmlResponsivenessAnalysis.wpaprofile`.
+Local symbol search is explicit; no symbol server is configured. The decoder
+accepts one English CSV with explicit seconds/milliseconds column units,
+individual sample counts, exact selected PID/image/thread and bounded rows,
+fields and bytes. It preserves foreign/idle row counts and native stack/module/
+function strings. Different headers, units, locale or aggregated table layouts
+are unsupported until reviewed; no conversion is guessed. Shared Linux/Windows
+admission preserves the full numerical, physical-device, work/proof/output/reuse,
+native argv and relevant environment relation to production.
+
+The first Windows result deliberately remains partial: the CPU table does not
+establish sample loss, ETL process-lifetime keys, actually loaded PDB identity,
+measured-operation selection or API/GPU clock alignment. Current PE/PDB agreement
+does not supply those observations. Native WPR/WPA profile/CSV compatibility and
+symbol attribution plus all authored ownership/cleanup/producer/unit controls
+remain unexecuted. The WPR XML passes the installed SDK's schema as a source
+check only. Allocation, scheduler/wait, loss/process-lifetime and range/cross-clock
+adapters and the critical-path report remain implementation work. No WPR
+recording, elevation or system profiler has run during the source frontload.

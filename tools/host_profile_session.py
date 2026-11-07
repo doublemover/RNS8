@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import math
 import os
@@ -13,15 +12,11 @@ import platform
 import re
 import sys
 
-from benchmark_request import attach_capture_identity, file_digest, request_identity
-from benchmark_schema import validate_capture
+from benchmark_request import file_digest
 from build_manifest import configuration_options
 from compiled_binary_identity import canonical_digest
 from check_dependencies_lib.system import find_command
-from device_observation import capture_observation, observation_relation
-from diagnostic_companion import common_identity
 from execution_environment_contract import relevant_environment_key
-from execution_observation import execution_observation
 from execution_inventory import bounded_read
 from elf_module_identity import module_inventory
 from gpu_qualification import ROOT, execute_plan, write_json
@@ -31,9 +26,8 @@ from perf_recording_contract import read_recording, validate_decoded_samples
 from perf_mapping_contract import frame_custody
 from host_source_attribution import source_inventory
 from json_evidence import parse_evidence_json, same_evidence_value
-from profiler_contract import production_profile_input
+from profiler_contract import production_profile_input, bind_host_profile_output
 from process_progress import capture_succeeded
-from reference_verdict import numerical_observation
 from target_qualification import EvidenceStore, session_stage
 from timing_eligibility import capture_identity
 
@@ -444,21 +438,16 @@ def finalize(manifest_path: Path) -> dict:
     store.reference(cap["native_module"], ROOT)
     raw_path, samples_path = out / "native/benchmark.json", out / "native/samples.json"
     _, raw = store.json(dict(path=str(raw_path), sha256=row["artifacts"][str(raw_path)]), ROOT)
-    validate_capture(raw)
-    if not numerical_observation(raw).get("full_output_reference_covered"):
-        raise ValueError("profiled benchmark has no completed full-output numerical evidence")
-    observed = execution_observation(raw, required=True)
     separator = item["argv"].index("--")
     workload = item["argv"][separator + 1 :]
-    if list(observed.arguments) != workload[1:] or not same_evidence_value(
-        observed.environment, plan["expected_native_environment"]
-    ):
-        raise ValueError("profiled native argv/environment differs from acquisition")
-    if (
-        observation_relation(capture_observation(raw), capture_observation(production)).state
-        != "verified"
-    ):
-        raise ValueError("profiled benchmark used a different physical execution device")
+    profiled = bind_host_profile_output(
+        production,
+        raw,
+        workload=workload,
+        environment=plan["expected_native_environment"],
+        executable=executable,
+        execution_id=results["run_id"],
+    )
     decode_row = stages["native-decode"][1]
     _, samples = store.json(
         dict(path=str(samples_path), sha256=decode_row["artifacts"][str(samples_path)]), ROOT
@@ -538,17 +527,6 @@ def finalize(manifest_path: Path) -> dict:
     )
     # perf forks the benchmark. The launched profiler's PID is intentionally not
     # substituted for the native application PID or used as a sample selector.
-    request = request_identity(workload, environ=observed.environment)
-    request["overrides_sha256"] = production["request_identity"]["overrides_sha256"]
-    request["identity_sha256"] = canonical_digest(
-        {k: v for k, v in request.items() if k != "identity_sha256"}
-    )
-    profiled = copy.deepcopy(raw)
-    attach_capture_identity(profiled, request, executable, execution_id=results["run_id"])
-    projection = copy.deepcopy(profiled)
-    projection["request_identity"] = copy.deepcopy(production["request_identity"])
-    if not same_evidence_value(common_identity(production), common_identity(projection)):
-        raise ValueError("profiled work/proof/output/reuse contract differs from production")
     profiled["external_instrumentation"] = dict(
         schema="rns8_external_instrumentation_v1",
         kind="host_profiler",

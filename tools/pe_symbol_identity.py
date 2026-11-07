@@ -66,16 +66,27 @@ class Image:
         return dict(path=str(self.path), sha256=self.digest, bytes=self.size)
 
 
+def pe_header(image):
+    dos = image.read(0, 64)
+    offset = struct.unpack_from("<I", dos, 60)[0]
+    if dos[:2] != b"MZ" or not 64 <= offset <= 1024**2:
+        raise ValueError("native PE DOS header required")
+    header = image.read(offset, 24)
+    machine, count, _, _, _, optional_size, _ = struct.unpack_from("<HHIIIHH", header, 4)
+    if header[:4] != b"PE\0\0" or machine not in (0x8664, 0xAA64) or not 1 <= count <= 96:
+        raise ValueError("native x64/ARM64 PE image required")
+    return offset, machine, count, optional_size
+
+
+def native_image(path, *, max_bytes=MAX_BYTES):
+    with Image(path, max_bytes) as image:
+        _, machine, _, _ = pe_header(image)
+        return dict(image.finish(), machine=machine)
+
+
 def pe_identity(path, *, max_bytes=MAX_BYTES):
     with Image(path, max_bytes) as image:
-        dos = image.read(0, 64)
-        offset = struct.unpack_from("<I", dos, 60)[0]
-        if dos[:2] != b"MZ" or not 64 <= offset <= 1024**2:
-            raise ValueError("native PE DOS header required")
-        header = image.read(offset, 24)
-        machine, count, _, _, _, optional_size, _ = struct.unpack_from("<HHIIIHH", header, 4)
-        if header[:4] != b"PE\0\0" or machine not in (0x8664, 0xAA64) or not 1 <= count <= 96:
-            raise ValueError("native x64/ARM64 PE image required")
+        offset, machine, count, optional_size = pe_header(image)
         if not 168 <= optional_size <= 4096:
             raise ValueError("complete PE32+ debug data directory required")
         optional = image.read(offset + 24, optional_size)

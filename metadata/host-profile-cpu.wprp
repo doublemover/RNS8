@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Native WPR schema; sequential cap stops recording rather than overwriting. -->
+<WindowsPerformanceRecorder Version="1.0" Author="RNS8">
+  <Profiles>
+    <SystemCollector Id="Rns8CpuCollector" Name="NT Kernel Logger">
+      <BufferSize Value="128" />
+      <Buffers Value="64" />
+      <MaximumFileSize Value="128" FileMode="Sequential" />
+    </SystemCollector>
+    <SystemProvider Id="Rns8CpuProvider">
+      <Keywords>
+        <Keyword Value="ProcessThread" />
+        <Keyword Value="Loader" />
+        <Keyword Value="SampledProfile" />
+      </Keywords>
+      <Stacks>
+        <Stack Value="SampledProfile" />
+      </Stacks>
+    </SystemProvider>
+    <Profile Id="Rns8Cpu.Verbose.File" Name="Rns8Cpu" Description="Bounded sampled CPU stacks and image/process identities" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors>
+        <SystemCollectorId Value="Rns8CpuCollector">
+          <SystemProviderId Value="Rns8CpuProvider" />
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>

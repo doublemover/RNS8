@@ -216,7 +216,9 @@ def command_errors(root, source, text, presets):
     bench_args = root / "benchmarks/rns8_bench_args.cpp"
     if bench_args.exists():
         declared = set(re.findall(r'"(--[a-z0-9-]+)"', bench_args.read_text(encoding="utf-8")))
-        for match in re.finditer(r"rns8-bench(?:\.exe)?([^\n]*(?:[\\`]\n[^\n]*)*)", text):
+        for match in re.finditer(
+            r"(?<![\w.-])rns8-bench(?:\.exe)?(?![\w.-])([^\n]*(?:[\\`]\n[^\n]*)*)", text
+        ):
             for option in set(re.findall(r"--[a-z][a-z0-9-]*", match[1])) - declared:
                 errors.append(f"{source}: unknown rns8-bench option {option}")
     return errors

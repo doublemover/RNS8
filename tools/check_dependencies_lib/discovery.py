@@ -184,6 +184,8 @@ def find_under_roots(roots: list[Path], relatives: list[str]) -> str | None:
 
 
 def command_version(name: str, path: str) -> str:
+    if name in {"wpr", "wpaexporter"}:
+        return "found; native profiling capability/version qualification is explicit"
     if name in {"RadeonDeveloperPanel", "RadeonGPUProfiler", "RadeonMemoryVisualizer"}:
         return "found"
     if name == "ninja":

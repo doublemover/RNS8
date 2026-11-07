@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""Plan uniquely owned WPR/WPA sampling; recording needs two explicit CLI flags."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import sys
+import time
+import uuid
+
+from benchmark_schema import validate_capture
+from check_dependencies_lib.system import find_command
+from compiled_binary_identity import bind_document, canonical_digest, validate_document
+from execution_environment_contract import relevant_environment_key
+from gpu_qualification import owned_artifact_files
+from host_instrumentation_session import reference, write_json
+from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
+from pe_symbol_identity import symbol_pair, native_image
+from process_progress import capture_succeeded, run_capture
+from profiler_contract import production_profile_input, bind_host_profile_output
+from target_qualification import EvidenceStore
+from wpa_sample_reader import read_samples
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = "rns8_windows_host_profile_plan_v1"
+SOURCE_INPUTS = (
+    "tools/host_profile_windows.py",
+    "tools/pe_symbol_identity.py",
+    "tools/wpa_sample_reader.py",
+    "tools/profiler_contract.py",
+    "tools/process_progress.py",
+    "tools/execution_observation.py",
+    "tools/execution_environment_contract.py",
+    "tools/compiled_binary_identity.py",
+    "tools/host_instrumentation_session.py",
+    "tools/gpu_qualification.py",
+    "tools/benchmark_request.py",
+    "tools/benchmark_schema.py",
+    "tools/device_observation.py",
+    "tools/diagnostic_companion.py",
+    "tools/companion_contract.py",
+    "tools/json_evidence.py",
+    "tools/target_qualification.py",
+    "tools/reference_verdict.py",
+    "tools/build_instrumentation.py",
+    "metadata/host-profile-cpu.wprp",
+    "metadata/host-profile-cpu.wpaProfile",
+)
+
+
+def seal(value):
+    value["identity_sha256"] = canonical_digest(
+        {key: item for key, item in value.items() if key != "identity_sha256"}
+    )
+    return value
+
+
+def plan_capture(
+    production,
+    wpr,
+    exporter,
+    pdb,
+    out,
+    *,
+    instance=None,
+    timeout_seconds=120,
+    total_seconds=360,
+    max_artifact_bytes=512 * 1024**2,
+    minimum_free_bytes=1024**3,
+    review_existing=False,
+):
+    if (
+        any(
+            type(value) not in (int, float) or not 0 < value <= 1800 or not math.isfinite(value)
+            for value in (timeout_seconds, total_seconds)
+        )
+        or total_seconds <= timeout_seconds + 60
+    ):
+        raise ValueError(
+            "Windows sampling requires bounded time and a60-second cleanup/export reserve"
+        )
+    if (
+        type(max_artifact_bytes) is not int
+        or not 256 * 1024**2 <= max_artifact_bytes <= 2 * 1024**3
+    ):
+        raise ValueError("Windows sampling needs256MiB..2GiB artifact allowance")
+    if type(minimum_free_bytes) is not int or minimum_free_bytes < max_artifact_bytes:
+        raise ValueError("Windows sampling free-space budget must cover retained artifacts")
+    out = Path(out).resolve()
+    if (
+        out == (ROOT / "temp").resolve()
+        or not out.is_relative_to((ROOT / "temp").resolve())
+        or (out.exists() and not review_existing)
+    ):
+        raise ValueError("Windows profiling requires a fresh ignored child of temp/")
+    instance = "RNS8_" + uuid.uuid4().hex if instance is None else instance
+    if type(instance) is not str or not re.fullmatch(r"RNS8_[0-9a-f]{32}", instance):
+        raise ValueError("unique canonical owned WPR instance required")
+    store = EvidenceStore()
+    production_ref = reference(Path(production))
+    _, baseline = store.json(production_ref, ROOT)
+    executable = production_profile_input(baseline, store)
+    symbols = symbol_pair(executable, pdb)
+    tools = dict(wpr=native_image(wpr), exporter=native_image(exporter))
+    if any(tool["machine"] != symbols["executable"]["machine"] for tool in tools.values()):
+        raise ValueError("Windows profiler tools and benchmark require one native architecture")
+    arguments = [
+        *baseline["request_identity"]["arguments"],
+        "--json-output",
+        str(out / "raw/benchmark.json"),
+    ]
+    if "--record-execution-environment" not in arguments:
+        arguments.append("--record-execution-environment")
+    profiles = ROOT / "metadata/host-profile-cpu.wprp"
+    commands = dict(
+        wpr_help=[tools["wpr"]["path"], "-help", "start"],
+        exporter_help=[tools["exporter"]["path"], "-h"],
+        profiles=[tools["wpr"]["path"], "-profiles", str(profiles)],
+        identity=[str(executable), "--build-identity"],
+        status=[tools["wpr"]["path"], "-status", "-instancename", instance],
+        start=[
+            tools["wpr"]["path"],
+            "-start",
+            str(profiles) + "!Rns8Cpu",
+            "-filemode",
+            "-recordtempto",
+            str(out / "raw"),
+            "-instancename",
+            instance,
+        ],
+        workload=[str(executable), *arguments],
+        stop=[
+            tools["wpr"]["path"],
+            "-stop",
+            str(out / "raw/profile.etl"),
+            "-instancename",
+            instance,
+        ],
+        cancel=[tools["wpr"]["path"], "-cancel", "-instancename", instance],
+        export=[
+            tools["exporter"]["path"],
+            "-i",
+            str(out / "raw/profile.etl"),
+            "-profile",
+            str(ROOT / "metadata/host-profile-cpu.wpaProfile"),
+            "-delimiter",
+            ",",
+            "-outputfolder",
+            str(out / "export"),
+            "-symbols",
+        ],
+    )
+    result = seal(
+        dict(
+            schema=SCHEMA,
+            system="Windows",
+            instance=instance,
+            output_directory=str(out),
+            production_capture=production_ref,
+            benchmark=reference(executable),
+            symbols=symbols,
+            tools=tools,
+            source_inputs=[reference(ROOT / path) for path in SOURCE_INPUTS],
+            expected_native_environment=baseline["request_identity"]["environment"],
+            symbol_search_environment=dict(
+                _NT_SYMBOL_PATH=str(Path(pdb).resolve(strict=True).parent),
+                _NT_ALT_SYMBOL_PATH="",
+                _NT_SYMCACHE_PATH=str(out / "symbols"),
+            ),
+            commands=commands,
+            budgets=dict(
+                timeout_seconds=timeout_seconds,
+                total_seconds=total_seconds,
+                cleanup_reserve_seconds=30,
+                max_artifact_bytes=max_artifact_bytes,
+                minimum_free_bytes=minimum_free_bytes,
+            ),
+            scope="system_ETW_window_selected_benchmark_PID_decode",
+            requires_explicit_system_recording_authorization=True,
+            qualification="plan_only_no_native_command_executed",
+            promotion_allowed=False,
+        )
+    )
+    store.finish()
+    return result
+
+
+def rebuild(plan, *, review_existing=False):
+    return plan_capture(
+        Path(plan["production_capture"]["path"]),
+        Path(plan["tools"]["wpr"]["path"]),
+        Path(plan["tools"]["exporter"]["path"]),
+        Path(plan["symbols"]["symbols"]["path"]),
+        Path(plan["output_directory"]),
+        instance=plan["instance"],
+        review_existing=review_existing,
+        **{
+            key: plan["budgets"][key]
+            for key in (
+                "timeout_seconds",
+                "total_seconds",
+                "max_artifact_bytes",
+                "minimum_free_bytes",
+            )
+        },
+    )
+
+
+def instance_absent(capture):
+    # Native HRESULT is locale independent. Other failures (including access
+    # denial and broken output) do not establish absence or authorize cleanup.
+    return (
+        capture_succeeded(dict(capture, returncode=0))
+        and type(capture.get("returncode")) is int
+        and capture["returncode"] > 0
+        and re.search(
+            r"(?i)(?<![0-9a-f])0xc5583000(?![0-9a-f])", capture["stdout"] + "\n" + capture["stderr"]
+        )
+        is not None
+    )
+
+
+def completed_capture(plan, stages):
+    out, store = Path(plan["output_directory"]), EvidenceStore()
+    if not same_evidence_value(plan, rebuild(plan, review_existing=True)):
+        raise ValueError("Windows profile source/tool/production/symbol inputs changed")
+    _, production = store.json(plan["production_capture"], ROOT)
+    raw = load_evidence_json(out / "raw/benchmark.json")
+    validate_capture(raw)
+    process = stages["workload"]
+    if type(raw.get("process_id")) is not int or raw["process_id"] != process["process_id"]:
+        raise ValueError("Windows benchmark document belongs to another process")
+    profiled = bind_host_profile_output(
+        production,
+        raw,
+        workload=plan["commands"]["workload"],
+        environment=plan["expected_native_environment"],
+        executable=Path(plan["benchmark"]["path"]),
+        execution_id=str(uuid.UUID(hex=plan["instance"][5:])),
+    )
+    identity = validate_document(
+        parse_evidence_json(stages["identity"]["stdout"]), production["backend_selected"]
+    )
+    if identity["build_manifest_sha256"] != canonical_digest(production["build_manifest"]):
+        raise ValueError("Windows native build identity differs from the production manifest")
+    native_id = parse_evidence_json(stages["identity"]["stdout"])
+    if (
+        type(native_id.get("process_id")) is not int
+        or native_id["process_id"] != stages["identity"]["process_id"]
+    ):
+        raise ValueError("Windows identity JSON belongs to another process")
+    identity_path = out / "identity.json"
+    write_json(identity_path, native_id)
+    compiled = bind_document(
+        Path(plan["benchmark"]["path"]),
+        identity_path,
+        before_sha256=plan["benchmark"]["sha256"],
+        backend=production["backend_selected"],
+    )
+    exported = owned_artifact_files(out / "export")
+    csv_files = [path for path in exported if path.suffix.lower() == ".csv"]
+    if len(csv_files) != 1:
+        raise ValueError("one native CPU-sample CSV is required from the reviewed WPA profile")
+    samples = read_samples(
+        csv_files[0], pid=raw["process_id"], executable=plan["benchmark"]["path"]
+    )
+    profiled["external_instrumentation"] = dict(
+        schema="rns8_external_instrumentation_v1",
+        kind="host_profiler",
+        tool="WPR_WPA",
+        mode="cpu_sampling",
+    )
+    store.finish()
+    write_json(out / "samples.json", samples)
+    write_json(out / "profiled.json", profiled)
+    return dict(
+        qualification="native_capture_export_bound_attribution_partial",
+        compiled_binary_identity=compiled,
+        native_etl=reference(out / "raw/profile.etl"),
+        native_export=reference(csv_files[0]),
+        samples=reference(out / "samples.json"),
+        profiled_capture=reference(out / "profiled.json"),
+        symbols=plan["symbols"],
+        sample_loss="unobserved",
+        process_lifetime_key="PID_and_image_not_ETL_process_key",
+        clock_join="unbound",
+        measured_operation_range="unbound",
+        production_latency=False,
+        promotion_allowed=False,
+    )
+
+
+def execute_capture(
+    plan,
+    *,
+    authorize_system_recording=False,
+    environment=None,
+    runner=run_capture,
+    clock=time.monotonic,
+):
+    if platform.system() != "Windows" or authorize_system_recording is not True:
+        raise ValueError(
+            "Windows recording needs explicit --execute --authorize-system-recording; no elevation is launched"
+        )
+    if not same_evidence_value(plan, rebuild(plan)):
+        raise ValueError("Windows profile plan changed before execution")
+    out = Path(plan["output_directory"])
+    parent = next(path for path in out.parents if path.exists())
+    if shutil.disk_usage(parent).free < plan["budgets"]["minimum_free_bytes"]:
+        raise ValueError("insufficient free space for Windows profile")
+    child = {
+        key: value
+        for key, value in dict(os.environ if environment is None else environment).items()
+        if not relevant_environment_key(key)
+        and key not in {"_NT_SYMBOL_PATH", "_NT_ALT_SYMBOL_PATH", "_NT_SYMCACHE_PATH"}
+    }
+    child.update(plan["expected_native_environment"])
+    child.update(plan["symbol_search_environment"])
+    out.mkdir(parents=True, exist_ok=False)
+    for name in ("raw", "export", "symbols"):
+        (out / name).mkdir()
+    write_json(out / "plan.json", plan)
+    stages, failure, possibly_owned = {}, None, False
+    deadline = clock() + plan["budgets"]["total_seconds"]
+
+    def call(name, *, cleanup=False, required=True):
+        remaining = (
+            deadline
+            - clock()
+            - (0 if cleanup or name == "export" else plan["budgets"]["cleanup_reserve_seconds"])
+        )
+        if remaining <= 0:
+            raise ValueError("Windows profiling total deadline exhausted before " + name)
+        result = runner(
+            plan["commands"][name],
+            cwd=ROOT,
+            env=child,
+            label="windows-host-profile:" + name,
+            timeout_seconds=min(15 if cleanup else plan["budgets"]["timeout_seconds"], remaining),
+            max_output_bytes=4 * 1024**2,
+            artifact_roots=() if cleanup else (out,),
+            max_artifact_bytes=plan["budgets"]["max_artifact_bytes"],
+            return_on_interrupt=True,
+        )
+        stages[name] = result
+        write_json(out / (name + ".process.json"), result)
+        if result.get("interrupted"):
+            raise InterruptedError("owned Windows profiling child interrupted")
+        if required and not capture_succeeded(result):
+            raise ValueError("Windows profiling stage failed: " + name)
+        return result
+
+    try:
+        for name in ("wpr_help", "exporter_help", "profiles", "identity"):
+            call(name)
+        if "Rns8Cpu" not in stages["profiles"]["stdout"]:
+            raise ValueError("native WPR did not advertise the selected custom profile")
+        identity = parse_evidence_json(stages["identity"]["stdout"])
+        _, production = EvidenceStore().json(plan["production_capture"], ROOT)
+        summary = validate_document(identity, production["backend_selected"])
+        if (
+            summary["build_manifest_sha256"] != canonical_digest(production["build_manifest"])
+            or type(identity.get("process_id")) is not int
+            or identity["process_id"] <= 0
+            or identity.get("process_id") != stages["identity"]["process_id"]
+        ):
+            raise ValueError(
+                "native Windows identity preflight differs from the production process/build"
+            )
+        if not instance_absent(call("status", required=False)):
+            raise ValueError("native WPR did not prove the unique instance absent")
+        try:
+            possibly_owned = True  # Arm before start: partial startup also needs owned cleanup.
+            call("start")
+            call("workload")
+        finally:
+            if possibly_owned:
+                try:
+                    stop = call("stop", cleanup=True, required=False)
+                    possibly_owned = not capture_succeeded(stop)
+                finally:
+                    if possibly_owned:
+                        call("cancel", cleanup=True, required=False)
+        if not capture_succeeded(stages.get("stop", {})):
+            raise ValueError("owned WPR stop/trace export did not complete")
+        call("export")
+        result = completed_capture(plan, stages)
+    except (OSError, ValueError, KeyError, TypeError, InterruptedError, KeyboardInterrupt) as error:
+        failure = str(error) or type(error).__name__
+        result = dict(
+            qualification="incomplete",
+            error=failure,
+            raw_artifacts_preserved=True,
+            production_latency=False,
+            promotion_allowed=False,
+        )
+    result.update(
+        first_failed_stage=next(
+            (
+                name
+                for name, row in stages.items()
+                if not capture_succeeded(row) and not (name == "status" and instance_absent(row))
+            ),
+            None,
+        ),
+        plan=reference(out / "plan.json"),
+        instance=plan["instance"],
+        stages=[
+            dict(name=name, receipt=reference(out / (name + ".process.json")))
+            for name in stages
+            if (out / (name + ".process.json")).is_file()
+        ],
+        recording_cleanup="stop_completed"
+        if capture_succeeded(stages.get("stop", {}))
+        else "cancel_completed"
+        if capture_succeeded(stages.get("cancel", {}))
+        else "not_started_or_cleanup_unconfirmed",
+    )
+    write_json(out / "host-profile.json", seal(result))
+    return 1 if failure else 0
+
+
+def located(name):
+    found = find_command(name)
+    if found is None:
+        raise ValueError("Windows profiler tool unavailable; select explicit --" + name)
+    return Path(found)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--production", type=Path, required=True)
+    parser.add_argument("--pdb", type=Path, required=True)
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--wpr", type=Path)
+    parser.add_argument("--wpaexporter", type=Path)
+    parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--authorize-system-recording", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        plan = plan_capture(
+            args.production,
+            args.wpr or located("wpr"),
+            args.wpaexporter or located("wpaexporter"),
+            args.pdb,
+            args.out,
+        )
+        if args.execute:
+            return execute_capture(plan, authorize_system_recording=args.authorize_system_recording)
+        print(json.dumps(plan, indent=2))
+        return 0
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        print("Windows host profile: " + str(error), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

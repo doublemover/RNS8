@@ -169,6 +169,19 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(command_errors(ROOT, "fixture", valid, presets), [])
         malformed = "cmake --preset build\ncmake --build --preset test\nctest --preset configure\npython tools/missing.py\nrns8-example-missing\nrns8-bench --fictional-option true"
         self.assertEqual(len(command_errors(ROOT, "fixture", malformed, presets)), 6)
+        symbols = (
+            "python tools/host_profile_windows.py --pdb build/rns8-bench.pdb --out temp/capture"
+        )
+        self.assertEqual(command_errors(ROOT, "fixture", symbols, presets), [])
+        for executable in ("rns8-bench", "rns8-bench.exe"):
+            self.assertEqual(
+                len(
+                    command_errors(
+                        ROOT, "fixture", executable + " --fictional-option true", presets
+                    )
+                ),
+                1,
+            )
 
     def test_documentation_legal_and_funding_dispositions(self):
         data = json.loads((ROOT / "docs/documentation-inventory.json").read_text(encoding="utf-8"))
