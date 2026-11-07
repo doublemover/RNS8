@@ -279,7 +279,11 @@ and the benchmark's ASCII basename. Rundown alone cannot replace a lifetime.
 Missing/undecodable records, PID reuse, unknown image encoding and reported loss
 remain blockers. Zero header loss is not proof of loss-free acquisition.
 The reader bounds file, event, selected-record and TDH schema storage; failed
-schema lookups are cached. It emits no command lines or SIDs. Decoder/source/PID
+schema lookups are cached. Exhausted event, selected-record or schema budgets
+stop native decoding at the next buffer boundary and prevent completed metadata;
+they cannot be downgraded to an unsupported-format count. The budget exception
+does not allocate. Genuine schema-format failures retain their separate partial
+classification. It emits no command lines or SIDs. Decoder/source/PID
 and ETL content bookends are checked before retaining its metadata alongside
 the WPA export. The late-bound inspector argument is the exact completed
 benchmark PID, not the profiler launcher's or a selected display name.

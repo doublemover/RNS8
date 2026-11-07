@@ -58,6 +58,10 @@ struct State {
   throw std::runtime_error(message);
 }
 
+struct DecoderBudgetExceeded {
+  const char* message;
+};
+
 std::wstring bounded_name(const std::vector<BYTE>& bytes, ULONG offset) {
   if (offset % sizeof(wchar_t) || offset >= bytes.size())
     fail("TDH property name offset is outside schema");
@@ -84,12 +88,14 @@ const Schema& schema(EVENT_RECORD* event, State& state) {
     return found->second;
   }
   if (state.schemas.size() >= 32)
-    fail("TDH process schema budget exhausted");
+    throw DecoderBudgetExceeded{"TDH process schema budget exhausted"};
   Schema& value = state.schemas.emplace(key, Schema{}).first->second;
   ULONG size = 0;
   if (TdhGetEventInformation(event, 0, nullptr, nullptr, &size) != ERROR_INSUFFICIENT_BUFFER ||
-      size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray) || size > (1u << 20))
-    fail("native process TDH schema unavailable or exceeds budget");
+      size < offsetof(TRACE_EVENT_INFO, EventPropertyInfoArray))
+    fail("native process TDH schema unavailable");
+  if (size > (1u << 20))
+    throw DecoderBudgetExceeded{"native process TDH schema byte budget exhausted"};
   value.bytes.resize(size);
   auto* info = reinterpret_cast<TRACE_EVENT_INFO*>(value.bytes.data());
   if (TdhGetEventInformation(event, 0, nullptr, info, &size) != ERROR_SUCCESS ||
@@ -182,7 +188,7 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
     if (pid != state.selected_pid)
       return;
     if (state.selected.size() >= max_process_events)
-      fail("selected ETL process event budget exhausted");
+      throw DecoderBudgetExceeded{"selected ETL process event budget exhausted"};
     const bool is32 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_32_BIT_HEADER) != 0;
     const bool is64 = (event->EventHeader.Flags & EVENT_HEADER_FLAG_64_BIT_HEADER) != 0;
     if (is32 == is64)
@@ -203,6 +209,11 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
                                   {"image_basename_ascii", ascii_image(image)},
                                   {"event_version", event->EventHeader.EventDescriptor.Version},
                                   {"pointer_bytes", key_bytes.size()}});
+  } catch (const DecoderBudgetExceeded& budget) {
+    // Do not scan the rest of a large file after an enforceable resource limit.
+    // The buffer callback stops ProcessTrace; no completed metadata is emitted.
+    state.stopped = true;
+    state.error = budget.message;
   } catch (const std::bad_alloc&) {
     state.stopped = true;
     state.error = "ETL process decoder allocation failed";
