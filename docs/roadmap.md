@@ -9,7 +9,7 @@ preserves earlier work without duplicating current status.
 ## Current implementation pass
 
 The [November 4 reevaluation](../metadata/implementation-frontload-20261104.json)
-records all **70 open issues**, including the newer #79–#105 findings and reopened
+records the **70 issues open at the source review**, including #79–#105 and reopened
 address/proof/evidence work. The November 7 source pass is written: admission,
 ownership/publication, arithmetic/planning, comparison evidence and development
 workflows have no remaining implementation items in that inventory. The [local
@@ -20,8 +20,8 @@ that reject invalid HIP event timestamps. Source readiness and hardware/performa
 remain distinct; open issue counts are not implementation-task counts.
 
 The [November 7 acceptance review](../metadata/issue-closeout-20261107.json)
-separately records all 70 issue decisions: 16 repairs have closure evidence and
-54 retain explicit acceptance gates. Its [qualification receipt](../metadata/issue-closeout-validation-20261107.json)
+separately records all 70 issue decisions: **16 completed repairs are closed** and
+**54 remain open** with explicit acceptance gates. Its [qualification receipt](../metadata/issue-closeout-validation-20261107.json)
 adds Windows CPU-ASan **629 passed / 64 skipped**, a real detector negative control,
 Linux/WSL C17/C++17 enum interoperability with UBSan, cross-platform quality/type
 controls and the 18 recovered legacy report scripts now registered in CTest.
@@ -195,7 +195,7 @@ rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
 uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
-paths, with physical cluster/memory-ordering/failure qualification pending. There are 70 open issues;
+paths, with physical cluster/memory-ordering/failure qualification pending. There are 54 open issues after the November7 acceptance review;
 child acceptance gates remain the roadmap's retirement criterion. The full audit
 record described its then-requested backlog. The November 7 source frontload is
 written; the [implementation ledger](../metadata/implementation-frontload-20261104.json)

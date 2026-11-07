@@ -7,24 +7,6 @@
   "source_ledger": "metadata/implementation-frontload-20261104.json",
   "qualification_receipt": "metadata/issue-closeout-validation-20261107.json",
   "reviewed_open_count": 70,
-  "eligible_for_closure": [
-    27,
-    80,
-    83,
-    85,
-    86,
-    87,
-    88,
-    89,
-    90,
-    93,
-    94,
-    95,
-    96,
-    97,
-    98,
-    100
-  ],
   "retained_open": [
     18,
     20,
@@ -81,7 +63,7 @@
     104,
     105
   ],
-  "github_state": "closure_candidates_not_yet_applied",
+  "github_state": "verified_16_completed_closures_54_remaining_open",
   "closure_policy": "Close the repaired issue only when its required acceptance is satisfied; conditional unavailable-target witnesses remain explicitly unexecuted. Do not retire research, performance or real-hardware gates from source-only or synthetic evidence.",
   "issues": [
     {
@@ -96,7 +78,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Real AMD allocation/copy/launch/status failure, publication and recovery qualification; deterministic host fault hooks do not establish real device failure behavior."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 20,
@@ -110,7 +93,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Matched gfx1100/gfx942 proof/refinement/setup and complete-route measurements with eager/scalar policy fidelity; do not transfer old speedups to this source."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 24,
@@ -124,7 +108,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Resource-budgeted actual large-address correctness and boundary/checksum evidence, plus narrow/wide address ISA, resource and matched-shape timings. Tiny arithmetic helpers do not replace the large-extent run."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 27,
@@ -135,7 +120,7 @@
       "comments_reviewed": 14,
       "comments_sha256": "3227a6bb0ed1086d5aefb4c5dbca14d8346e8ae612d4545ff3389179b6c4adc0",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Independent execution cohorts and shared report/ledger/installer custody are implemented; legitimate two-run positive controls and copied/stale/environment/source/reference/receipt negatives pass. The omitted legacy report controls have been restored and qualified.",
       "evidence": [
         "report_controls",
@@ -143,7 +128,8 @@
         "legacy_reports_linux",
         "source_identity"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 29,
@@ -157,7 +143,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual target encoding/instruction execution and source-bound plan-validation overhead/zero per-element symbolic-work evidence beyond scalar certificates and local ordinary exact tests."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 30,
@@ -171,7 +158,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Disjoint held-out planner selection regret, prediction error, planning latency/runs avoided and observed workspace on the declared many-small/skinny/long-K/rectangular/repeated-B/wide cohorts."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 31,
@@ -185,7 +173,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Hardware-observed instruction/conversion/CRT/memory/system roofs, clocks/resources/counters and independently repeated held-out calibration for each target/compiler/work tuple."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 32,
@@ -199,7 +188,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Hardware-weighted complete-pipeline measured basis/form costs and held-out Pareto/selection qualification for each supported target; certificates and model frontiers alone do not satisfy this."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 34,
@@ -213,7 +203,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Measured discovery/descriptor/summary cost, prefix/tile histograms and net complete-route benefit versus strongest global/fixed/caller-bound controls, including no-benefit fallback overhead."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 35,
@@ -227,7 +218,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual launched conversion/lane/accumulator probes and ISA/resources/traffic for named target/compiler variants, followed by matched separate-pack/direct-register/raw-LDS complete-route and reuse measurements."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 36,
@@ -241,7 +233,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual topology/cache/XCD locality, traffic/counter/resource evidence and strongest-control matched execution timings rather than logical scheduling models."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 37,
@@ -255,7 +248,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Target hierarchical split-K/Stream-K resource/traffic and complete-route measurements with exact cap/tail boundaries and bounded partial-workspace overhead."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 38,
@@ -269,7 +263,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual heterogeneous/persistent grouped matrix-engine queue execution, queue/failure/synchronization and complete-call profitability against the strongest grouped control."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 39,
@@ -283,7 +278,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Independently repeated reconstruction/export end-to-end comparisons, resources and target-qualified direct/balanced/mixed-radix variants; historical direct-CRT gains do not qualify every new route."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 40,
@@ -297,7 +293,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Named-target fragment/poison/canary probes for generated layout maps, exact differential execution and old-versus-generated-map traffic/resources/stage/whole-route comparisons."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 41,
@@ -311,7 +308,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Broader target exact device lift/base-extension and retained-chain qualification, with traffic/cost and break-even versus host lift plus transfer and initially larger prefixes."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 42,
@@ -325,7 +323,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Held-out whole-call representation/lifetime/planning qualification, actual physical peak memory and observed setup amortization on broader graphs/providers; current source-bound limited graph results remain scoped."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 43,
@@ -339,7 +338,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Native Linux/CDNA provider/stream and graph qualification, real failed-work/drain recovery, observed physical overlap/peak resources and complete-route payoff."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 45,
@@ -353,7 +353,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual supported FP4/FP6/FP8 target lane/scale/accumulator behavior, launched ISA, exact full outputs and complete-route timings. Host rational certificates do not prove the GPU route."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 46,
@@ -367,7 +368,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual supported packed INT4/IU4 lane/ISA/exactness and narrow semantic-subset performance including lowering/packing/export overhead against the strongest same-contract control."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 47,
@@ -381,7 +383,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Matched fused-versus-unfused named epilogue expressions including proof, extra reads, resources, deleted launches/stores and complete-call costs; broader target execution."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 48,
@@ -395,7 +398,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Large-shape same-contract strongest-control one-level Strassen/rank23/rank48 performance, physical retained/peak memory and complete preparation/reuse/export costs."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 49,
@@ -409,7 +413,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Target integrity projection/decision differentials and verification-only/compute-plus-verify measurements including all random generation/packing/transfers/metadata against full and unverified controls."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 50,
@@ -423,7 +428,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual multi-device/native Linux transport, partition-axis scaling, membership epoch, failure and recovery qualification; synthetic ranks and one-device tests are not cluster execution."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 51,
@@ -437,7 +443,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual sparse/hybrid target execution and opcode/traffic/resources plus full discovery/indices/packing/reuse break-even versus strongest dense control; structured sparsity retains its explicit speed gate."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 52,
@@ -451,7 +458,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual supported CDNA5 TDM/cluster multicast, memory-ordering/failure behavior and measured source sharing/traffic/whole-route benefit."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 53,
@@ -465,7 +473,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Same-contract tiny/skinny one-shot and resident native-narrow measurements including proofs, conversions and export versus strongest vector and minimal-prefix RNS; measured conservative routing."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 54,
@@ -479,7 +488,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual supported AMX and AArch64 I8MM CPU/OS execution, permission/state and exactness qualification, followed by complete-route measurements."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 55,
@@ -493,7 +503,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Legal-to-compiled-to-qualified-to-measured-to-reviewed target variant chains, coverage/rejection evidence, compilation/binary/search cost and independently qualified promotion receipts."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 56,
@@ -507,7 +518,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Umbrella retirement depends on the remaining child hardware, performance, assurance and release acceptance gates; source completion alone cannot close the roadmap."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 57,
@@ -521,7 +533,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Disposable native Windows and native Linux discovery/probe/installer rehearsals for CK/hipBLASLt/builtins/GMP/FLINT and optional-off/enabled-failure/static/shared/runtime matrix. WSL is a distinct row."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 58,
@@ -535,7 +548,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Clean supported native Linux locked-session no-GPU rehearsal, recorded preparation/repeat costs and actual bounded GPU session/checkpoint/export qualification with honest hardware-only gates."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 59,
@@ -549,7 +563,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Matched exact-complex 3M/4M full-call performance including conversion, proofs, intermediates, synchronization and retained/reused paired-value costs; broader target qualification."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 60,
@@ -563,7 +578,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Compatibility-gated broader Windows/Linux toolchain/dependency/configuration and ABI/package matrix. Local upgraded Release and host sanitizer runs do not qualify every locked stack/target."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 61,
@@ -577,7 +593,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "External-link reachability, GitHub hardware-form rendering and documented clean-checkout command/example rehearsals on matching supported native environments."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 63,
@@ -591,7 +608,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Broader target five-product triangular Gram/SYRK exact execution and matched preparation/reuse/export versus strongest retained/native/RNS comparator, with full symmetry ownership/memory costs."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 64,
@@ -605,7 +623,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Named-target signed-radix wrap64 exact recode/ISA and complete-call/reuse profitability versus strongest direct-HIP v4/native-U64/IU8 controls, with traffic/resources and independent variation."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 65,
@@ -619,7 +638,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Matched pre-change cold/warm/repeated-B/mutation/trim retained storage/upload, host RSS/payload, tracked device peak and full-call observations on Windows gfx1100 and native Linux RDNA/CDNA."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 66,
@@ -633,7 +653,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual AMD word-size/asymmetric multiword execution with independently checked certificates and an honest profitable or negative measured cohort."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 67,
@@ -647,7 +668,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Native Linux installed interoperability/DLPack consumer qualification, real failed drains/ownership recovery and matched import/export/stream complete-call timing."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 68,
@@ -661,7 +683,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual beyond-device-memory panel streaming near the requested roughly32-versus24GiB workload, tracked budget/peak/transfer correctness and timing; reduced-budget fixtures are not that proof."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 69,
@@ -675,7 +698,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual target fixed-matrix/packed-dot conversion/reconstruction exactness, launched instructions/traffic/resources and complete-route stage/reuse profitability versus strongest conversion/CRT control."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 71,
@@ -689,7 +713,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Target packed-dot execution/ISA across all residues and ordinary/grouped/scheduled variants, with matched complete-route performance rather than opcode/source presence alone."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 79,
@@ -703,7 +728,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Matched ordinary/layout/product blocked CPU accumulation correctness and complete-route performance across square/skinny/long-K/tails and proof/export lifetimes."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 80,
@@ -714,13 +740,14 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "The shared operation-specific target predicate excludes gfx1103 dense no-op bodies, handles suffixes and absent objects, and preserves output on unsupported preflight. Shared target/body conformance and local implemented-target exact regressions pass.",
       "evidence": [
         "native_release"
       ],
       "remaining_required_acceptance": [],
-      "conditional_unexecuted_hardware": "Unavailable target hardware remains unexecuted; this bug-fix closure makes no broader target execution or portability claim."
+      "conditional_unexecuted_hardware": "Unavailable target hardware remains unexecuted; this bug-fix closure makes no broader target execution or portability claim.",
+      "current_state": "closed"
     },
     {
       "issue": 81,
@@ -734,7 +761,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual OpenMP worker fault/exception and repeated public reconstruction qualification, plus measured tiny/large/retained complete-route behavior; the new OpenMP-off ASan run does not establish this lane."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 82,
@@ -748,7 +776,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual guarded logical-extent host-upload qualification under supported native sanitizer/runtime configurations plus matched padded upload/pack performance and preserved transfer accounting."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 83,
@@ -759,13 +788,14 @@
       "comments_reviewed": 1,
       "comments_sha256": "5fc0bf3dab71cb32a4997d0f56bc2421e8250e662df83a8cb5c908d11d3029c9",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Encoded-B summaries group by versioned effective source dataset/profile/seed and exact arithmetic/output identity. Real collector integration and same/default/different-dataset controls pass without pooling incompatible sources.",
       "evidence": [
         "native_release",
         "registered_reports"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 84,
@@ -779,7 +809,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "A real native Linux package/configure/build/manifest provenance rehearsal with actual native dependencies and ABI probes. The WSL header bridge and Python tooling are not that package build."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 85,
@@ -790,13 +821,14 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "rocWMMA target traits and operation-specific configuration validation reject incompatible wave32/wave64 target lists before launch; source/build fixtures and the implemented gfx1100 exact lane pass.",
       "evidence": [
         "native_release"
       ],
       "remaining_required_acceptance": [],
-      "conditional_unexecuted_hardware": "Unavailable target hardware remains unexecuted; this bug-fix closure makes no broader target execution or portability claim."
+      "conditional_unexecuted_hardware": "Unavailable target hardware remains unexecuted; this bug-fix closure makes no broader target execution or portability claim.",
+      "current_state": "closed"
     },
     {
       "issue": 86,
@@ -807,7 +839,7 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Graph caller-host completion, disjoint setup and pinned-replay boundaries are explicit. Reports require production companions and shared cohort/reference admission; current graph and legacy report controls pass. Historical narrower claims retain their original boundary.",
       "evidence": [
         "native_release",
@@ -815,7 +847,8 @@
         "legacy_reports_linux"
       ],
       "remaining_required_acceptance": [],
-      "new_performance_claims": "No corrected new gains are claimed; new measurements would require independently repeated matched production-boundary qualification."
+      "new_performance_claims": "No corrected new gains are claimed; new measurements would require independently repeated matched production-boundary qualification.",
+      "current_state": "closed"
     },
     {
       "issue": 87,
@@ -826,14 +859,15 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Shared first-call accounting includes required one-time prepacking exactly once, rejects incomplete/incompatible boundaries and distinguishes prepared first replay. Ordinary/reuse-A/B/both and missing/zero/double-count controls pass.",
       "evidence": [
         "native_release",
         "registered_reports",
         "legacy_reports_linux"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 88,
@@ -844,7 +878,7 @@
       "comments_reviewed": 1,
       "comments_sha256": "a7ac2e91995f55877cdb33618d6b62b00b96d94e75caf35af78ee8c98faa3031",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Public sustained loops invoke the complete production operation without per-call JSON or diagnostic phase clocks. Shared injectable-clock/serializer/failure controls pass; old instrumented observations stay annotated and no corrected gain is claimed.",
       "evidence": [
         "native_release",
@@ -852,7 +886,8 @@
         "legacy_reports_linux"
       ],
       "remaining_required_acceptance": [],
-      "new_performance_claims": "No corrected new gains are claimed; new measurements would require independently repeated matched production-boundary qualification."
+      "new_performance_claims": "No corrected new gains are claimed; new measurements would require independently repeated matched production-boundary qualification.",
+      "current_state": "closed"
     },
     {
       "issue": 89,
@@ -863,14 +898,15 @@
       "comments_reviewed": 6,
       "comments_sha256": "594d269edc47c07d402b5762f2b3785d6dd28996688b375c49403a4ed683784b",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Both verification consumers use the current content-bound review adapter and preserve mathematical mismatch, absent/pending reference and research nonpromotion separately. Real producer-to-consumer positive and negative controls pass.",
       "evidence": [
         "native_release",
         "registered_reports",
         "legacy_reports_linux"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 90,
@@ -881,14 +917,15 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Typed common-contract projections exclude measured reuse observations but retain policies, workload, source/device/environment and kernel identity; complete file hashes invalidate altered evidence. A/B/A+B real-loader and review/ledger controls pass.",
       "evidence": [
         "native_release",
         "registered_reports",
         "legacy_reports_linux"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 91,
@@ -902,7 +939,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "New matched retained CPU versus GPU Gram comparator cohorts at identical preparation/reuse/output lifetimes and complete materialization costs, with independent repeats and exact references."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 92,
@@ -916,7 +954,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual hipBLASLt cache/lookup concurrency and source-bound cold/warm metadata/algorithm cost and full-call matched measurements; local correctness alone is not the performance acceptance."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 93,
@@ -927,14 +966,15 @@
       "comments_reviewed": 1,
       "comments_sha256": "78c340656e54cadee47f603c369221adb037800d3bccffc045ce537a446b6b77",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "All 41 public enums use fixed 32-bit backing and explicit semantic validators. Actual public enum/descriptor unit controls pass under Windows ASan; C17/C++17 layout and bidirectional raw-value interoperability pass on Windows and Linux LP64. Removing fixed backing trips the Linux UBSan negative control.",
       "evidence": [
         "native_release",
         "windows_asan",
         "linux_enum_abi"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 94,
@@ -945,13 +985,14 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Versioned candidate-bound phase receipts survive target-report to ledger to installer and reject unrelated, stale, missing or conflicting build/backend/configuration/session evidence. Coherent RDNA/CDNA and repaired-build requalification fixture chains pass.",
       "evidence": [
         "native_release",
         "registered_reports"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 95,
@@ -962,7 +1003,7 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Behavioral sweep assertions cover exact visibility masks, shard paths/metadata, reuse exclusivity and executable selection; focused mutations fail and an explicit synthetic catalog replaces brittle whole-catalog counts.",
       "evidence": [
         "native_release",
@@ -970,7 +1011,8 @@
         "legacy_reports_linux",
         "python_structure"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 96,
@@ -981,12 +1023,13 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Multi-GPU reporting preserves observed device identity and complete per-case mathematical work. Actual loader-to-report four-rank authored controls reject renamed/swapped/missing/copied identities and within-case mismatches while retaining nonpromotion.",
       "evidence": [
         "native_release"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 97,
@@ -997,12 +1040,13 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "One strict shared integer/device parser rejects malformed, partially parsed, overflowed and out-of-domain values before probing; parse-only and native inspector/benchmark positive, sentinel and boundary controls pass.",
       "evidence": [
         "native_release"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 98,
@@ -1013,7 +1057,7 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Locked deterministic checker inventory/configuration, bounded exclusions and hash-verified tools pass on Windows and Linux/WSL. All nine accept/reject controls pass, including Unicode paths and real unsafe-shell/undefined-name/format/workflow defects; initial/repeat cost and kernel peak memory are recorded.",
       "evidence": [
         "cross_platform_quality",
@@ -1021,7 +1065,8 @@
         "registered_reports",
         "legacy_reports_linux"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 99,
@@ -1035,7 +1080,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual selected compiler analyzer translation-unit inventory, host/HIP parse coverage, findings/unsupported exclusions, deliberate defect controls and measured cold/warm resource cost."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 100,
@@ -1046,7 +1092,7 @@
       "comments_reviewed": 0,
       "comments_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "implementation_status": "source_written",
-      "decision": "eligible_for_closure",
+      "decision": "closed_completed",
       "acceptance_evidence": "Schema/sweep fragments are explicit named modules with owned fixtures and real test catalogs. Windows/Linux isolated and reverse-order runs, seven structural checks, five strict production modules and three actual mypy negative fixtures pass. CI reports the staged scope, remaining migration and cost.",
       "evidence": [
         "python_structure",
@@ -1055,7 +1101,8 @@
         "legacy_reports_linux",
         "cross_platform_quality"
       ],
-      "remaining_required_acceptance": []
+      "remaining_required_acceptance": [],
+      "current_state": "closed"
     },
     {
       "issue": 101,
@@ -1069,7 +1116,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Real libFuzzer instrumentation feedback from RNS8 library code, exact/state oracle mutation detection, bounded corpus/replay qualification and candidate-workflow activation evidence."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 102,
@@ -1083,7 +1131,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Full selected sanitizer/configuration and installed-consumer inventory, legal concurrency and native Linux TSan; supported real device ASan qualification remains explicitly separate. The new partial Windows ASan unit batch is scoped."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 103,
@@ -1097,7 +1146,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Real native/Python branch coverage, mandatory mutation detection and source-bound threshold/cost receipts, including unchanged survivors and explicit unavailable coverage."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 104,
@@ -1111,7 +1161,8 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual supported native AMD profiler captures, executed-dispatch/artifact/clock association and source/causal counter qualification; parser fixtures and bounded unsupported formats are not capture evidence."
-      ]
+      ],
+      "current_state": "open"
     },
     {
       "issue": 105,
@@ -1125,7 +1176,126 @@
       "decision": "retain_open",
       "remaining_required_acceptance": [
         "Actual native host CPU/allocation/synchronization/launch-gap capture qualification and matched complete-operation causal attribution/resource overhead; format fixtures are not observed profiling."
-      ]
+      ],
+      "current_state": "open"
+    }
+  ],
+  "closed_issues": [
+    27,
+    80,
+    83,
+    85,
+    86,
+    87,
+    88,
+    89,
+    90,
+    93,
+    94,
+    95,
+    96,
+    97,
+    98,
+    100
+  ],
+  "remaining_open_count": 54,
+  "github_closure_evidence_commit": "dfc7943c",
+  "github_closures": [
+    {
+      "issue": 27,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/27"
+    },
+    {
+      "issue": 80,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/80"
+    },
+    {
+      "issue": 83,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/83"
+    },
+    {
+      "issue": 85,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/85"
+    },
+    {
+      "issue": 86,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/86"
+    },
+    {
+      "issue": 87,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/87"
+    },
+    {
+      "issue": 88,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/88"
+    },
+    {
+      "issue": 89,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/89"
+    },
+    {
+      "issue": 90,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/90"
+    },
+    {
+      "issue": 93,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/93"
+    },
+    {
+      "issue": 94,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/94"
+    },
+    {
+      "issue": 95,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/95"
+    },
+    {
+      "issue": 96,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/96"
+    },
+    {
+      "issue": 97,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/97"
+    },
+    {
+      "issue": 98,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/98"
+    },
+    {
+      "issue": 100,
+      "state": "closed",
+      "state_reason": "completed",
+      "url": "https://github.com/doublemover/RNS8/issues/100"
     }
   ]
 }
