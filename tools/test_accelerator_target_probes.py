@@ -189,6 +189,7 @@ class AcceleratorTargets(unittest.TestCase):
 
     def test_wrapped_launch_preserves_selected_sdk_environment(self):
         active = {
+            "request": {"host": "Windows"},
             "hip": {
                 "selected": {
                     "canonical_root": str(self.root / "selected SDK"),
@@ -198,7 +199,7 @@ class AcceleratorTargets(unittest.TestCase):
                         "device_libraries": str(self.root / "selected SDK/bitcode"),
                     },
                 }
-            }
+            },
         }
         with (
             selection_context(active),

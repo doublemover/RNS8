@@ -229,7 +229,7 @@ def validate_policy(value: dict) -> list[str]:
                             name
                             + ": Windows patch version, official artifact and SHA256 must agree"
                         )
-        if role == "ci" and not hexadecimal(component.get("commit"), 40):
+        if name.startswith("actions/") and not hexadecimal(component.get("commit"), 40):
             errors.append(name + ": CI action needs immutable commit")
     required = {
         "python",

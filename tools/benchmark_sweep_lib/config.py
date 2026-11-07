@@ -21,6 +21,7 @@ PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
+CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = frozenset({"cpu-reference", "wrap64-byte-limb"})
 WRAP64_ROCWMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
 BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]

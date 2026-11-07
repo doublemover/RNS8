@@ -11,6 +11,20 @@ from benchmark_cases import ROOT, catalog_documents, expand_value, materialize, 
 
 
 class CatalogTests(unittest.TestCase):
+    def test_shared_defaults_apply_only_to_fields_present_in_each_layout(self):
+        table = dict(
+            layouts=[["m", "flag"], ["n", "mode"]],
+            defaults={"flag": False, "mode": "exact"},
+            rows=[[0, 3], [1, 4]],
+        )
+        self.assertEqual(
+            expand_value({"$rns8_records": table}),
+            [{"m": 3, "flag": False}, {"n": 4, "mode": "exact"}],
+        )
+        table["defaults"]["unknown_field"] = 1
+        with self.assertRaisesRegex(ValueError, "invalid record layouts"):
+            expand_value({"$rns8_records": table})
+
     def fixture(self):
         data = b'{\n  "m": 3,\n  "flag": false\n}\n'
         return dict(

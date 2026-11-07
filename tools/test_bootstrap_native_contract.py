@@ -24,6 +24,7 @@ class BootstrapNative(unittest.TestCase):
 
     def resolution(self):
         return {
+            "request": {"host": "Windows"},
             "errors": [],
             "tools": {"host_cxx": {"path": "/native/clang++"}},
             "hip": {

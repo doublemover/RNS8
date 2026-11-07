@@ -3,3 +3,4 @@
 /tools/data/rank23-october-55.txt text eol=lf
 /third_party/rank48/* text eol=lf
 /metadata/quality-tools.json text eol=lf
+*.sh text eol=lf

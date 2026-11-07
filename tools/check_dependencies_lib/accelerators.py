@@ -722,6 +722,8 @@ def compile_accelerator_target_probes(
             name, root, "NOT_RUN", "Inspect primitive_target_probes", True
         )
     )
+    if len(rows) != 1:
+        result["primitive_object"] = ""
     failures = {row["primitive_probe_status"] for row in rows if not row.get("primitive_probe_ok")}
     failed_status = next(iter(failures)) if len(failures) == 1 else "OBJECT_COMPILE_FAIL"
     result.update(

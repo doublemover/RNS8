@@ -46,13 +46,27 @@ def expand_value(value, depth=0):
         return value
     if set(value) == {"$rns8_records"}:
         table = value["$rns8_records"]
+        if not isinstance(table, dict) or set(table) != {"layouts", "defaults", "rows"}:
+            raise ValueError("invalid record layouts")
         layouts, defaults, rows = (table[k] for k in ("layouts", "defaults", "rows"))
+        if (
+            not isinstance(layouts, list)
+            or not isinstance(defaults, dict)
+            or not isinstance(rows, list)
+            or len(layouts) > 512
+            or any(
+                not isinstance(keys, list)
+                or not keys
+                or any(not isinstance(key, str) or not key for key in keys)
+                for keys in layouts
+            )
+        ):
+            raise ValueError("invalid record layouts")
         if (
             len(rows) > 100000
             or not layouts
-            or any(
-                len(set(keys)) != len(keys) or not set(defaults).issubset(keys) for keys in layouts
-            )
+            or any(len(set(keys)) != len(keys) for keys in layouts)
+            or not set(defaults).issubset({key for keys in layouts for key in keys})
         ):
             raise ValueError("invalid record layouts")
         output = []

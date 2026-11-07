@@ -164,7 +164,8 @@ class MatrixSymbols(unittest.TestCase):
     def test_generated_family_inspection_attributes_each_entry_and_its_code_extent(self):
         opcode = "v_wmma_i32_16x16x16_iu8"
         manifest = dict(
-            source_sha256="authored-source",
+            source_sha256="a" * 64,
+            header_sha256="b" * 64,
             variants=[
                 dict(id=name, kernel_symbol=name, spec=dict(target="gfx1100"))
                 for name in ("entry", "sibling")

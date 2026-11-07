@@ -466,10 +466,9 @@ int main(int argc, char** argv) {
     check(hip_direct_copy_host_to_device(0, da.get(), a.data(), a.size() * 8));
     check(hip_direct_copy_host_to_device(0, db.get(), b.data(), b.size() * 8));
     if (generated)
-      generated_prepare_ns +=
-          std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() -
-                                                 payload_prepare_start)
-              .count();
+      generated_prepare_ns += std::chrono::duration<double, std::nano>(
+                                  std::chrono::steady_clock::now() - payload_prepare_start)
+                                  .count();
     if (epilogue) {
       check(rd.allocate(0, expected_d.size()));
       check(hip_direct_copy_host_to_device(0, rd.get(), expected_d.data(), expected_d.size()));
@@ -789,19 +788,19 @@ int main(int argc, char** argv) {
                            : nlohmann::json(nullptr)},
         {"generated_objectives",
          generated_variant
-             ? nlohmann::json{
-                   {"schema", "rns8_generated_native_objectives_v1"},
-                   {"payload_bytes", da.bytes() + db.bytes() + dc.bytes()},
-                   {"payload_scope", "owned_native_inputs_and_guarded_residue_output"},
-                   {"native_a_bytes", da.bytes()},
-                   {"native_b_bytes", db.bytes()},
-                   {"output_bytes", dc.bytes()},
-                   {"reference_residue_bytes", ra.bytes() + rb.bytes()},
-                   {"prepare_ns", generated_prepare_ns},
-                   {"prepare_scope", "host_variant_binding_probe_payload_allocation_and_upload"},
-                   {"oracle_included", false},
-                   {"driver_allocator_overhead_included", false},
-                   {"code_storage_included", false}}
+             ? nlohmann::json{{"schema", "rns8_generated_native_objectives_v1"},
+                              {"payload_bytes", da.bytes() + db.bytes() + dc.bytes()},
+                              {"payload_scope", "owned_native_inputs_and_guarded_residue_output"},
+                              {"native_a_bytes", da.bytes()},
+                              {"native_b_bytes", db.bytes()},
+                              {"output_bytes", dc.bytes()},
+                              {"reference_residue_bytes", ra.bytes() + rb.bytes()},
+                              {"prepare_ns", generated_prepare_ns},
+                              {"prepare_scope",
+                               "host_variant_binding_probe_payload_allocation_and_upload"},
+                              {"oracle_included", false},
+                              {"driver_allocator_overhead_included", false},
+                              {"code_storage_included", false}}
              : nlohmann::json(nullptr)},
         {"sustained", sustained},
         {"queue_prepare_ns", queue_prepare_ns},

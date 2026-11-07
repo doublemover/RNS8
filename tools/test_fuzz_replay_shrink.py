@@ -22,7 +22,7 @@ class NativeMinimizerControls(unittest.TestCase):
         self.addCleanup(scratch.cleanup)
         self.root = Path(scratch.name)
         self.case = self.root / "original.bin"
-        self.case.write_bytes(encode(Case(0, 2, 2, 1, (0, 0, 0, 73), (1, 1))))
+        self.case.write_bytes(encode(Case(0, 2, 1, 2, (0, 0, 0, 73), (1, 1))))
         self.exe = self.root / "inert.exe"
         self.exe.write_bytes(b"inert; never native execution")
         self.out = self.root / "minimized"

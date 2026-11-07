@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import gzip
 import copy
 import json
 import os
@@ -253,12 +254,18 @@ class Quality(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "tool.tar.gz"
             for kind in ("regular", "link", "duplicate", "large"):
+                if kind == "large":
+                    member = tarfile.TarInfo("tool")
+                    member.size = 1024**3
+                    with gzip.open(path, "wb") as stream:
+                        stream.write(member.tobuf())
+                    with self.assertRaises(ValueError):
+                        archive_executable(path, "tool")
+                    continue
                 with tarfile.open(path, "w:gz") as archive:
                     member = tarfile.TarInfo("tool")
                     if kind == "link":
                         member.type, member.linkname = tarfile.SYMTYPE, "target"
-                    elif kind == "large":
-                        member.size = 1024**3
                     else:
                         member.size = 8
                     archive.addfile(member, io.BytesIO(b"AUTHORED") if member.size == 8 else None)

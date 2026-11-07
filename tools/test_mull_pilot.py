@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -72,7 +73,7 @@ class MullPilot(unittest.TestCase):
             path.write_text("int fixture;\n", encoding="utf-8")
             sources[str(path)] = dict(path=str(path), sha256=file_digest(path), relative_path=name)
         path = root / "native.sqlite"
-        with sqlite3.connect(path) as connection:
+        with closing(sqlite3.connect(path)) as connection, connection:
             types = ["INT" if index in range(4, 11) else "TEXT" for index in range(len(COLUMNS))]
             connection.execute(
                 "CREATE TABLE mutant ("
@@ -134,7 +135,7 @@ class MullPilot(unittest.TestCase):
                         "changed production source", encoding="utf-8"
                     )
                 else:
-                    with sqlite3.connect(path) as connection:
+                    with closing(sqlite3.connect(path)) as connection, connection:
                         if scenario == "version":
                             connection.execute("UPDATE information SET value='0.36.0'")
                         elif scenario == "duplicate":

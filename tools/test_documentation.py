@@ -225,7 +225,7 @@ class RepositoryTest(unittest.TestCase):
                 for artifact in artifacts.values():
                     self.assertRegex(artifact["build_commit"], r"^[0-9a-f]{7,40}$")
                     self.assertRegex(artifact["sha256"], r"^[0-9a-f]{64}$")
-        self.assertIn("Internal checked native-byte WMMA", text)
+        self.assertIn("[narrow native products](docs/narrow-native-owner.md)", text)
         self.assertIn("Public AMDGPU builtins", text)
         self.assertIn("examples/workloads/README.md", text)
         self.assertIn("application performance and other", text)

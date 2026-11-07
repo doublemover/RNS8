@@ -33,7 +33,8 @@ class NativeHeaptrack(unittest.TestCase):
         first, second = result["allocations"]
         self.assertEqual([first["generation"], second["generation"]], [1, 2])
         self.assertEqual(first["bytes"], 32)
-        self.assertEqual(first["lifetime_bounds_ns"], dict(minimum=0, maximum=3_000_000))
+        # The free's upper bracket includes the floored millisecond at c3.
+        self.assertEqual(first["lifetime_bounds_ns"], dict(minimum=0, maximum=4_000_000))
         self.assertEqual(second["lifetime_bounds_ns"], dict(minimum=0, maximum=9_000_000))
         self.assertEqual(result["summary"]["requested_bytes"], 96)
         self.assertEqual(result["summary"]["observed_live_peak_bytes"], 64)

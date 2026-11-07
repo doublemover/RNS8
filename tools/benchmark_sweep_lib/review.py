@@ -103,7 +103,6 @@ def residue_chain_group(items: list[dict[str, Any]]) -> bool:
 
 REUSE_EVIDENCE_PROMOTION_SCOPES = {"explicit_reuse_contract_only", "reuse_contract_evidence_only"}
 GRAPH_EVIDENCE_PROMOTION_SCOPES = {"hip_graph_replay_evidence_only"}
-CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = {"cpu-reference", "wrap64-byte-limb"}
 REUSE_PACK_MODES = {"prepacked_reuse", "prepacked_reuse_a", "prepacked_reuse_b"}
 GRAPH_REPLAY_EXECUTION_MODES = {
     "hip_graph_replay_resident_rns_chain",
