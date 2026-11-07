@@ -47,6 +47,16 @@ def result(stdout="", **changes):
 
 
 class ArtifactCacheTests(unittest.TestCase):
+    def test_export_hash_reads_only_the_declared_file_length(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "growing-artifact"
+            path.write_bytes(b"abc")
+            self.assertEqual(artifacts._export_digest(path, 3), hashlib.sha256(b"abc").hexdigest())
+            with self.assertRaisesRegex(ValueError, "grew"):
+                artifacts._export_digest(path, 2)
+            with self.assertRaisesRegex(ValueError, "truncated"):
+                artifacts._export_digest(path, 4)
+
     def session_evidence(self, root):
         source = root / "session"
         source.mkdir()

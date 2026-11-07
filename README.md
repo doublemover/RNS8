@@ -205,14 +205,11 @@ Compilation and device validation are recorded separately. `AUTO` uses the
 baseline context unless an eligible exact-match reviewed cache entry selects
 another backend; it performs no runtime tuning. The
 [backend reference](docs/backend-notes.md) covers limits and selection.
-[Research topics](docs/research/README.md) distinguish opt-in Strassen and private rank-23,
-low-bit and integrity prototypes from reserved public entrypoints and broader
-async/multi-GPU work.
+[Research topics](docs/research/README.md) cover public one-level Strassen,
+[finite signed-INT4 and reusable packed B](docs/backend-notes.md#explicit-finite-int4-ownership),
+the explicit asynchronous subsets, and private rank-23/rank48 and distributed
+prototypes. Each guide identifies its public contract and qualification boundary.
 
 [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md) ·
 [Roadmap](docs/roadmap.md) · [Security](SECURITY.md) · [MIT license](LICENSE) ·
 [Financial sponsorship](https://github.com/sponsors/doublemover)
-
-Explicit finite signed-INT4 research execution and reusable packed-B ownership
-are now publicly reachable; default finite routing is unchanged. See the
-[implementation/qualification distinction](docs/backend-notes.md#explicit-finite-int4-ownership).

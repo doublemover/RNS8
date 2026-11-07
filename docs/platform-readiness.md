@@ -89,6 +89,7 @@ owns reproducible bounded Linux GPU sessions, and
 upgrades and locks. Shared discovery selects coherent existing components;
 explicit overrides take precedence. Bounded session plans and the new non-GPU
 version policy are authored, while native Linux rehearsal and the upgraded-stack
-validation remain pending. ROCm 10.1 migration is deferred by the user.
+validation remain pending. The dated Windows Core10.1 record above establishes
+its own local stack; a native Linux tuple still needs separate qualification.
 Documentation checks verify names, paths and links; clean-install
 configure/build/example execution still needs each matching supported OS/GPU.

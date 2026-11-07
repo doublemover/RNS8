@@ -389,7 +389,8 @@ disconnected. Required packages must already exist in the selected local prefixe
 it does not download, bootstrap or install them. `--set` uses the same dependency
 overrides as the doctor and live session, with selected tools and policy identities
 recorded in the manifest. This is a receipt for the selected environment, not a
-newly qualified Linux/ROCm stack lock. The ROCm upgrade remains deferred.
+newly qualified Linux/ROCm stack. An operator-reviewed frozen tuple can now be
+supplied through the platform lock below; its native qualification remains open.
 
 CPU tests run serially and produce a retained JUnit artifact. Missing, empty,
 all-skipped or failed reports cannot complete preparation; expected unsupported

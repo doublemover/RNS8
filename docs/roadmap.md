@@ -10,11 +10,11 @@ preserves earlier work without duplicating current status.
 
 The [November 4 reevaluation](../metadata/implementation-frontload-20261104.json)
 records all **70 open issues**, including the newer #79–#105 findings and reopened
-address/proof/evidence work. Development is being frontloaded: admission,
-ownership and publication repairs first, then shared arithmetic/planning,
-benchmark evidence and development workflows. Runtime validation follows the
-completed source pass; source readiness and hardware/performance acceptance
-remain distinct.
+address/proof/evidence work. The November7 source pass is written: admission,
+ownership/publication, arithmetic/planning, comparison evidence and development
+workflows have no remaining implementation items in that inventory. The combined
+validation batch is next. Source readiness and hardware/performance acceptance
+remain distinct; open issue counts are not implementation-task counts.
 
 The October 27 [implementation audit](../metadata/full-implementation-audit-20261027.json)
 and [branch code audit](branch-code-audit-20261027.md) retain their dated source
@@ -137,9 +137,10 @@ Shared write-free toolchain discovery is implemented under
 [Dependency locks](dependency-versions.md) select the new non-GPU dependency stack
 under [#60](https://github.com/doublemover/RNS8/issues/60). Installation and lock
 selection are distinct from compilation and runtime qualification. Bounded Linux
-GPU sessions [#58](https://github.com/doublemover/RNS8/issues/58) now author bounded
-plans, isolated environments, checkpoints and resume through the existing runner;
-Linux rehearsal remains deferred. Public application examples and
+GPU sessions [#58](https://github.com/doublemover/RNS8/issues/58) have bounded
+plans, resource preflight, frozen platform inputs, isolated environments,
+checkpoints/resume and verified private export through the existing runner;
+Linux rehearsal remains pending. Public application examples and
 independent baselines are implemented under [#62](https://github.com/doublemover/RNS8/issues/62);
 the paired-complex fifth workload passes applicable local registered checks,
 while sustained production-boundary measurements remain unqualified. Documentation consolidation
@@ -147,7 +148,7 @@ while sustained production-boundary measurements remain unqualified. Documentati
 
 ### Current validation and remaining work
 
-The current local source/test receipt is the [full implementation validation](../metadata/full-implementation-validation-20261027.json).
+The latest completed broad local receipt is the [October27 implementation validation](../metadata/full-implementation-validation-20261027.json).
 It distinguishes real gfx1100 execution, target-inapplicable skips and compile-only
 AMX/I8MM/FP8 source evidence. Native Linux, multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
@@ -165,9 +166,9 @@ implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
 paths, with physical cluster/memory-ordering/failure qualification pending. There are 70 open issues;
 child acceptance gates remain the roadmap's retirement criterion. The full audit
-record described its then-requested backlog. The November6 source frontload is
-still in progress; the [implementation ledger](../metadata/implementation-frontload-20261104.json)
-tracks newly audited source work separately from validation. Dated receipts
+record described its then-requested backlog. The November7 source frontload is
+written; the [implementation ledger](../metadata/implementation-frontload-20261104.json)
+tracks source completion separately from pending validation. Dated receipts
 retain their applicable local passes, unchanged carried evidence, stopped lanes
 and unavailable-target boundaries; they do not qualify the current head.
 

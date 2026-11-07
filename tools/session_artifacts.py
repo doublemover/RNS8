@@ -29,6 +29,22 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _export_digest(path: Path, byte_count: int) -> str:
+    """A growing artifact cannot expand the export's declared read budget."""
+    result = hashlib.sha256()
+    with path.open("rb") as stream:
+        remaining = byte_count
+        while remaining:
+            chunk = stream.read(min(remaining, 1024 * 1024))
+            if not chunk:
+                raise ValueError("export artifact truncated: " + str(path))
+            result.update(chunk)
+            remaining -= len(chunk)
+        if stream.read(1):
+            raise ValueError("export artifact grew: " + str(path))
+    return result.hexdigest()
+
+
 def export_session(source: Path, destination: Path, *, maximum_bytes: int = 8 * 1024**3) -> dict:
     """Copy declared session evidence to an explicit local/mounted destination.
 
@@ -135,7 +151,7 @@ def export_session(source: Path, destination: Path, *, maximum_bytes: int = 8 * 
         total += size
         if total > maximum_bytes:
             raise ValueError("export inventory exceeds its byte allowance")
-        if digest(path) != sha:
+        if _export_digest(path, size) != sha:
             raise ValueError("session artifact changed before export: " + name)
         inventory.append(dict(path=name, bytes=size, sha256=sha))
     receipt = dict(
@@ -164,11 +180,16 @@ def export_session(source: Path, destination: Path, *, maximum_bytes: int = 8 * 
     target = destination / ("rns8-session-" + key)
 
     def verify(root):
-        if contained_path(root, "export.json").read_bytes() != encoded:
+        with contained_path(root, "export.json").open("rb") as stream:
+            actual = stream.read(len(encoded) + 1)
+        if actual != encoded:
             raise ValueError("export manifest differs from expected evidence")
         for row in inventory:
             path = contained_path(root, row["path"])
-            if path.stat().st_size != row["bytes"] or digest(path) != row["sha256"]:
+            if (
+                path.stat().st_size != row["bytes"]
+                or _export_digest(path, row["bytes"]) != row["sha256"]
+            ):
                 raise ValueError("destination readback failed: " + row["path"])
 
     if target.exists():
@@ -184,14 +205,14 @@ def export_session(source: Path, destination: Path, *, maximum_bytes: int = 8 * 
                 output.parent.mkdir(parents=True, exist_ok=True)
                 with original.open("rb") as input_stream, output.open("xb") as stream:
                     _copy_payload(input_stream, stream, row["bytes"])
-                if digest(output) != row["sha256"]:
+                if _export_digest(output, row["bytes"]) != row["sha256"]:
                     raise ValueError("source changed during export: " + row["path"])
             (staging / "export.json").write_bytes(encoded)
             verify(staging)
             # Receipt files may not advance during an export of a stopped run.
             if (
-                digest(source / "manifest.json") != manifest_hash
-                or digest(source / "results.json") != results_hash
+                document("manifest.json")[1] != manifest_hash
+                or document("results.json")[1] != results_hash
             ):
                 raise ValueError("session advanced during export")
             staging.rename(target)

@@ -29,7 +29,8 @@ Distinct proof and source detail remains in topic guides. The resident-output
 proposal moved to the archive with a redirect at its original path. Chronological
 roadmap entries moved to a dated archive with links/anchor redirects from the
 current roadmap. Dated local evidence retains its original path and scope,
-including the 256³ diagnostic; the 512³/1024³ report owns current scaling claims.
+including the 256³ diagnostic and 512³/1024³ scaling study. The performance guide
+owns the latest reviewed results and any remeasurement gates.
 
 ## Check the inventory and navigation
 
@@ -90,9 +91,12 @@ require matching supported hosts. They are not labeled tested by this editorial
 work.
 
 Automatic root discovery ([#57](https://github.com/doublemover/RNS8/issues/57)),
-bounded remote-session preparation ([#58](https://github.com/doublemover/RNS8/issues/58)),
-compatibility-gated dependency locks ([#60](https://github.com/doublemover/RNS8/issues/60))
-and practical GPU application examples ([#62](https://github.com/doublemover/RNS8/issues/62))
-remain dependent acceptance gaps. The current guides describe explicit existing
-controls. Backend promotion, new APIs/results, rentals, provisioning and spending
-are outside this documentation slice.
+bounded session preparation/lock/export ([#58](https://github.com/doublemover/RNS8/issues/58)),
+dependency policy/update proposals ([#60](https://github.com/doublemover/RNS8/issues/60))
+and practical GPU examples ([#62](https://github.com/doublemover/RNS8/issues/62))
+have source implementations and canonical guides. Their remaining acceptance is
+native command/package/platform qualification and measured evidence, tracked
+separately in the implementation ledger. Static documentation checks cover159
+files; external reachability, GitHub form rendering and clean-checkout command
+execution retain their own pending validation. Backend promotion, new results,
+rentals, provisioning and spending are outside this documentation work.
