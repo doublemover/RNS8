@@ -22,6 +22,11 @@ from pathlib import Path
 
 from process_progress import run_capture, capture_succeeded
 from session_artifacts import load_inventory, inspect_cache, stage_cache
+from source_gemm_contract import (
+    CONTRACT as SOURCE_GEMM_CONTRACT,
+    load_contract as load_source_gemm_contract,
+    admission as source_gemm_admission,
+)
 from check_dependencies_lib.resolution import Request, REQUEST_KEYS, resolve
 from session_environment import (
     build_environment,
@@ -319,6 +324,36 @@ def command_plan(
     return commands
 
 
+def session_case_inventory(backend, arch, session_kind):
+    contract = load_source_gemm_contract()
+    cases = [
+        ("bounded-i64", []),
+        ("bounded-u64", []),
+        ("exact-wide-signed", ["--exact-wide-limbs", "3"]),
+        ("exact-wide-unsigned", ["--exact-wide-limbs", "3"]),
+        ("finite-u8-ring", ["--modulus", "255"]),
+        ("finite-u8-field", ["--modulus", "251"]),
+    ]
+    if session_kind == "smoke":
+        cases = cases[:1]
+    elif backend == "hip-direct":
+        cases += [("wrap-u64", []), ("finite-u8-ring", ["--modulus", "256"])]
+    result = []
+    for index, (semantics, extra) in enumerate(cases):
+        modulus = int(extra[extra.index("--modulus") + 1]) if "--modulus" in extra else 0
+        result.append(
+            dict(
+                index=index,
+                semantics=semantics,
+                arguments=extra,
+                admission=source_gemm_admission(
+                    contract, backend, semantics, modulus=modulus, architecture=arch
+                ),
+            )
+        )
+    return result
+
+
 def device_command_plan(
     backend,
     device,
@@ -377,19 +412,10 @@ def device_command_plan(
             ctest_junit=str(ctest_junit),
         )
     # Small captures are smoke evidence only, with bounded runtime per command.
-    cases = [
-        ("bounded-i64", []),
-        ("bounded-u64", []),
-        ("exact-wide-signed", ["--exact-wide-limbs", "3"]),
-        ("exact-wide-unsigned", ["--exact-wide-limbs", "3"]),
-        ("finite-u8-ring", ["--modulus", "255"]),
-        ("finite-u8-field", ["--modulus", "251"]),
-    ]
-    if session_kind == "smoke":
-        cases = cases[:1]
-    elif backend == "hip-direct":
-        cases += [("wrap-u64", []), ("finite-u8-ring", ["--modulus", "256"])]
-    for index, (semantics, extra) in enumerate(cases):
+    for case in session_case_inventory(backend, arch, session_kind):
+        if not case["admission"]["source_eligible"]:
+            continue
+        index, semantics, extra = case["index"], case["semantics"], case["arguments"]
         name = f"{backend}-{index}-{semantics}"
         capture = out / f"{stem}-{name}.json"
         add(
@@ -422,6 +448,7 @@ def device_command_plan(
             ],
             capture=str(capture),
             case_id=name,
+            source_operation=case["admission"],
             observation_parent_stage=stem + "-parent-inspect",
             observation_child_stage=stem + "-inspect",
         )
@@ -459,13 +486,54 @@ def device_command_plan(
             case_id=name,
             observation_parent_stage=stem + "-parent-inspect",
             observation_child_stage=stem + "-inspect",
+            source_operation=source_gemm_admission(
+                load_source_gemm_contract(), "hip-direct", "bounded-i64", architecture=arch
+            ),
         )
         add(name + "-schema", [python, "tools/benchmark_schema.py", str(capture)])
     return commands
 
 
+def validate_source_case(item):
+    value = item.get("source_operation")
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ValueError("typed source operation admission required")
+    expected = source_gemm_admission(
+        load_source_gemm_contract(),
+        value["backend"],
+        value["semantics"],
+        modulus=value["modulus"],
+        architecture=value["requested_architecture"],
+    )
+    if not same_evidence_value(value, expected) or not value["source_eligible"]:
+        raise ValueError("session positive case is unsupported or source inventory changed")
+    argv = item["argv"]
+    for flag, operand in (("--backend", value["backend"]), ("--semantics", value["semantics"])):
+        if (
+            argv.count(flag) != 1
+            or argv.index(flag) + 1 >= len(argv)
+            or argv[argv.index(flag) + 1] != operand
+        ):
+            raise ValueError("session argv differs from source operation admission")
+    if value["modulus"]:
+        if (
+            argv.count("--modulus") != 1
+            or argv.index("--modulus") + 1 >= len(argv)
+            or argv[argv.index("--modulus") + 1] != str(value["modulus"])
+        ):
+            raise ValueError("session finite modulus differs from source admission")
+    elif "--modulus" in argv:
+        raise ValueError("nonfinite session case carries a finite modulus")
+
+
 def validate_result(item: dict, result: dict, parent_info: dict | None = None) -> list[str]:
     errors = []
+    try:
+        validate_source_case(item)
+    except (KeyError, ValueError, TypeError):
+        errors.append("session source-operation admission is inconsistent or unsupported")
     if "host_resources" in item:
         try:
             value = parse_evidence_json(result["stdout"])
@@ -877,6 +945,8 @@ def execute_plan(
 
     checkpoint("in_progress")
     try:
+        for item in manifest["commands"]:
+            validate_source_case(item)
         for index, item in enumerate(manifest["commands"][len(results) :], len(results) + 1):
             remaining = total - prior_elapsed - (clock() - started) - reserve
             if remaining <= 0:
@@ -1369,6 +1439,22 @@ def main(argv=None) -> int:
         "observed_architecture": None,
         "source": source_receipt(exclude=out),
         "backends": backends,
+        "source_operation_contract": dict(
+            path=str(SOURCE_GEMM_CONTRACT),
+            sha256=load_source_gemm_contract().source_sha256,
+            version=1,
+        ),
+        "inapplicable_source_cases": [
+            dict(
+                backend=backend,
+                expected_status="RNS8_UNSUPPORTED_BACKEND",
+                negative_check_owner="existing_native_semantic_admission_tests",
+                **case,
+            )
+            for backend in dict.fromkeys([*backends, *(BACKENDS if args.all_enabled else [])])
+            for case in session_case_inventory(backend, TARGETS[args.target][0], args.session_kind)
+            if not case["admission"]["source_eligible"]
+        ],
         "all_enabled_lane": args.all_enabled,
         "devices": args.devices,
         "device_namespace": "none_cpu_preparation"

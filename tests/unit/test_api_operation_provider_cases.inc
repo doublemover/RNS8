@@ -149,6 +149,18 @@ TEST_CASE("DAG discovery agrees with concrete resident graph backend ownership",
   REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }
 
+TEST_CASE("source GEMM contract rejects unknown slots and unresolved AUTO", "[api][provider]") {
+  using namespace rns8::detail;
+  CHECK(source_gemm_backend(static_cast<rns8_backend_kind>(UINT32_MAX)) == nullptr);
+  CHECK_FALSE(api::backend_source_supports_semantics(RNS8_BACKEND_AUTO, RNS8_BOUNDED_I64));
+  CHECK_FALSE(api::backend_source_supports_semantics(static_cast<rns8_backend_kind>(UINT32_MAX),
+                                                     RNS8_BOUNDED_I64));
+  for (const auto semantics : {uint32_t(0), uint32_t(8), uint32_t(RNS8_INT4_RESEARCH), UINT32_MAX})
+    CHECK_FALSE(api::backend_source_supports_semantics(RNS8_BACKEND_HIP_DIRECT,
+                                                       static_cast<rns8_semantics>(semantics)));
+  CHECK(std::string(api::backend_name(static_cast<rns8_backend_kind>(UINT32_MAX))) == "unknown");
+}
+
 TEST_CASE("operation inventory separates source semantics compilation and unknown resources",
           "[api][provider]") {
   struct Row {
@@ -170,11 +182,16 @@ TEST_CASE("operation inventory separates source semantics compilation and unknow
       RNS8_BOUNDED_I64,       RNS8_BOUNDED_U64,    RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED,
       RNS8_WRAP_U64_MOD_2_64, RNS8_FINITE_RING_U8, RNS8_FINITE_FIELD_U8};
   auto* ctx = create_cpu_context();
+  CHECK(rns8::detail::source_gemm_contract_version == 1);
   for (const auto& row : rows)
     for (unsigned i = 0; i < 7; ++i) {
       CAPTURE(row.backend, semantics[i]);
       CHECK(rns8::detail::api::backend_source_supports_semantics(row.backend, semantics[i]) ==
             row.semantics[i]);
+      const auto* source = rns8::detail::source_gemm_backend(row.backend);
+      REQUIRE(source != nullptr);
+      CHECK(std::string(source->name) == rns8::detail::api::backend_name(row.backend));
+      CHECK(source->semantics[i] == row.semantics[i]);
       CHECK(rns8::detail::api::hip_device_backend_kind(row.backend) == row.device);
       rns8_backend_capability_info capability{};
       capability.struct_size = sizeof(capability);

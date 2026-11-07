@@ -1,4 +1,5 @@
 #include "core/accelerator_backend.hpp"
+#include "backend_common/source_gemm_contract.hpp"
 
 #include "core/internal.hpp"
 
@@ -107,28 +108,7 @@ bool accelerator_backend_supports_semantics(rns8_backend_kind backend, rns8_sema
 
 bool accelerator_backend_source_supports_semantics(rns8_backend_kind backend,
                                                    rns8_semantics semantics) {
-  const accelerator_backend_descriptor* descriptor = accelerator_backend_descriptor_for(backend);
-  if (!descriptor) {
-    return false;
-  }
-  switch (semantics) {
-  case RNS8_BOUNDED_I64:
-    return descriptor->supports_bounded_rns != 0;
-  case RNS8_BOUNDED_U64:
-    if (backend == RNS8_BACKEND_CK) {
-      return false;
-    }
-    return descriptor->supports_bounded_rns != 0;
-  case RNS8_EXACT_WIDE_SIGNED:
-  case RNS8_EXACT_WIDE_UNSIGNED:
-    return descriptor->supports_exact_wide_rns != 0;
-  case RNS8_FINITE_RING_U8:
-  case RNS8_FINITE_FIELD_U8:
-    return descriptor->supports_finite_u8 != 0;
-  case RNS8_WRAP_U64_MOD_2_64:
-    return descriptor->supports_wrap64 != 0;
-  }
-  return false;
+  return accelerator_backend_kind(backend) && source_gemm_supports_semantics(backend, semantics);
 }
 
 const accelerator_backend_descriptor*

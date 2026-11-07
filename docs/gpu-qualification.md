@@ -16,6 +16,18 @@ python tools/gpu_qualification.py --target 7900xtx --devices 0 --out-dir temp/qu
 By default each plan covers direct HIP, AMDGPU builtins, hipBLASLt, CK, and
 rocWMMA. Use repeatable `--backend` arguments to prepare a smaller lane. No
 commands from the manifest are executed without `--execute`.
+
+Positive smoke cases consume the same versioned source semantic inventory
+compiled into native backend admission and operation-provider queries. It
+records backend names, signed/unsigned/wide/wrap/finite support, finite modulus
+bounds and required target/provider detection. The planner retains that source
+digest and separately lists inapplicable cases. In particular, CK bounded-u64
+is excluded from positive captures with expected `RNS8_UNSUPPORTED_BACKEND`;
+the native rejection tests remain required and later supported CK cases remain
+scheduled. This never treats arbitrary nonzero exits as expected rejection.
+Compilation, observed target/device availability and exact numerical completion
+remain independent gates. Altered source decisions or mismatched backend,
+semantic or modulus arguments stop the campaign before commands launch.
 Both the target and device list are required. A plan records the requested
 architecture while `observed_architecture` remains null; a requested MI300X
 does not establish that an MI300X exists. There is no all-device, device-zero,

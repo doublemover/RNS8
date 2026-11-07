@@ -1,4 +1,5 @@
 #include "core/api_internal.hpp"
+#include "backend_common/source_gemm_contract.hpp"
 #include "backend_ck/implementation_contract.hpp"
 
 namespace rns8::detail::api {
@@ -9,33 +10,7 @@ rns8_backend_kind effective_backend(rns8_backend_kind requested,
 }
 
 bool backend_source_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
-  switch (backend) {
-  case RNS8_BACKEND_CPU_AMX:
-  case RNS8_BACKEND_CPU_REFERENCE:
-    return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
-           semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
-           semantics == RNS8_FINITE_RING_U8 || semantics == RNS8_FINITE_FIELD_U8;
-  case RNS8_BACKEND_HIP_DIRECT:
-    return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
-           semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
-           semantics == RNS8_WRAP_U64_MOD_2_64 || semantics == RNS8_FINITE_RING_U8 ||
-           semantics == RNS8_FINITE_FIELD_U8;
-  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-    return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64;
-  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-    return semantics == RNS8_WRAP_U64_MOD_2_64;
-  case RNS8_BACKEND_HIPBLASLT:
-    return semantics == RNS8_BOUNDED_I64 || semantics == RNS8_BOUNDED_U64 ||
-           semantics == RNS8_EXACT_WIDE_SIGNED || semantics == RNS8_EXACT_WIDE_UNSIGNED ||
-           semantics == RNS8_FINITE_RING_U8 || semantics == RNS8_FINITE_FIELD_U8;
-  case RNS8_BACKEND_AUTO:
-    return false;
-  case RNS8_BACKEND_CK:
-  case RNS8_BACKEND_ROCWMMA:
-  case RNS8_BACKEND_AMDGPU_BUILTINS:
-    return rns8::detail::accelerator_backend_source_supports_semantics(backend, semantics);
-  }
-  return false;
+  return rns8::detail::source_gemm_supports_semantics(backend, semantics);
 }
 
 bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semantics) {
@@ -56,29 +31,8 @@ bool backend_supports_semantics(rns8_backend_kind backend, rns8_semantics semant
 }
 
 const char* backend_name(rns8_backend_kind backend) {
-  switch (backend) {
-  case RNS8_BACKEND_AUTO:
-    return "auto";
-  case RNS8_BACKEND_CPU_REFERENCE:
-    return "cpu-reference";
-  case RNS8_BACKEND_CPU_AMX:
-    return "cpu-amx-int8";
-  case RNS8_BACKEND_HIP_DIRECT:
-    return "hip-direct";
-  case RNS8_BACKEND_HIPBLASLT:
-    return "hipblaslt";
-  case RNS8_BACKEND_CK:
-    return "ck";
-  case RNS8_BACKEND_ROCWMMA:
-    return "rocwmma";
-  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-    return "wrap64-byte-limb";
-  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-    return "hip-vector-alu-int64";
-  case RNS8_BACKEND_AMDGPU_BUILTINS:
-    return "amdgpu-builtins";
-  }
-  return "unknown";
+  const auto* row = rns8::detail::source_gemm_backend(backend);
+  return row ? row->name : "unknown";
 }
 
 bool accelerator_backend(rns8_backend_kind backend) {

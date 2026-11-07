@@ -18,6 +18,7 @@
 #include "backend_ck/arithmetic_contract.hpp"
 #include "backend_ck/input_encoding.hpp"
 #include "backend_common/complex_residue_plan.hpp"
+#include "backend_common/source_gemm_contract.hpp"
 #include "backend_common/mxfp_modular.hpp"
 #include "backend_common/resident_transfer_plan.hpp"
 #include "core/plan_lowering.hpp"
