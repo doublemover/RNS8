@@ -344,7 +344,7 @@ Current PE/PDB agreement cannot attest what bytes were loaded during capture.
 Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
 ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
-SDK's schema, as source checks only. Windows allocation, scheduler/wait,
+SDK's schema, as source checks only. Windows allocation,
 cross-tool clock adapters and the full causal critical-path
 report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
@@ -479,6 +479,43 @@ source bytes. Unwound/inlined callchains, CPU duration and cross-tool GPU
 causality remain unavailable. Native lookup, CLI/typed controls and real PDB
 compatibility remain unexecuted; no profiling result or speedup is claimed.
 
+## Opt-in Windows scheduling observations
+
+Add `--scheduling` to the Windows host capture plan to select
+`metadata/host-profile-scheduling.wprp`. The separate profile requests CPU
+samples plus CSwitch/ReadyThread events and stacks; it retains the same bounded
+sequential recording and uniquely owned cleanup. Execution still requires
+explicit system-recording authorization. The default CPU recipe is unchanged.
+
+The file-only inspector decodes exact v2
+[CSwitch](https://learn.microsoft.com/en-us/windows/win32/etw/cswitch) and
+[ReadyThread](https://learn.microsoft.com/en-us/windows/win32/etw/readythread)
+payloads in the second native walk. It retains only records intersecting one
+observed selected-thread Start/End lifetime, preserving raw control bytes,
+wait fields, processor mode, record identity and original header IDs. A waker's
+header PID is not the awakened thread's PID. Candidate sample and scheduler
+storage share a65,536-row cap; unsupported formats remain counted separately.
+
+`native-schedule-observations.json` pairs observed switch-out/in records in
+timestamp order and keeps missing, reused, same-time and contradictory
+boundaries unresolved. Global undecoded thread/scheduler boundaries or
+incomplete process custody withhold duration credit. Off-CPU durations remain
+conditional on no unobserved intervening boundary. Known Ready/Standby at
+switch-out can support a conditional runnable interval. Waiting at switch-out
+plus one observed unswapped ReadyThread event can separate conditional waiting
+and runnable intervals. Missing, multiple, swapped, reserved or unknown
+transitions preserve off-CPU time without inventing that split.
+
+The shared host interval/phase helper intersects these states with native ETW
+measured windows, using exclusive nested phases and half-open intervals. Linux
+scheduling uses the same helper with its independently established monotonic
+clock. Thread durations are not additive process wall time. Wait reason codes
+do not establish a lock object/owner, and ReadyThread header IDs do not prove a
+waker or GPU dependency. Active spin and complete schedule coverage remain
+unavailable. Raw stack walking/source attribution and actual native capture
+compatibility are separate qualification work; authored byte, typed scheduling,
+phase and synthetic publication controls remain unexecuted.
+
 ## Separate Linux host allocation capture
 
 `tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
@@ -530,7 +567,7 @@ Neither quantity is an exact whole-process transient peak or leak proof. Device
 and pinned storage stay unobserved by this host-heap lane. Raw addresses and
 module records alone do not establish loaded symbols or source ownership.
 Operation/phase association, symbol attribution, complete interception and
-separate Windows heap/scheduler integration remain source work. The native
+separate Windows heap integration remain source work. The native
 format controls and direct-child producer/consumer controls are authored and
 registered; no decoder, preload, fixture, benchmark or profiler has run in this
 source pass.

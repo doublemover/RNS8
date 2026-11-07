@@ -24,6 +24,7 @@ from etl_process_contract import process_contract
 from etl_image_contract import image_catalog
 from etl_range_contract import operation_ranges as bind_operation_ranges
 from etl_cpu_contract import cpu_catalog
+from etl_schedule_contract import schedule_catalog
 from etl_inspector_identity import source_identity as etl_source_identity
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
@@ -37,7 +38,7 @@ from execution_inventory import bounded_read
 from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "rns8_windows_host_profile_plan_v3"
+SCHEMA = "rns8_windows_host_profile_plan_v4"
 MAX_ETL_METADATA_BYTES = 48 * 1024**2
 SUCCESS_STAGES = (
     "wpr_help",
@@ -58,6 +59,8 @@ SOURCE_INPUTS = (
     "tools/etl_image_contract.py",
     "tools/etl_range_contract.py",
     "tools/etl_cpu_contract.py",
+    "tools/etl_schedule_contract.py",
+    "tools/host_interval_phases.py",
     "tools/etl_inspector_identity.py",
     "src/diagnostics/etl_sample_payload.hpp",
     "tools/host_range_contract.py",
@@ -86,6 +89,7 @@ SOURCE_INPUTS = (
     "tools/reference_verdict.py",
     "tools/build_instrumentation.py",
     "metadata/host-profile-cpu.wprp",
+    "metadata/host-profile-scheduling.wprp",
     "metadata/host-profile-cpu.wpaProfile",
 )
 
@@ -111,10 +115,11 @@ def plan_capture(
     max_artifact_bytes=512 * 1024**2,
     minimum_free_bytes=1024**3,
     operation_ranges=False,
+    scheduling=False,
     review_existing=False,
 ):
-    if type(operation_ranges) is not bool:
-        raise ValueError("Windows operation range policy must be explicit boolean")
+    if any(type(value) is not bool for value in (operation_ranges, scheduling)):
+        raise ValueError("Windows operation range/scheduler policies must be explicit booleans")
     if (
         any(
             type(value) not in (int, float) or not 0 < value <= 1800 or not math.isfinite(value)
@@ -174,7 +179,10 @@ def plan_capture(
     ]
     if "--record-execution-environment" not in arguments:
         arguments.append("--record-execution-environment")
-    profiles = ROOT / "metadata/host-profile-cpu.wprp"
+    profiles = ROOT / (
+        "metadata/host-profile-scheduling.wprp" if scheduling else "metadata/host-profile-cpu.wprp"
+    )
+    profile_name = "Rns8CpuSchedule" if scheduling else "Rns8Cpu"
     commands = dict(
         wpr_help=[tools["wpr"]["path"], "-help", "start"],
         exporter_help=[tools["exporter"]["path"], "-h"],
@@ -185,7 +193,7 @@ def plan_capture(
         start=[
             tools["wpr"]["path"],
             "-start",
-            str(profiles) + "!Rns8Cpu",
+            str(profiles) + "!" + profile_name,
             "-filemode",
             "-recordtempto",
             str(out / "raw"),
@@ -231,6 +239,8 @@ def plan_capture(
             source_inputs=[reference(ROOT / path) for path in SOURCE_INPUTS],
             expected_native_environment=native_environment,
             operation_ranges=operation_ranges,
+            scheduling=scheduling,
+            profile_name=profile_name,
             symbol_search_environment=dict(
                 _NT_SYMBOL_PATH=str(Path(pdb).resolve(strict=True).parent),
                 _NT_ALT_SYMBOL_PATH="",
@@ -268,6 +278,7 @@ def rebuild(plan, *, review_existing=False):
         inspector=Path(plan["tools"]["inspector"]["path"]),
         review_existing=review_existing,
         operation_ranges=plan["operation_ranges"],
+        scheduling=plan["scheduling"],
         **{
             key: plan["budgets"][key]
             for key in (
@@ -295,7 +306,7 @@ def instance_absent(capture):
 
 
 def validate_preflight_stages(plan, stages):
-    if "Rns8Cpu" not in stages["profiles"]["stdout"]:
+    if not re.search(r"\b" + re.escape(plan["profile_name"]) + r"\b", stages["profiles"]["stdout"]):
         raise ValueError("native WPR did not advertise the selected custom profile")
     identity = parse_evidence_json(stages["identity"]["stdout"])
     store = EvidenceStore()
@@ -408,6 +419,17 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
     native_cpu = cpu_catalog(
         native_metadata, process_identity, snapshot=raw.get("profiler_ranges"), native_ranges=ranges
     )
+    schedule = (
+        schedule_catalog(
+            native_metadata,
+            process_identity,
+            native_cpu,
+            snapshot=raw.get("profiler_ranges"),
+            native_ranges=ranges,
+        )
+        if plan["scheduling"]
+        else None
+    )
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -452,6 +474,8 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
     publish("native-process-metadata.json", native_metadata)
     publish("native-image-catalog.json", images)
     publish("native-cpu-observations.json", native_cpu)
+    if schedule is not None:
+        publish("native-schedule-observations.json", schedule)
     if ranges is not None:
         publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
@@ -467,6 +491,9 @@ def completed_capture(plan, stages, *, owner_pid=None, review_existing=False):
         native_process_metadata=reference(out / "native-process-metadata.json"),
         native_image_catalog=reference(out / "native-image-catalog.json"),
         native_cpu_observations=reference(out / "native-cpu-observations.json"),
+        native_schedule_observations=reference(out / "native-schedule-observations.json")
+        if schedule is not None
+        else None,
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",
@@ -759,6 +786,11 @@ def main(argv=None):
     parser.add_argument("--etl-inspector", type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument(
+        "--scheduling",
+        action="store_true",
+        help="Opt into native CSwitch/ReadyThread observation; requires system-recording authorization",
+    )
+    parser.add_argument(
         "--operation-ranges",
         action="store_true",
         help="Enable compiled opt-in ETW markers and bind native measured windows",
@@ -777,6 +809,7 @@ def main(argv=None):
                     args.etl_inspector,
                     args.execute,
                     args.operation_ranges,
+                    args.scheduling,
                     args.authorize_system_recording,
                 )
             ):
@@ -793,6 +826,7 @@ def main(argv=None):
             args.out,
             inspector=args.etl_inspector,
             operation_ranges=args.operation_ranges,
+            scheduling=args.scheduling,
         )
         if args.execute:
             return execute_capture(plan, authorize_system_recording=args.authorize_system_recording)

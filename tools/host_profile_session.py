@@ -58,6 +58,7 @@ SOURCE_INPUTS = (
     "tools/perf_mapping_contract.py",
     "tools/host_source_attribution.py",
     "tools/host_schedule_attribution.py",
+    "tools/host_interval_phases.py",
     "tools/native_phase_attribution.py",
     "tools/elf_module_identity.py",
 )

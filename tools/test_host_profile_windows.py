@@ -22,6 +22,7 @@ from test_etl_process_contract import native_metadata
 from test_etl_image_contract import image
 from test_etl_range_contract import windows_snapshot
 from test_etl_cpu_contract import cpu_metadata
+from test_etl_schedule_contract import schedule_metadata
 from wpa_sample_reader import HEADERS
 
 
@@ -57,6 +58,7 @@ class WindowsHostProfile(unittest.TestCase):
         self.out = self.root / "session"
         self.calls, self.fail = [], None
         self.ranges = False
+        self.scheduling = False
 
     def plan(self, **options):
         return host.plan_capture(
@@ -78,7 +80,7 @@ class WindowsHostProfile(unittest.TestCase):
             stderr="",
         )
         if name == "profiles":
-            result["stdout"] = "Rns8Cpu"
+            result["stdout"] = "Rns8CpuSchedule" if self.scheduling else "Rns8Cpu"
         elif name == "identity":
             value = json.loads(
                 Path(self.fixture.binary_receipts["rns8-bench"]["identity_document"]).read_text()
@@ -110,8 +112,8 @@ class WindowsHostProfile(unittest.TestCase):
                     image(2, 800, image_path_utf8=str(self.binary)),
                 ],
             )
-            if self.ranges:
-                markers = cpu_metadata()
+            if self.ranges or self.scheduling:
+                markers = schedule_metadata() if self.scheduling else cpu_metadata()
                 for key in (
                     "observed_events",
                     "observed_marker_events",
@@ -125,6 +127,12 @@ class WindowsHostProfile(unittest.TestCase):
                     "undecoded_sample_events",
                     "excluded_sample_events",
                     "sample_events",
+                    "observed_schedule_events",
+                    "undecoded_schedule_events",
+                    "excluded_schedule_events",
+                    "schedule_events",
+                    "schedule_filter",
+                    "schedule_record_namespace",
                 ):
                     metadata[key] = markers[key]
             result["stdout"] = json.dumps(metadata)
@@ -164,6 +172,7 @@ class WindowsHostProfile(unittest.TestCase):
 
     def execute(self, plan):
         self.ranges = plan["operation_ranges"]
+        self.scheduling = plan["scheduling"]
         with patch.object(host.platform, "system", return_value="Windows"):
             return host.execute_capture(
                 plan, authorize_system_recording=True, runner=self.runner, environment={}
@@ -322,7 +331,7 @@ class WindowsHostProfile(unittest.TestCase):
         identity = json.loads(identity_path.read_text())
         identity.update(build_manifest=manifest, library_build_manifest=manifest)
         write(identity_path, identity)
-        self.assertEqual(self.execute(self.plan(operation_ranges=True)), 0)
+        self.assertEqual(self.execute(self.plan(operation_ranges=True, scheduling=True)), 0)
         result = json.loads((self.out / "host-profile.json").read_text())
         ranges = json.loads(Path(result["native_operation_ranges"]["path"]).read_text())
         self.assertEqual(result["measured_operation_range"], "native_measured_windows_bound")
@@ -330,6 +339,11 @@ class WindowsHostProfile(unittest.TestCase):
             ranges["phase_attribution"]["threads"][0]["exclusive_phase_wall_ns"]["proof"], 10_000
         )
         self.assertEqual(ranges["wpa_relative_clock_join"], "unbound")
+        schedule = json.loads(Path(result["native_schedule_observations"]["path"]).read_text())
+        self.assertEqual(schedule["conditional_waiting_thread_ns"], 20000)
+        self.assertEqual(
+            schedule["selected_operation_by_state"]["runnable"]["conditional_thread_ns"], 15000
+        )
         cpu = json.loads(Path(result["native_cpu_observations"]["path"]).read_text())
         self.assertEqual(cpu["selected_operation"]["sample_count"], 2)
         self.assertEqual(
@@ -337,6 +351,18 @@ class WindowsHostProfile(unittest.TestCase):
         )
         self.assertIsNone(cpu["CPU_duration_ns"])
         self.assertFalse(result["promotion_allowed"])
+
+    def test_scheduler_profile_is_opt_in_and_schema_bound_without_native_execution(self):
+        self.assertFalse(self.plan()["scheduling"])
+        with patch.object(host, "run_capture", side_effect=AssertionError("must not run")):
+            plan = self.plan(scheduling=True)
+        self.assertEqual(plan["profile_name"], "Rns8CpuSchedule")
+        self.assertTrue(
+            plan["commands"]["start"][2].endswith("host-profile-scheduling.wprp!Rns8CpuSchedule")
+        )
+        self.assertTrue(plan["requires_explicit_system_recording_authorization"])
+        with self.assertRaisesRegex(ValueError, "booleans"):
+            self.plan(scheduling=1)
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):
         self.fail = "workload"

@@ -66,6 +66,7 @@ struct State {
   uint64_t thread_events = 0, undecoded_thread_events = 0;
   uint64_t sample_walk_events = 0, sample_events = 0, undecoded_sample_events = 0,
            excluded_sample_events = 0;
+  uint64_t schedule_events = 0, undecoded_schedule_events = 0, excluded_schedule_events = 0;
   uint32_t selected_pid = 0;
   bool stopped = false;
   bool sample_pass = false;
@@ -74,6 +75,7 @@ struct State {
   json selected_images = json::array();
   json selected_markers = json::array();
   json selected_threads = json::array(), selected_samples = json::array();
+  json selected_schedule = json::array();
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> sample_thread_windows;
   std::map<std::tuple<EventFamily, USHORT, UCHAR, UCHAR, USHORT, bool>, Schema> schemas;
 };
@@ -230,10 +232,77 @@ json ascii_image(const std::vector<BYTE>& bytes) {
   return std::string(begin, end);
 }
 
+bool selected_thread_at(const State& state, uint32_t tid, uint64_t time) {
+  const auto window = state.sample_thread_windows.find(tid);
+  return window != state.sample_thread_windows.end() && window->second.first <= time &&
+         time < window->second.second;
+}
+
+void schedule_event(EVENT_RECORD* event, State& state) noexcept {
+  ++state.schedule_events;
+  const auto& header = event->EventHeader;
+  const bool context_switch = header.EventDescriptor.Opcode == 36;
+  rns8::detail::trace::EtwContextSwitch switched;
+  rns8::detail::trace::EtwReadyThread ready;
+  if (header.TimeStamp.QuadPart < 0 ||
+      (context_switch
+           ? !rns8::detail::trace::decode_etw_context_switch(
+                 event->UserData, event->UserDataLength, header.EventDescriptor.Version, switched)
+           : !rns8::detail::trace::decode_etw_ready_thread(
+                 event->UserData, event->UserDataLength, header.EventDescriptor.Version, ready))) {
+    ++state.undecoded_schedule_events;
+    return;
+  }
+  const auto stamp = uint64_t(header.TimeStamp.QuadPart);
+  if (context_switch ? !selected_thread_at(state, switched.old_tid, stamp) &&
+                           !selected_thread_at(state, switched.new_tid, stamp)
+                     : !selected_thread_at(state, ready.tid, stamp)) {
+    ++state.excluded_schedule_events;
+    return;
+  }
+  if (state.selected_schedule.size() + state.selected_samples.size() >= 65536) {
+    state.stopped = true;
+    state.error = "selected ETL CPU/schedule projection budget exhausted";
+    return;
+  }
+  try {
+    const bool processor_index = (header.Flags & EVENT_HEADER_FLAG_PROCESSOR_INDEX) != 0;
+    json row{{"record_index", state.sample_walk_events},
+             {"time_filetime_100ns", stamp},
+             {"native_header_pid", header.ProcessId},
+             {"native_header_tid", header.ThreadId},
+             {"processor_index_mode", processor_index},
+             {"processor", processor_index ? event->BufferContext.ProcessorIndex
+                                           : event->BufferContext.ProcessorNumber}};
+    if (context_switch) {
+      row["wire_contract"] = "windows_kernel_CSwitch_v2";
+      row["old_tid"] = switched.old_tid;
+      row["new_tid"] = switched.new_tid;
+      row["control_bytes"] = switched.control;
+      row["new_wait_time"] = switched.new_wait_time;
+      row["reserved"] = switched.reserved;
+    } else {
+      row["wire_contract"] = "windows_kernel_ReadyThread_v2";
+      row["tid"] = ready.tid;
+      row["control_bytes"] = ready.control;
+    }
+    state.selected_schedule.push_back(std::move(row));
+  } catch (...) {
+    state.stopped = true;
+    state.error = "ETL scheduler decoder allocation failed";
+  }
+}
+
 void sample_event(EVENT_RECORD* event, State& state) noexcept {
   if (++state.sample_walk_events > max_events) {
     state.stopped = true;
     state.error = "ETL sample walk event budget exhausted";
+    return;
+  }
+  if (IsEqualGUID(event->EventHeader.ProviderId, thread_provider) &&
+      (event->EventHeader.EventDescriptor.Opcode == 36 ||
+       event->EventHeader.EventDescriptor.Opcode == 50)) {
+    schedule_event(event, state);
     return;
   }
   if (!IsEqualGUID(event->EventHeader.ProviderId, profile_provider) ||
@@ -257,11 +326,8 @@ void sample_event(EVENT_RECORD* event, State& state) noexcept {
   const uint64_t ip = sample.instruction_pointer;
   const uint32_t tid = sample.thread_id, packed = sample.packed_count_flags_rank;
   const uint32_t pid = event->EventHeader.ProcessId;
-  const auto window = state.sample_thread_windows.find(tid);
   const uint64_t stamp = uint64_t(event->EventHeader.TimeStamp.QuadPart);
-  const bool unknown_pid_selected = pid == UINT32_MAX &&
-                                    window != state.sample_thread_windows.end() &&
-                                    window->second.first <= stamp && stamp < window->second.second;
+  const bool unknown_pid_selected = pid == UINT32_MAX && selected_thread_at(state, tid, stamp);
   if (pid != state.selected_pid && !unknown_pid_selected) {
     ++state.excluded_sample_events;
     return;
@@ -270,7 +336,7 @@ void sample_event(EVENT_RECORD* event, State& state) noexcept {
     ++state.undecoded_sample_events;
     return;
   }
-  if (state.selected_samples.size() >= 100000) {
+  if (state.selected_samples.size() + state.selected_schedule.size() >= 65536) {
     state.stopped = true;
     state.error = "selected ETL sample budget exhausted";
     return;
@@ -614,6 +680,12 @@ int wmain(int argc, wchar_t** argv) {
          "known_selected_header_PID_or_unique_selected_thread_Start_End_for_unknown_header_PID"},
         {"sample_record_namespace", "second_native_event_walk"},
         {"complete_selected_sample_coverage_proven", false},
+        {"observed_schedule_events", state.schedule_events},
+        {"undecoded_schedule_events", state.undecoded_schedule_events},
+        {"excluded_schedule_events", state.excluded_schedule_events},
+        {"schedule_events", std::move(state.selected_schedule)},
+        {"schedule_filter", "unique_selected_thread_Start_End_window"},
+        {"schedule_record_namespace", "second_native_event_walk"},
         {"header",
          {{"pointer_bytes", header.PointerSize},
           {"clock_type", header.ReservedFlags},

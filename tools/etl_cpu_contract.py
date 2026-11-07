@@ -185,6 +185,7 @@ def cpu_catalog(metadata, process, *, snapshot=None, native_ranges=None):
             "observed_image_events",
             "observed_marker_events",
             "observed_thread_events",
+            "observed_schedule_events",
         )
     )
     if known > total:

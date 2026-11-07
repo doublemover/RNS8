@@ -6140,6 +6140,7 @@
         "native-linux-cpu-sample-decoding",
         "native-windows-cpu-points",
         "native-windows-operation-markers",
+        "opt-in-windows-scheduling-observations",
         "separate-linux-host-allocation-capture",
         "windows-acquisition-boundary"
       ]
