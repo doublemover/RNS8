@@ -227,6 +227,13 @@ the standard Windows Performance Toolkit installation. Explicit `--wpr` and
 `--wpaexporter` paths override discovery. The tools and benchmark require the
 same native PE architecture. No tool is installed and no GUI is launched.
 
+The Windows tools build also supplies `rns8-etl-inspect`. Build that target with
+the selected Windows SDK and pass `--etl-inspector` when it is outside the
+benchmark directory. The plan binds the native inspector's file and architecture;
+its identity query must report the exact compiled source hash before recording.
+CMake regenerates that definition when the reader changes. No current source
+hash is assigned to a stale reader binary merely because their paths match.
+
 Recording additionally requires both `--execute` and
 `--authorize-system-recording`: the short ETW window includes system CPU
 samples even though decoding selects the benchmark PID. No elevation is
@@ -260,12 +267,30 @@ are unsupported until reviewed; no conversion is guessed. Shared Linux/Windows
 admission preserves the full numerical, physical-device, work/proof/output/reuse,
 native argv and relevant environment relation to production.
 
-The first Windows result deliberately remains partial: the CPU table does not
-establish sample loss, ETL process-lifetime keys, actually loaded PDB identity,
-measured-operation selection or API/GPU clock alignment. Current PE/PDB agreement
-does not supply those observations. Native WPR/WPA profile/CSV compatibility and
-symbol attribution plus all authored ownership/cleanup/producer/unit controls
-remain unexecuted. The WPR XML passes the installed SDK's schema as a source
-check only. Allocation, scheduler/wait, loss/process-lifetime and range/cross-clock
-adapters and the critical-path report remain implementation work. No WPR
-recording, elevation or system profiler has run during the source frontload.
+After owned stop, the inspector opens only the finalized ETL file through native
+`OpenTrace`/`ProcessTrace` and uses TDH's actual property names/types for classic
+process records. It never opens a live logger or controls a recording. The
+native [log header](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header)
+supplies recorded clock/frequency and separate lost-event/lost-buffer counters;
+these overlapping observations are not summed. Native process records retain
+key, PID, parent, Start/End/rundown opcode and converted100ns FILETIME. A complete
+observed key needs one actual Start/End pair, the recording owner's parent PID
+and the benchmark's ASCII basename. Rundown alone cannot replace a lifetime.
+Missing/undecodable records, PID reuse, unknown image encoding and reported loss
+remain blockers. Zero header loss is not proof of loss-free acquisition.
+The reader bounds file, event, selected-record and TDH schema storage; failed
+schema lookups are cached. It emits no command lines or SIDs. Decoder/source/PID
+and ETL content bookends are checked before retaining its metadata alongside
+the WPA export. The late-bound inspector argument is the exact completed
+benchmark PID, not the profiler launcher's or a selected display name.
+
+The Windows result still remains partial: actually loaded PDB identity,
+measured-operation selection and API/GPU clock alignment are not established by
+the current tables. Current PE/PDB agreement cannot supply those observations.
+Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
+ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
+reader passes a Windows C++17 frontend check, and WPR XML passes the installed
+SDK's schema, as source checks only. Allocation, scheduler/wait, loaded-symbol
+and range/cross-clock adapters and the critical-path report remain implementation
+work. No ETL decoder, WPR recording, elevation or system profiler has run during
+the source frontload.

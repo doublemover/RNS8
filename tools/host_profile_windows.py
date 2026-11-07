@@ -19,6 +19,7 @@ from benchmark_schema import validate_capture
 from check_dependencies_lib.system import find_command
 from compiled_binary_identity import bind_document, canonical_digest, validate_document
 from execution_environment_contract import relevant_environment_key
+from etl_process_contract import process_contract
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
 from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
@@ -29,9 +30,11 @@ from target_qualification import EvidenceStore
 from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "rns8_windows_host_profile_plan_v1"
+SCHEMA = "rns8_windows_host_profile_plan_v2"
 SOURCE_INPUTS = (
     "tools/host_profile_windows.py",
+    "tools/etl_process_contract.py",
+    "tools/rns8_etl_inspect.cpp",
     "tools/pe_symbol_identity.py",
     "tools/wpa_sample_reader.py",
     "tools/profiler_contract.py",
@@ -70,6 +73,7 @@ def plan_capture(
     out,
     *,
     instance=None,
+    inspector=None,
     timeout_seconds=120,
     total_seconds=360,
     max_artifact_bytes=512 * 1024**2,
@@ -108,7 +112,14 @@ def plan_capture(
     _, baseline = store.json(production_ref, ROOT)
     executable = production_profile_input(baseline, store)
     symbols = symbol_pair(executable, pdb)
-    tools = dict(wpr=native_image(wpr), exporter=native_image(exporter))
+    inspector = executable.parent / "rns8-etl-inspect.exe" if inspector is None else Path(inspector)
+    if not inspector.is_file():
+        raise ValueError(
+            "native ETL inspector missing; build rns8-etl-inspect or supply --etl-inspector"
+        )
+    tools = dict(
+        wpr=native_image(wpr), exporter=native_image(exporter), inspector=native_image(inspector)
+    )
     if any(tool["machine"] != symbols["executable"]["machine"] for tool in tools.values()):
         raise ValueError("Windows profiler tools and benchmark require one native architecture")
     arguments = [
@@ -124,6 +135,7 @@ def plan_capture(
         exporter_help=[tools["exporter"]["path"], "-h"],
         profiles=[tools["wpr"]["path"], "-profiles", str(profiles)],
         identity=[str(executable), "--build-identity"],
+        inspector_identity=[tools["inspector"]["path"], "--build-identity"],
         status=[tools["wpr"]["path"], "-status", "-instancename", instance],
         start=[
             tools["wpr"]["path"],
@@ -144,6 +156,7 @@ def plan_capture(
             instance,
         ],
         cancel=[tools["wpr"]["path"], "-cancel", "-instancename", instance],
+        inspect_etl=[tools["inspector"]["path"], "--input", str(out / "raw/profile.etl")],
         export=[
             tools["exporter"]["path"],
             "-i",
@@ -175,6 +188,9 @@ def plan_capture(
                 _NT_SYMCACHE_PATH=str(out / "symbols"),
             ),
             commands=commands,
+            runtime_argument_bindings=dict(
+                inspect_etl="append --pid and the exact completed workload process_id after owned stop"
+            ),
             budgets=dict(
                 timeout_seconds=timeout_seconds,
                 total_seconds=total_seconds,
@@ -200,6 +216,7 @@ def rebuild(plan, *, review_existing=False):
         Path(plan["symbols"]["symbols"]["path"]),
         Path(plan["output_directory"]),
         instance=plan["instance"],
+        inspector=Path(plan["tools"]["inspector"]["path"]),
         review_existing=review_existing,
         **{
             key: plan["budgets"][key]
@@ -237,6 +254,23 @@ def completed_capture(plan, stages):
     process = stages["workload"]
     if type(raw.get("process_id")) is not int or raw["process_id"] != process["process_id"]:
         raise ValueError("Windows benchmark document belongs to another process")
+    metadata_stage = stages["inspect_etl"]
+    if metadata_stage["command"] != [
+        *plan["commands"]["inspect_etl"],
+        "--pid",
+        str(raw["process_id"]),
+    ]:
+        raise ValueError("native ETL metadata command did not select the owned benchmark PID")
+    native_metadata = parse_evidence_json(metadata_stage["stdout"])
+    process_identity = process_contract(
+        native_metadata,
+        pid=raw["process_id"],
+        parent_pid=os.getpid(),
+        executable=plan["benchmark"]["path"],
+        decoder_pid=metadata_stage["process_id"],
+        source_sha256=reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"],
+        file_bytes=(out / "raw/profile.etl").stat().st_size,
+    )
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -279,6 +313,7 @@ def completed_capture(plan, stages):
     )
     store.finish()
     write_json(out / "samples.json", samples)
+    write_json(out / "native-process-metadata.json", native_metadata)
     write_json(out / "profiled.json", profiled)
     return dict(
         qualification="native_capture_export_bound_attribution_partial",
@@ -288,8 +323,9 @@ def completed_capture(plan, stages):
         samples=reference(out / "samples.json"),
         profiled_capture=reference(out / "profiled.json"),
         symbols=plan["symbols"],
-        sample_loss="unobserved",
-        process_lifetime_key="PID_and_image_not_ETL_process_key",
+        native_process_metadata=reference(out / "native-process-metadata.json"),
+        selected_process_identity=process_identity,
+        sample_loss=process_identity["header_loss"],
         clock_join="unbound",
         measured_operation_range="unbound",
         production_latency=False,
@@ -338,8 +374,11 @@ def execute_capture(
         )
         if remaining <= 0:
             raise ValueError("Windows profiling total deadline exhausted before " + name)
+        command = plan["commands"][name]
+        if name == "inspect_etl":
+            command = [*command, "--pid", str(stages["workload"]["process_id"])]
         result = runner(
-            plan["commands"][name],
+            command,
             cwd=ROOT,
             env=child,
             label="windows-host-profile:" + name,
@@ -358,7 +397,7 @@ def execute_capture(
         return result
 
     try:
-        for name in ("wpr_help", "exporter_help", "profiles", "identity"):
+        for name in ("wpr_help", "exporter_help", "profiles", "identity", "inspector_identity"):
             call(name)
         if "Rns8Cpu" not in stages["profiles"]["stdout"]:
             raise ValueError("native WPR did not advertise the selected custom profile")
@@ -374,6 +413,18 @@ def execute_capture(
             raise ValueError(
                 "native Windows identity preflight differs from the production process/build"
             )
+        inspector = parse_evidence_json(stages["inspector_identity"]["stdout"])
+        if (
+            type(inspector) is not dict
+            or inspector.get("schema") != "rns8_etl_inspector_identity_v1"
+            or type(inspector.get("process_id")) is not int
+            or inspector["process_id"] != stages["inspector_identity"]["process_id"]
+            or inspector.get("source_sha256")
+            != reference(ROOT / "tools/rns8_etl_inspect.cpp")["sha256"]
+            or type(inspector.get("pointer_bytes")) is not int
+            or inspector["pointer_bytes"] != 8
+        ):
+            raise ValueError("native ETL inspector was compiled from another source or ABI")
         if not instance_absent(call("status", required=False)):
             raise ValueError("native WPR did not prove the unique instance absent")
         try:
@@ -390,7 +441,11 @@ def execute_capture(
                         call("cancel", cleanup=True, required=False)
         if not capture_succeeded(stages.get("stop", {})):
             raise ValueError("owned WPR stop/trace export did not complete")
+        etl_before = reference(out / "raw/profile.etl")
+        call("inspect_etl")
         call("export")
+        if not same_evidence_value(etl_before, reference(out / "raw/profile.etl")):
+            raise ValueError("native ETL changed during metadata decoding/export")
         result = completed_capture(plan, stages)
     except (OSError, ValueError, KeyError, TypeError, InterruptedError, KeyboardInterrupt) as error:
         failure = str(error) or type(error).__name__
@@ -402,6 +457,7 @@ def execute_capture(
             promotion_allowed=False,
         )
     result.update(
+        recording_owner_pid=os.getpid(),
         first_failed_stage=next(
             (
                 name
@@ -441,6 +497,7 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--wpr", type=Path)
     parser.add_argument("--wpaexporter", type=Path)
+    parser.add_argument("--etl-inspector", type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--authorize-system-recording", action="store_true")
     args = parser.parse_args(argv)
@@ -451,6 +508,7 @@ def main(argv=None):
             args.wpaexporter or located("wpaexporter"),
             args.pdb,
             args.out,
+            inspector=args.etl_inspector,
         )
         if args.execute:
             return execute_capture(plan, authorize_system_recording=args.authorize_system_recording)

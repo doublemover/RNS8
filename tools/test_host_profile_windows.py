@@ -18,6 +18,7 @@ from test_device_observation import capture as device_capture
 from test_pe_symbol_identity import executable, symbols
 from test_target_qualification_support import QualificationFixture, write
 from test_wpa_sample_reader import sample_fields
+from test_etl_process_contract import native_metadata
 from wpa_sample_reader import HEADERS
 
 
@@ -49,6 +50,7 @@ class WindowsHostProfile(unittest.TestCase):
         self.pdb.write_bytes(symbols())
         for path in (self.wpr, self.exporter):
             path.write_bytes(executable())
+        (self.binary.parent / "rns8-etl-inspect.exe").write_bytes(executable())
         self.out = self.root / "session"
         self.calls, self.fail = [], None
 
@@ -79,6 +81,26 @@ class WindowsHostProfile(unittest.TestCase):
             )
             value["process_id"] = 333
             result["stdout"] = json.dumps(value)
+        elif name == "inspector_identity":
+            result["stdout"] = json.dumps(
+                dict(
+                    schema="rns8_etl_inspector_identity_v1",
+                    process_id=333,
+                    source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
+                    pointer_bytes=8,
+                )
+            )
+        elif name == "inspect_etl":
+            self.assertEqual(command[-2:], ["--pid", "333"])
+            result["stdout"] = json.dumps(
+                native_metadata(
+                    parent_pid=host.os.getpid(),
+                    decoder_pid=333,
+                    image=self.binary.name,
+                    source_sha256=file_digest(host.ROOT / "tools/rns8_etl_inspect.cpp"),
+                    file_bytes=(self.out / "raw/profile.etl").stat().st_size,
+                )
+            )
         elif name == "status":
             result.update(returncode=1, stderr="Error code: 0xc5583000")
         elif name == "workload":
@@ -134,6 +156,7 @@ class WindowsHostProfile(unittest.TestCase):
         self.assertEqual(result["qualification"], "native_capture_export_bound_attribution_partial")
         self.assertEqual(result["recording_cleanup"], "stop_completed")
         self.assertFalse(result["promotion_allowed"])
+        self.assertTrue(result["selected_process_identity"]["process_identity_complete"])
         self.assertEqual([name for name, _, _ in self.calls][-1], "export")
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):
