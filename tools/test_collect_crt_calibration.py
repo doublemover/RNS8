@@ -36,7 +36,7 @@ def fixture(case=None, run_id="fixture-run", repeats=2, warmups=1):
     case = case or BASE
     capture = contract(case, run_id, repeats, warmups)
     synthetic_identity(capture)
-    cold = case["scope"] in ("cold", "gemm_cold")
+    cold = case["scope"] in ("cold", "minimal_cold", "gemm_cold")
     gemm = case["scope"] in GEMM_SCOPES
     source, expected = dataset(case)
     capture.update(
@@ -164,6 +164,52 @@ def successful(command, **kwargs):
 
 
 class Captures(unittest.TestCase):
+    def test_minimal_cold_excludes_output_poison_and_guard_transport(self):
+        for candidate in ("import_scalar_signed", "import_scalar_unsigned", "direct", "garner"):
+            for cells in (17, 257):
+                case = dict(BASE, candidate=candidate, cells=cells, scope="minimal_cold")
+                validate_case(case)
+                capture = fixture(case)
+                validate_capture(capture, case, "fixture-run", 2, 1)
+                current = contract(case, "fixture-run", 2, 1)
+                diagnostic = contract(dict(case, scope="cold"), "fixture-run", 2, 1)
+                self.assertEqual(
+                    current["output_allocation_bytes"], current["output_bytes_modeled"]
+                )
+                self.assertEqual(
+                    current["qualification_output_allocation_bytes"],
+                    current["output_bytes_modeled"] + 64,
+                )
+                self.assertEqual(
+                    current["device_buffer_bytes"]["output"] + 64,
+                    diagnostic["device_buffer_bytes"]["output"],
+                )
+                self.assertFalse(current["per_call_output_guard_checked"])
+                self.assertEqual(
+                    current["canary_verification_scope"],
+                    "separate_resident_qualification_before_warmups",
+                )
+                self.assertIn("no_output_poison", current["timing_scope"])
+                self.assertEqual(
+                    current["timed_boundary_payload_model"]["output_initialization_upload"], 0
+                )
+                self.assertEqual(
+                    current["timed_boundary_payload_model"]["output_readback"],
+                    current["output_bytes_modeled"],
+                )
+                self.assertEqual(dataset(case), dataset(dict(case, scope="cold")))
+                for key, value in (
+                    ("per_call_output_guard_checked", True),
+                    ("output_allocation_bytes", current["output_allocation_bytes"] + 64),
+                    ("timing_scope", diagnostic["timing_scope"]),
+                ):
+                    bad = deepcopy(capture)
+                    bad[key] = value
+                    with self.subTest(candidate=candidate, key=key), self.assertRaises(ValueError):
+                        validate_capture(bad, case, "fixture-run", 2, 1)
+        with self.assertRaises(ValueError):
+            validate_case(dict(BASE, candidate="public_garner_signed", scope="minimal_cold"))
+
     def test_gemm_export_replay_matches_scalar_integer_products_across_word_tails(self):
         for sign in ("signed", "unsigned"):
             for k in (1, 7, 63, 64, 65, 129):

@@ -78,7 +78,7 @@ struct Buffers {
 int main(int argc, char** argv) {
   try {
     const char* usage =
-        "usage: rns8-crt-calibrate <garner|direct|balanced|group_crt_local|group_crt_split|group_crt_split_shuffled|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned|import_public_signed|import_fixed_signed|import_generic_signed|import_public_padded_signed|import_fixed_padded_signed|import_generic_padded_signed|quarter_signed|quarter_unsigned|garner_quarter_signed|garner_quarter_unsigned|direct_quarter_signed|direct_quarter_unsigned|balanced_quarter_signed|balanced_quarter_unsigned|quarter_narrow_signed|quarter_narrow_unsigned|garner_narrow_signed|garner_narrow_unsigned|public_quarter_signed|public_quarter_unsigned|public_garner_signed|public_garner_unsigned|public_owned_garner_signed|public_owned_garner_unsigned|public_owned_direct_signed|public_owned_direct_unsigned|public_owned_balanced_signed|public_owned_balanced_unsigned|public_owned_group_local_signed|public_owned_group_local_unsigned|public_owned_group_split_signed|public_owned_group_split_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold|gemm_resident|gemm_cold] [K1..8192]\nPublic GEMM/export scopes require explicit K and square output cells; all policies share the quarter-bound K contract. resident is default; cold includes candidate-specific buffer allocation, active-input upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
+        "usage: rns8-crt-calibrate <garner|direct|balanced|group_crt_local|group_crt_split|group_crt_split_shuffled|fixed_dot4|fixed_wmma|tile_balanced|tile_convert_balanced|tile_convert_garner|import_scalar_signed|import_scalar_unsigned|import_dot4_signed|import_dot4_unsigned|import_wmma_signed|import_wmma_unsigned|import_public_signed|import_fixed_signed|import_generic_signed|import_public_padded_signed|import_fixed_padded_signed|import_generic_padded_signed|quarter_signed|quarter_unsigned|garner_quarter_signed|garner_quarter_unsigned|direct_quarter_signed|direct_quarter_unsigned|balanced_quarter_signed|balanced_quarter_unsigned|quarter_narrow_signed|quarter_narrow_unsigned|garner_narrow_signed|garner_narrow_unsigned|public_quarter_signed|public_quarter_unsigned|public_garner_signed|public_garner_unsigned|public_owned_garner_signed|public_owned_garner_unsigned|public_owned_direct_signed|public_owned_direct_unsigned|public_owned_balanced_signed|public_owned_balanced_unsigned|public_owned_group_local_signed|public_owned_group_local_unsigned|public_owned_group_split_signed|public_owned_group_split_unsigned> cells1..1048576 prefix1..20 repeats1..10000 warmups1..1000 unique-run-id [resident|cold|minimal_cold|gemm_resident|gemm_cold] [K1..8192]\nPublic GEMM/export scopes require explicit K and square output cells; all policies share the quarter-bound K contract. resident is default; cold includes candidate-specific buffer allocation, active-input upload, conversion, output readback and checked free. Explicit HIP device0; no fallback.";
     if (argc == 2 && std::string(argv[1]) == "--help") {
       std::cout << usage << '\n';
       return 0;
@@ -93,6 +93,8 @@ int main(int argc, char** argv) {
                              argc == 9 ? number(argv[8], 1, 8192) : 0);
     if (argc == 9)
       throw std::invalid_argument("K is accepted only for public GEMM/export controls");
+    const bool minimal_cold = scope == "minimal_cold";
+    const bool cold_scope = scope == "cold" || minimal_cold;
     const bool quarter = candidate.find("quarter") != std::string::npos ||
                          candidate.find("narrow") != std::string::npos;
     const bool narrow = candidate.find("narrow") != std::string::npos;
@@ -136,7 +138,7 @@ int main(int argc, char** argv) {
          candidate != "import_fixed_signed" && candidate != "import_generic_signed" &&
          candidate != "import_public_padded_signed" && candidate != "import_fixed_padded_signed" &&
          candidate != "import_generic_padded_signed") ||
-        (scope != "resident" && scope != "cold") || run_id.empty() || run_id.size() > 128 ||
+        (scope != "resident" && !cold_scope) || run_id.empty() || run_id.size() > 128 ||
         run_id.find_first_not_of(
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") !=
             std::string::npos)
@@ -268,9 +270,10 @@ int main(int argc, char** argv) {
     }
     const double proof_ns =
         std::chrono::duration<double, std::nano>(Clock::now() - proof_start).count();
-    const auto initialize = [&](Buffers& buffers) {
-      buffers.allocate(device_native_bytes, device_plain_bytes, tile_bytes, output_bytes,
-                       status_bytes, group_bytes);
+    const auto initialize = [&](Buffers& buffers, bool qualification = true) {
+      buffers.allocate(device_native_bytes, device_plain_bytes, tile_bytes,
+                       qualification ? output_bytes : uint64_t(cells) * result_width, status_bytes,
+                       group_bytes);
       if (device_native_bytes)
         check(hip_direct_copy_host_to_device(0, buffers.native.get(), native.data(), native_bytes));
       if (device_plain_bytes && !tile_input)
@@ -279,7 +282,9 @@ int main(int argc, char** argv) {
       if (tile_input)
         check(hip_direct_copy_host_to_device(0, buffers.tile.get(), tile_residues.data(),
                                              tile_residues.size()));
-      check(hip_direct_copy_host_to_device(0, buffers.output.get(), poison.data(), poison.size()));
+      if (qualification)
+        check(
+            hip_direct_copy_host_to_device(0, buffers.output.get(), poison.data(), poison.size()));
     };
     const auto convert = [&](Buffers& buffers) {
       if (grouped) {
@@ -379,10 +384,11 @@ int main(int argc, char** argv) {
         ++resident_completions;
       } else {
         Buffers cold;
-        initialize(cold);
+        initialize(cold, !minimal_cold);
         convert(cold);
-        check(
-            hip_direct_copy_device_to_host(0, observed.data(), cold.output.get(), observed.size()));
+        check(hip_direct_copy_device_to_host(0, observed.data(), cold.output.get(),
+                                             minimal_cold ? size_t(cells) * result_width
+                                                          : observed.size()));
         // Input preservation readback remains outside the production interval:
         // cold inputs are freed here; their read-only behavior is covered by the
         // independent resident audit below and authored kernel differentials.
@@ -400,15 +406,20 @@ int main(int argc, char** argv) {
                                              observed.size()));
         audit_source(resident);
       }
-      if (observed != expected)
+      if (std::memcmp(observed.data(), expected.data(),
+                      minimal_cold ? size_t(cells) * result_width : expected.size()))
         throw std::runtime_error("complete conversion output or tail canary differs from Boost");
     };
     // A separate resident call audits the active source even for cold captures;
     // it is outside setup/production timings and its buffers are released first.
-    if (scope == "cold") {
+    if (cold_scope) {
       Buffers audit;
       initialize(audit);
       convert(audit);
+      check(
+          hip_direct_copy_device_to_host(0, observed.data(), audit.output.get(), observed.size()));
+      if (observed != expected)
+        throw std::runtime_error("separate conversion qualification output/canary mismatch");
       audit_source(audit);
       audit.release();
     }
@@ -487,9 +498,8 @@ int main(int argc, char** argv) {
         {"production_timing_hooks_enabled", false},
         {"public_ownership_measured", false},
         {"complete_output_and_canaries_checked", true},
-        {"input_preservation_scope", scope == "cold"
-                                         ? "one_separate_resident_audit_before_warmups"
-                                         : "outside_each_verified_call_and_final_burst"},
+        {"input_preservation_scope", cold_scope ? "one_separate_resident_audit_before_warmups"
+                                                : "outside_each_verified_call_and_final_burst"},
         {"operation", importing ? "native_import"
                       : narrow  ? "narrow_crt"
                                 : "canonical_crt"},
@@ -503,7 +513,10 @@ int main(int argc, char** argv) {
         {"output_contract", importing ? "centered_residue_planes"
                             : narrow  ? (quarter_unsigned ? "unsigned_one_limb" : "signed_one_limb")
                                       : "canonical_three_limbs"},
-        {"output_boundary", scope == "cold" ? "host" : "device"},
+        {"output_boundary", cold_scope ? "host" : "device"},
+        {"canary_verification_scope",
+         minimal_cold ? "separate_resident_qualification_before_warmups" : "every_verified_call"},
+        {"per_call_output_guard_checked", !minimal_cold},
         {"reference_method", importing ? "boost_cpp_int_all_operand_residues"
                              : narrow  ? "boost_cpp_int_all_native64_values"
                                        : "boost_cpp_int_all_canonical_values"},
@@ -527,13 +540,21 @@ int main(int argc, char** argv) {
          {{"native", device_native_bytes},
           {"plain", device_plain_bytes},
           {"tile", tile_bytes},
-          {"output", output_bytes},
+          {"output", minimal_cold ? uint64_t(cells) * result_width : output_bytes},
           {"status", status_bytes},
           {"probe", probe_bytes}}},
         {"conversion_inside_call", tile_input && candidate != "tile_balanced"},
         {"conversion_scratch_bytes", tile_input && candidate != "tile_balanced" ? plain.bytes : 0},
         {"output_bytes_modeled", uint64_t(cells) * result_width},
-        {"output_allocation_bytes", output_bytes},
+        {"output_allocation_bytes", minimal_cold ? uint64_t(cells) * result_width : output_bytes},
+        {"qualification_output_allocation_bytes", output_bytes},
+        {"timed_boundary_payload_model",
+         {{"scope", "explicit_driver_copy_payload_excludes_status_capability_runtime"},
+          {"source_upload", cold_scope ? source_bytes : 0},
+          {"output_initialization_upload", scope == "cold" ? output_bytes : 0},
+          {"output_readback", minimal_cold      ? uint64_t(cells) * result_width
+                              : scope == "cold" ? output_bytes
+                                                : 0}}},
         {"probe_bytes", probe_bytes},
         {"common_status_capacity_bytes", status_bytes},
         {"logical_payload_envelope_bytes", envelope},
@@ -541,10 +562,12 @@ int main(int argc, char** argv) {
         {"oracle_and_dataset_ns", oracle_ns},
         {"resident_setup_ns",
          scope == "resident" ? nlohmann::json(setup_ns) : nlohmann::json(nullptr)},
-        {"timing_scope", scope == "cold"
-                             ? "allocate_upload_convert_readback_checked_free"
-                             : "resident_checked_convert_with_sync_no_upload_or_readback"},
-        {"cache_state", scope == "cold" ? "fresh_buffers_each_call" : "repeated_same_buffers"},
+        {"timing_scope",
+         minimal_cold
+             ? "required_allocate_upload_convert_logical_readback_checked_free_no_output_poison"
+         : scope == "cold" ? "allocate_upload_convert_readback_checked_free"
+                           : "resident_checked_convert_with_sync_no_upload_or_readback"},
+        {"cache_state", cold_scope ? "fresh_buffers_each_call" : "repeated_same_buffers"},
         {"actual_hbm_bytes", nullptr},
         {"timing_resolution_ns", nullptr},
         {"isa_verified", false},
@@ -559,9 +582,8 @@ int main(int argc, char** argv) {
           {"elapsed_ns", elapsed},
           {"mean_call_ns", elapsed / calls},
           {"final_exact_reference_passed", true},
-          {"scope", scope == "cold"
-                        ? "fresh_buffers_transfer_inclusive_no_intermediate_reference"
-                        : "resident_same_buffers_no_intermediate_poison_or_reference"}}}};
+          {"scope", cold_scope ? "fresh_buffers_transfer_inclusive_no_intermediate_reference"
+                               : "resident_same_buffers_no_intermediate_poison_or_reference"}}}};
     if (grouped) {
       const auto& plan = group_crt::plan(prefix);
       nlohmann::json groups = nlohmann::json::array();

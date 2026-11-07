@@ -66,6 +66,7 @@ OWNED_CANDIDATES = tuple(
 CANDIDATES = BASE_CANDIDATES + QUARTER_CANDIDATES + GROUP_CANDIDATES + OWNED_CANDIDATES
 
 SCOPES = ("resident", "cold")
+MINIMAL_COLD_SCOPE = ("minimal_cold",)
 GEMM_SCOPES = ("gemm_resident", "gemm_cold")
 MASK = (1 << 64) - 1
 BUDGET = 768 * 1024 * 1024
@@ -88,8 +89,13 @@ def validate_case(case):
         "K is required only for GEMM/export cases",
     )
     demand(
-        case["candidate"] in CANDIDATES and case["scope"] in SCOPES + GEMM_SCOPES,
+        case["candidate"] in CANDIDATES
+        and case["scope"] in SCOPES + MINIMAL_COLD_SCOPE + GEMM_SCOPES,
         "invalid candidate/scope",
+    )
+    demand(
+        not (case["scope"] in MINIMAL_COLD_SCOPE and case["candidate"].startswith("public_")),
+        "minimal_cold belongs to raw conversion controls; use public cold ownership separately",
     )
     demand(
         integer(case["cells"], 1, 1048576) and integer(case["prefix"], 1, 20),
@@ -136,7 +142,8 @@ def contract(case, run_id, repeats, warmups):
         case[key] for key in ("candidate", "cells", "prefix", "scope")
     )
     gemm = scope in GEMM_SCOPES
-    cold = scope in ("cold", "gemm_cold")
+    cold = scope in ("cold", "minimal_cold", "gemm_cold")
+    minimal_cold = scope == "minimal_cold"
     public = candidate.startswith("public_")
     quarter = candidate in QUARTER_CANDIDATES + OWNED_CANDIDATES
     narrow = "narrow" in candidate or public
@@ -216,7 +223,7 @@ def contract(case, run_id, repeats, warmups):
         "public_ownership_measured": False,
         "complete_output_and_canaries_checked": True,
         "input_preservation_scope": "one_separate_resident_audit_before_warmups"
-        if scope == "cold"
+        if cold
         else "outside_each_verified_call_and_final_burst",
         "operation": "native_import" if importing else "narrow_crt" if narrow else "canonical_crt",
         "signed_inputs": candidate.endswith("_signed") if importing or quarter else None,
@@ -232,7 +239,7 @@ def contract(case, run_id, repeats, warmups):
         else ("signed_one_limb" if candidate.endswith("_signed") else "unsigned_one_limb")
         if narrow
         else "canonical_three_limbs",
-        "output_boundary": "host" if scope == "cold" else "device",
+        "output_boundary": "host" if cold else "device",
         "reference_method": "boost_cpp_int_all_operand_residues"
         if importing
         else "boost_cpp_int_all_native64_values"
@@ -260,15 +267,34 @@ def contract(case, run_id, repeats, warmups):
         "common_status_capacity_bytes": buffers["status"],
         "logical_payload_envelope_bytes": envelope,
         "memory_budget_bytes": BUDGET,
-        "timing_scope": "allocate_upload_convert_readback_checked_free"
-        if scope == "cold"
+        "timing_scope": "required_allocate_upload_convert_logical_readback_checked_free_no_output_poison"
+        if minimal_cold
+        else "allocate_upload_convert_readback_checked_free"
+        if cold
         else "resident_checked_convert_with_sync_no_upload_or_readback",
-        "cache_state": "fresh_buffers_each_call" if scope == "cold" else "repeated_same_buffers",
+        "cache_state": "fresh_buffers_each_call" if cold else "repeated_same_buffers",
         "actual_hbm_bytes": None,
         "timing_resolution_ns": None,
         "isa_verified": False,
         "promotion_eligible": False,
     }
+    if not public:
+        result.update(
+            canary_verification_scope="separate_resident_qualification_before_warmups"
+            if minimal_cold
+            else "every_verified_call",
+            per_call_output_guard_checked=not minimal_cold,
+            qualification_output_allocation_bytes=output,
+            timed_boundary_payload_model=dict(
+                scope="explicit_driver_copy_payload_excludes_status_capability_runtime",
+                source_upload=source if cold else 0,
+                output_initialization_upload=output if scope == "cold" else 0,
+                output_readback=output - 64 if minimal_cold else output if cold else 0,
+            ),
+        )
+        if minimal_cold:
+            buffers["output"] = output - 64
+            result["output_allocation_bytes"] = output - 64
     if grouped:
         groups = []
         for group in range(group_count):
@@ -510,7 +536,7 @@ def gemm_dataset(case):
 
 def validate_capture(capture, case, run_id, repeats, warmups):
     gemm = case["scope"] in GEMM_SCOPES
-    cold = case["scope"] in ("cold", "gemm_cold")
+    cold = case["scope"] in ("cold", "minimal_cold", "gemm_cold")
     demand(type(capture) is dict, "capture must be object")
     for key, value in contract(case, run_id, repeats, warmups).items():
         demand(key in capture and same(capture[key], value), f"metadata mismatch: {key}")
@@ -952,7 +978,12 @@ def main():
     parser.add_argument(
         "--candidates", nargs="+", choices=CANDIDATES, default=["garner", "direct", "balanced"]
     )
-    parser.add_argument("--scopes", nargs="+", choices=SCOPES + GEMM_SCOPES, default=["resident"])
+    parser.add_argument(
+        "--scopes",
+        nargs="+",
+        choices=SCOPES + MINIMAL_COLD_SCOPE + GEMM_SCOPES,
+        default=["resident"],
+    )
     parser.add_argument(
         "--k", type=int, nargs="+", help="required reduction sizes for public GEMM/export scopes"
     )

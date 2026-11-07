@@ -3423,7 +3423,8 @@
               ]
             }
           }
-        ]
+        ],
+        ["minimal-cold.json","ddadb22e8d6d33dc5d320f76dce51acbf576d1706f19e0ee300ceb4d87c4d829",{"$rns8_records":{"layouts":[["candidate","cells","prefix","scope"]],"defaults":{},"rows":[[0,"import_scalar_signed",257,1,"cold"],[0,"import_scalar_signed",257,1,"minimal_cold"],[0,"import_scalar_signed",1048576,20,"cold"],[0,"import_scalar_signed",1048576,20,"minimal_cold"],[0,"import_scalar_unsigned",257,1,"cold"],[0,"import_scalar_unsigned",257,1,"minimal_cold"],[0,"import_scalar_unsigned",1048576,20,"cold"],[0,"import_scalar_unsigned",1048576,20,"minimal_cold"],[0,"direct",257,1,"cold"],[0,"direct",257,1,"minimal_cold"],[0,"direct",1048576,20,"cold"],[0,"direct",1048576,20,"minimal_cold"]]}}]
       ]
     }
   ]

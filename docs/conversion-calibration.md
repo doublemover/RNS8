@@ -80,6 +80,17 @@ Boost oracle and host staging allocations remain setup. Cold captures end at a
 host output; resident captures end at a device output. Compare candidates within
 the same scope. Inactive controls are not allocated or uploaded; the explicit
 capacity map records every live candidate-specific device buffer.
+
+The opt-in raw-buffer `minimal_cold` control keeps fresh allocation, active-input
+upload, conversion, required completion, logical-output readback and checked
+free inside the call. It allocates exactly the logical output and omits output
+poisoning and device guard transport from timing. Before warmups, a separate
+resident qualification call checks poisoned output, all64 guard bytes and input
+preservation. Every verified minimal call still compares the complete logical
+output with Boost; its metadata explicitly excludes per-call device guard checks.
+The original diagnostic `cold` and resident controls remain available, and the
+collector keeps all three scopes separate. `minimal-cold.json` supplies a small
+matched import/CRT control set. These additions are source-authored and unexecuted.
 For `public_*` cold cases, context/plan creation, actual input packing, optional
 export-owner preparation, checked export and owner destruction are inside the
 call. Their resident counterparts retain those owners and report setup
