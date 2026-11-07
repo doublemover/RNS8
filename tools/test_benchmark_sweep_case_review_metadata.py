@@ -433,12 +433,14 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         stale_small_n_candidate = next(
             item
-            for item in implementation_group(stale_small_n_report)["candidates"]
+            for group in stale_small_n_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-direct"
         )
         stale_small_n_vector_candidate = next(
             item
-            for item in implementation_group(stale_small_n_report)["candidates"]
+            for group in stale_small_n_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
         assert (
@@ -488,7 +490,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_small_n_candidate = next(
             item
-            for item in implementation_group(valid_small_n_report)["candidates"]
+            for group in valid_small_n_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -528,7 +531,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_small_n_vector_candidate = next(
             item
-            for item in implementation_group(valid_small_n_vector_report)["candidates"]
+            for group in valid_small_n_vector_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
         assert (
@@ -553,7 +557,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         native_bridge_candidate = next(
             item
-            for item in implementation_group(native_bridge_report)["candidates"]
+            for group in native_bridge_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -594,7 +599,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         valid_native_bridge_candidate = next(
             item
-            for item in implementation_group(valid_native_bridge_report)["candidates"]
+            for group in valid_native_bridge_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-direct"
         )
         assert (
@@ -773,7 +779,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_tile_candidate = next(
             item
-            for item in implementation_group(amdgpu_tile_report)["candidates"]
+            for group in amdgpu_tile_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "amdgpu-builtins"
         )
         assert (
@@ -810,7 +817,8 @@ class ReviewMetadataCases(unittest.TestCase):
         )
         amdgpu_tile_wide_candidate = next(
             item
-            for item in implementation_group(amdgpu_tile_wide_report)["candidates"]
+            for group in amdgpu_tile_wide_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "amdgpu-builtins"
         )
         assert (

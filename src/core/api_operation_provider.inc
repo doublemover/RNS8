@@ -414,6 +414,11 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
       !rns8::detail::qualified_i32_gemm_address(d.m, d.n, d.k, lda, ldb, ldc, planes))
     return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_ADDRESS, "strides",
                   "complete padded device span exceeds this provider's signed32 index domain");
+  // An absent backend has no compiled packing layout to reject as an address
+  // overflow. Static target/semantic/domain checks above still take precedence.
+  if (!out.compiled_inventory)
+    return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_NOT_COMPILED, "backend",
+                  "provider source exists but is not compiled in this build");
   if (backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA) {
     rns8::detail::PackedGemmLayout generated;
     const bool fits = backend == RNS8_BACKEND_CK
@@ -430,9 +435,6 @@ rns8_operation_support operation_support(const rns8_context& ctx, const rns8_ope
     return reject(
         RNS8_INVALID_ARGUMENT, RNS8_SUPPORT_ADDRESS, "matrix_export_layout",
         "checked CRT requires tight resident source planes, no B stride, and a valid padded limb destination");
-  if (!out.compiled_inventory)
-    return reject(RNS8_UNSUPPORTED_BACKEND, RNS8_SUPPORT_NOT_COMPILED, "backend",
-                  "provider source exists but is not compiled in this build");
   if (ctx.hip_failure_poisoned)
     return reject(RNS8_BACKEND_FAILURE, RNS8_SUPPORT_RUNTIME, "context",
                   "context has an undrained asynchronous failure");

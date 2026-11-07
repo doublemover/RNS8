@@ -5,8 +5,10 @@
 namespace {
 using namespace rns8_fuzz;
 using namespace rns8_fuzz::replay_support;
-struct CapturedFailure {
+struct CapturedFailure : std::exception {
   Failure value;
+  explicit CapturedFailure(const Failure& failure) : value(failure) {}
+  const char* what() const noexcept override { return value.phase; }
 };
 void capture_failure(const Failure& failure) {
   throw CapturedFailure{failure};

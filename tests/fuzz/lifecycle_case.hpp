@@ -41,6 +41,7 @@ inline Observation replay(const uint8_t* data, std::size_t size) {
   matrix.bound_kind = plan.bound_kind;
   matrix.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
   matrix.max_prefix = plan.max_prefix;
+  matrix.tile_m = matrix.tile_n = 128;
   for (auto slot : {&owner.a, &owner.b, &owner.c})
     check(rns8_create_matrix(owner.ctx, &matrix, slot), RNS8_SUCCESS, "history matrix");
   check(rns8_create_workspace(owner.ctx, owner.plan, &owner.work), RNS8_SUCCESS,
@@ -56,7 +57,8 @@ inline Observation replay(const uint8_t* data, std::size_t size) {
       a_info.source_version != b_info.source_version)
     fail({"state", "history distinct same-version instances"});
   uint64_t a_generation = 1, b_generation = 1, prepared_a = 0, prepared_b = 0;
-  bool current = false;
+  // Matrix creation publishes a complete zero basis before any producer runs.
+  bool current = true;
   cpp_int result = 0;
   rns8_completion_token previous{};
   auto export_value = [&]() {

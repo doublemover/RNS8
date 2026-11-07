@@ -63,7 +63,7 @@ TEST_CASE("operation provider rejects missing builtin target bodies before resou
   d.bound_kind = RNS8_BOUND_NONE;
   d.m = d.n = d.k = 1;
   d.tile_m = d.tile_n = 128;
-  d.max_prefix = 1;
+  d.max_prefix = 0;
   d.finite_modulus = 251;
   for (const char* target : {"gfx1103", "gfx1150", "gfx1100junk", "gfx942:xnack", "gfx1201:"}) {
     std::strcpy(ctx.device_info.gcn_arch, target);
