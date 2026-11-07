@@ -5,12 +5,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 from review_reference import ReviewIndex, load_review_index
 
 from report_capture_inputs import expand_report_inputs, load_report_capture
+from report_comparison import ComparisonPolicy, ReportCohorts
+from observation_cohorts import phase_median, evidence
+from result_compare import EXPORT_SELECTOR_REVIEW_DIFF_KEYS
+from diagnostic_companion import load_bindings
+from timing_eligibility import phase_blockers
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +28,12 @@ REQUIRED_VARIANT_CLASSES = {
     "tree_crt_reconstruction",
 }
 BASELINE_EXPORT_VARIANTS = {"default", "exact-wide-fixed-limb-export"}
+POLICY = ComparisonPolicy(
+    "reconstruction_export_completed_call",
+    tuple(sorted(EXPORT_SELECTOR_REVIEW_DIFF_KEYS)),
+    require_cpu_anchor=False,
+    amortize_prepack_setup=True,
+)
 
 
 def _relative(path: Path) -> str:
@@ -31,16 +43,6 @@ def _relative(path: Path) -> str:
         return str(path).replace("\\", "/")
 
 
-def _json_inputs(inputs: list[Path]) -> list[Path]:
-    paths: list[Path] = []
-    for item in inputs:
-        if item.is_dir():
-            paths.extend(sorted(item.rglob("*.json")))
-        elif item.exists():
-            paths.append(item)
-    return paths
-
-
 def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]], list[str]]:
     captures: list[tuple[Path, dict[str, Any]]] = []
     skipped: list[str] = []
@@ -48,19 +50,8 @@ def _load_captures(inputs: list[Path]) -> tuple[list[tuple[Path, dict[str, Any]]
         capture = load_report_capture(path, from_directory=from_directory)
         if capture is None:
             continue
-        if isinstance(capture.get("export_variant"), dict) or isinstance(
-            capture.get("reconstruction_variant"), dict
-        ):
-            captures.append((path, capture))
+        captures.append((path, capture))
     return captures, skipped
-
-
-def _timing_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("timing_summary_us")
-    item = summary.get(phase) if isinstance(summary, dict) else None
-    if isinstance(item, dict) and isinstance(item.get("median"), (int, float)):
-        return float(item["median"])
-    return None
 
 
 def _target_id(capture: dict[str, Any], export: dict[str, Any]) -> str | None:
@@ -100,7 +91,7 @@ def _variant_class(export: dict[str, Any], reconstruction: dict[str, Any]) -> st
 
 
 def _row_for_capture(
-    path: Path, capture: dict[str, Any], review_index: ReviewIndex
+    path: Path, capture: dict[str, Any], review_index: ReviewIndex, cohorts: ReportCohorts
 ) -> dict[str, Any]:
     export = (
         capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
@@ -110,27 +101,50 @@ def _row_for_capture(
         if isinstance(capture.get("reconstruction_variant"), dict)
         else {}
     )
-    review = review_index.lookup(path, capture)
-    numerical = review.get("numerical_reference") if review else None
-    reference_blockers = (
-        list(review.get("review_reader_blockers") or []) if review else ["review_reference_missing"]
+    reviews = [
+        review_index.lookup(Path(raw["_path"]), raw) for raw in cohorts.raw_observations(capture)
+    ]
+    numerical = cohorts.numerical(capture, require_cpu_anchor=False).to_json()
+    reference_blockers, missing, duplicates = [], [], []
+    release_ready = bool(reviews)
+    for review in reviews:
+        if not isinstance(review, dict):
+            reference_blockers.append("review_reference_missing")
+            release_ready = False
+            continue
+        reference_blockers.extend(review.get("review_reader_blockers") or [])
+        missing.extend(review.get("missing_required_baselines") or [])
+        duplicates.extend(review.get("duplicate_backends") or [])
+        release_ready = release_ready and (
+            review.get("review_mode") == "release"
+            and review.get("release_review_satisfied") is True
+            and isinstance(review.get("numerical_reference"), dict)
+            and review["numerical_reference"].get("passed") is True
+        )
+    admission = cohorts.admission(capture, POLICY)
+    diagnostics = []
+    if not cohorts.production.blockers(capture):
+        try:
+            diagnostics = [row["capture"] for row in cohorts.diagnostic_observations(capture)]
+        except (OSError, ValueError):
+            admission.append("matched_diagnostic_capture_unavailable_or_changed")
+    export_times = [phase_median(raw, "crt_export") for raw in diagnostics]
+    export_qualified = bool(export_times) and all(
+        value is not None and value > 0 and not phase_blockers(raw, "crt_export")
+        for raw, value in zip(diagnostics, export_times)
     )
-    missing = review.get("missing_required_baselines") if isinstance(review, dict) else []
-    duplicates = review.get("duplicate_backends") if isinstance(review, dict) else []
     release_ready = (
-        isinstance(review, dict)
-        and review.get("review_mode") == "release"
-        and review.get("release_review_satisfied") is True
-        and not missing
-        and not duplicates
-        and not reference_blockers
-        and isinstance(numerical, dict)
-        and numerical.get("passed") is True
+        release_ready
+        and not (missing or duplicates or reference_blockers or admission)
+        and numerical["passed"]
     )
     return {
         "capture_path": _relative(path),
         "numerical_reference": numerical,
         "reference_blockers": reference_blockers,
+        "admission_blockers": sorted(set(admission)),
+        "measurement_cohort": evidence(capture),
+        "production_observations": cohorts.production.receipts(capture),
         "semantics": capture.get("semantics"),
         "backend": capture.get("backend_selected"),
         "target_id": _target_id(capture, export),
@@ -153,11 +167,19 @@ def _row_for_capture(
         and reconstruction.get("promotion_eligible") is not False,
         "promotion_blocker": export.get("promotion_blocker")
         or reconstruction.get("promotion_blocker"),
-        "median_end_to_end_us": _timing_median(capture, "end_to_end"),
-        "median_export_us": _timing_median(capture, "crt_export"),
-        "gpu_events_complete": _gpu_events_complete(capture),
+        "median_end_to_end_us": POLICY.measurement(capture)["median_us"],
+        "median_export_us": statistics.median(export_times) if export_qualified else None,
+        "export_timing_scope": "matched_separate_diagnostic_process_medians",
+        "gpu_events_complete": bool(diagnostics)
+        and all(_gpu_events_complete(raw) for raw in diagnostics),
         "release_review_ready": release_ready,
-        "review_report": review.get("review_report") if isinstance(review, dict) else None,
+        "review_report": sorted(
+            {
+                review["review_report"]
+                for review in reviews
+                if isinstance(review, dict) and review.get("review_report")
+            }
+        ),
         "review_missing_required_baselines": missing if isinstance(missing, list) else [],
         "review_duplicate_backends": duplicates if isinstance(duplicates, list) else [],
     }
@@ -190,12 +212,12 @@ def _ratio(baseline: float | None, candidate: float | None) -> float | None:
 
 def _candidate_blockers(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> list[str]:
     blockers: list[str] = []
-    if baseline is None:
-        return ["missing_default_baseline"]
     blockers.extend("candidate:" + item for item in candidate.get("reference_blockers", []))
-    blockers.extend("baseline:" + item for item in baseline.get("reference_blockers", []))
     if not candidate["release_review_ready"]:
         blockers.append("candidate_release_review_not_ready")
+    if baseline is None:
+        return blockers + ["missing_default_baseline"]
+    blockers.extend("baseline:" + item for item in baseline.get("reference_blockers", []))
     if not baseline["release_review_ready"]:
         blockers.append("baseline_release_review_not_ready")
     if not candidate["gpu_events_complete"]:
@@ -209,25 +231,34 @@ def _candidate_blockers(candidate: dict[str, Any], baseline: dict[str, Any] | No
     return blockers
 
 
-def _comparison_for(candidate: dict[str, Any], baseline: dict[str, Any] | None) -> dict[str, Any]:
-    end_to_end_speedup = _ratio(
-        baseline.get("median_end_to_end_us") if baseline else None,
-        candidate.get("median_end_to_end_us"),
-    )
+def _comparison_for(
+    candidate: dict[str, Any], baseline: dict[str, Any] | None, comparison: dict
+) -> dict[str, Any]:
+    end_to_end_speedup = comparison["speedup"]
     export_speedup = _ratio(
         baseline.get("median_export_us") if baseline else None,
         candidate.get("median_export_us"),
     )
     blockers = _candidate_blockers(candidate, baseline)
+    blockers.extend(comparison["blockers"])
+    blockers.extend(candidate["admission_blockers"])
+    if baseline is not None:
+        blockers.extend("baseline:" + value for value in baseline["admission_blockers"])
+    margin = comparison["required_speedup_margin"]
     if blockers:
         disposition = "blocked"
+        end_to_end_speedup = export_speedup = None
+    elif margin is not None and 1 / margin <= end_to_end_speedup <= margin:
+        disposition = "keep experimental"
+        blockers.append("speedup_inside_variance_margin")
     elif (
         end_to_end_speedup is not None
-        and end_to_end_speedup > 1.01
+        and margin is not None
+        and end_to_end_speedup > margin
         and candidate["promotion_eligible"]
     ):
         disposition = "promote locally"
-    elif end_to_end_speedup is not None and end_to_end_speedup > 1.01:
+    elif end_to_end_speedup is not None and margin is not None and end_to_end_speedup > margin:
         disposition = "keep experimental"
     else:
         disposition = "drop/deprioritize"
@@ -238,14 +269,33 @@ def _comparison_for(candidate: dict[str, Any], baseline: dict[str, Any] | None) 
         "speedup_end_to_end": end_to_end_speedup,
         "speedup_export": export_speedup,
         "disposition": disposition,
-        "blockers": blockers,
+        "blockers": sorted(set(blockers)),
+        "comparison": comparison,
+        "required_speedup_margin": margin,
+        "export_timing_scope": "matched_separate_diagnostic_process_medians",
     }
 
 
-def build_report(inputs: list[Path]) -> dict[str, Any]:
+def build_report(
+    inputs: list[Path], diagnostic_binding_paths: list[Path] | None = None
+) -> dict[str, Any]:
     captures, skipped = _load_captures(inputs)
     review_index = load_review_index(inputs, captures)
-    rows = [_row_for_capture(path, capture, review_index) for path, capture in captures]
+    cohorts = ReportCohorts(
+        [capture for _, capture in captures], load_bindings(diagnostic_binding_paths or [])
+    )
+    observations = [
+        capture
+        for capture in cohorts.observations
+        if isinstance(capture.get("export_variant"), dict)
+        or isinstance(capture.get("reconstruction_variant"), dict)
+    ]
+    rows = [
+        _row_for_capture(Path(capture["_path"]), capture, review_index, cohorts)
+        for capture in observations
+    ]
+    capture_by_row = {id(row): capture for row, capture in zip(rows, observations)}
+    row_by_capture = {id(capture): row for row, capture in zip(rows, observations)}
     baseline_by_key: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         if row["variant_class"] == "baseline_default_garner":
@@ -255,15 +305,18 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
     for row in rows:
         if row["variant_class"] in REQUIRED_VARIANT_CLASSES:
             baselines = baseline_by_key.get(_comparison_key(row), [])
-            baseline = (
-                min(
-                    baselines,
-                    key=lambda item: item.get("median_end_to_end_us") or float("inf"),
-                )
-                if baselines
-                else None
+            candidate = capture_by_row[id(row)]
+            baseline_capture = cohorts.best(
+                [capture_by_row[id(value)] for value in baselines if value["release_review_ready"]],
+                candidate,
+                POLICY,
             )
-            comparisons.append(_comparison_for(row, baseline))
+            baseline = (
+                row_by_capture[id(baseline_capture)] if baseline_capture is not None else None
+            )
+            comparisons.append(
+                _comparison_for(row, baseline, cohorts.compare(candidate, baseline_capture, POLICY))
+            )
 
     class_summary: dict[str, dict[str, Any]] = {}
     for variant_class in sorted(REQUIRED_VARIANT_CLASSES):
@@ -283,7 +336,8 @@ def build_report(inputs: list[Path]) -> dict[str, Any]:
         "schema": "rns8_reconstruction_export_report_v1",
         "policy": "same_target_setup_inclusive_gpu_crt_export_variant_classification",
         "required_variant_classes": sorted(REQUIRED_VARIANT_CLASSES),
-        "capture_count": len(rows),
+        "capture_count": len(captures),
+        "implementation_cohort_count": len(rows),
         "skipped_json_count": len(skipped),
         "skipped_json": skipped[:20],
         "comparison_count": len(comparisons),
@@ -364,10 +418,11 @@ def main() -> int:
         "inputs", nargs="+", type=Path, help="capture files or directories containing captures"
     )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--diagnostic-binding", type=Path, action="append", default=[])
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
     args = parser.parse_args()
-    report = build_report(args.inputs)
+    report = build_report(args.inputs, args.diagnostic_binding)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

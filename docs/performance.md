@@ -547,14 +547,26 @@ The [AMD profiler guide](amd-profiler.md) owns feature-level tool preflight,
 native dispatch/database adapters and their remaining acquisition work. Flat
 counter exports remain inventory unless a native receipt binds their evidence.
 
-Adaptive, finite-modulus, finite-distribution, layout, bound-discovery and FHE
-proxy reports share `observation_cohorts.py`. They aggregate **process medians**
+Adaptive, finite-ring/field, finite-distribution, layout, bound-discovery,
+reconstruction/export and FHE proxy reports share `observation_cohorts.py`.
+They aggregate **process medians**
 within an exact arithmetic/work, implementation, artifact and execution cohort
 before selecting an implementation. Copied captures do not add weight; reused
 execution IDs with conflicting records block qualification. Reports retain all
 submitted hashes/paths, distinct-run counts and process spread. Raw capture
 arrays are not rewritten. Legacy observations remain descriptive, with no
 performance qualification or promotion implication.
+
+Reconstruction/export decisions require every production process's numerical,
+review and diagnostic-companion evidence. They select a qualified matched
+baseline before applying the observed noise margin. Export-phase medians come
+from the separately bound diagnostic processes and retain that scope; they are
+not production call components. Experimental modulus-ladder search remains
+descriptive: its individual-capture ratio is explicitly labeled and cannot
+become a qualified speedup or authorize a ladder/cache change.
+The export-selector inventory likewise retains the selector's declared
+eligibility separately from performance admission. It cannot authorize runtime
+promotion and presents variants by identity rather than ranking individual times.
 
 Environment cohorts use `rns8_relevant_environment_v1`, derived from the actual
 versioned collector request's `environment` object and explicit-override digest.

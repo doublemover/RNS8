@@ -518,6 +518,13 @@ class ProductionCohortIndex:
 def best_implementation(
     captures: Iterable[dict], *, candidate: dict | None = None, cpu_gpu_comparison: bool = False
 ) -> dict | None:
+    candidate_environment = (
+        comparison_environment(
+            candidate, cpu_gpu_comparison=cpu_gpu_comparison, dependency_identity=False
+        )
+        if candidate is not None
+        else None
+    )
     valid = [
         c
         for c in captures
@@ -529,9 +536,7 @@ def best_implementation(
                 comparison_environment(
                     c, cpu_gpu_comparison=cpu_gpu_comparison, dependency_identity=False
                 )
-                == comparison_environment(
-                    candidate, cpu_gpu_comparison=cpu_gpu_comparison, dependency_identity=False
-                )
+                == candidate_environment
                 and comparison_dependencies_compatible(candidate, c)
             )
         )
@@ -563,11 +568,16 @@ def partition_rows(rows: list[dict]) -> list[tuple[tuple[str, str, str], list[di
         work_groups[(row["work_contract_key"], row["source_identity"])].append(row)
     result = []
     for (work, source), items in sorted(work_groups.items()):
-        cpu = [r for r in items if r["backend"] in ("cpu", "cpu-reference", "wrap64-byte-limb")]
-        gpu = [r for r in items if r not in cpu]
-        environments = sorted({r["comparison_environment"] for r in gpu}) or ["cpu_only"]
-        for environment in environments:
-            members = cpu + [r for r in gpu if r["comparison_environment"] == environment]
+        cpu, gpu = [], defaultdict(list)
+        for row in items:
+            if row["backend"] in ("cpu", "cpu-reference", "wrap64-byte-limb"):
+                cpu.append(row)
+            else:
+                gpu[row["comparison_environment"]].append(row)
+        if not gpu:
+            gpu["cpu_only"] = []
+        for environment, device_rows in sorted(gpu.items()):
+            members = cpu + device_rows
             result.append(
                 (
                     (work, source, environment),

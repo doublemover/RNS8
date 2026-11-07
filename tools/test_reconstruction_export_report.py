@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 import reconstruction_export_report
+from test_capture_identity_support import write_production_fixture_pair
 from test_export_selector_report import reviewable_fixed_limb_capture
 from test_review_reference_support import (
     add_synthetic_full_reference,
@@ -133,13 +134,19 @@ def main() -> int:
         )
 
         capture_paths: list[Path] = []
+        bindings = {}
         for name, capture in captures:
             path = tmp / name
-            write_json(path, add_synthetic_full_reference(capture))
-            capture_paths.append(path)
+            write_production_fixture_pair(path, add_synthetic_full_reference(capture), bindings)
+            capture_paths.extend([path, path.with_name(path.stem + ".independent.json")])
+        binding_paths = []
+        for index, binding in enumerate(bindings.values()):
+            path = tmp / f"companion-{index}.binding"
+            write_json(path, binding)
+            binding_paths.append(path)
         write_review_report(tmp / "review_report.json", capture_paths)
 
-        report = reconstruction_export_report.build_report([tmp])
+        report = reconstruction_export_report.build_report([tmp], binding_paths)
         assert report["schema"] == "rns8_reconstruction_export_report_v1"
         assert report["rank33_classification_complete"] is True, json.dumps(
             {
@@ -160,13 +167,31 @@ def main() -> int:
         assert dispositions["status_elided_exact_proof"] == "drop/deprioritize"
         assert dispositions["prefix20_fixed_export"] == "keep experimental"
         assert dispositions["tree_crt_reconstruction"] == "keep experimental"
+        tree = next(
+            row
+            for row in report["comparisons"]
+            if row["variant_class"] == "tree_crt_reconstruction"
+        )
+        assert tree["candidate"]["measurement_cohort"]["independent_runs"] == 2
+        assert tree["comparison"]["qualified"]
+        assert tree["export_timing_scope"] == "matched_separate_diagnostic_process_medians"
+        assert tree["required_speedup_margin"] >= 1.03
+        singleton = reconstruction_export_report.build_report(
+            [capture_paths[0], capture_paths[6]], binding_paths
+        )
+        assert singleton["comparisons"][0]["speedup_end_to_end"] is None
+        assert singleton["comparisons"][0]["disposition"] == "blocked"
+        assert any(
+            "insufficient_independent_processes" in value
+            for value in singleton["comparisons"][0]["blockers"]
+        )
 
         # A fresh, content-bound sidecar must still preserve a numerical failure.
-        mismatch = json.loads(capture_paths[1].read_text(encoding="utf-8"))
+        mismatch = json.loads(capture_paths[2].read_text(encoding="utf-8"))
         mismatch["checksum_u64"] ^= 1
-        write_json(capture_paths[1], mismatch)
+        write_json(capture_paths[2], mismatch)
         write_review_report(tmp / "review_report.json", capture_paths)
-        rejected = reconstruction_export_report.build_report([tmp])
+        rejected = reconstruction_export_report.build_report([tmp], binding_paths)
         assert rejected["variant_class_summary"]["compact_d2h_host_scatter"]["ready"] is False
         assert any(
             "checksum" in reason

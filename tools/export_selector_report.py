@@ -10,17 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from report_capture_inputs import load_report_captures
+from observation_cohorts import phase_median
 
 
 DEFAULT_OUT_DIR = Path("temp") / "export-selector-reports"
-
-
-def _timing_median(capture: dict[str, Any], phase: str) -> float | None:
-    summary = capture.get("timing_summary_us")
-    item = summary.get(phase) if isinstance(summary, dict) else None
-    if isinstance(item, dict) and isinstance(item.get("median"), (int, float)):
-        return float(item["median"])
-    return None
 
 
 def _target_id(capture: dict[str, Any], export: dict[str, Any]) -> str | None:
@@ -116,11 +109,15 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         "cache_visibility": export.get("cache_visibility"),
         "stale_entry_reason": export.get("stale_entry_reason"),
         "status_elision_reason": export.get("status_elision_reason"),
-        "median_end_to_end_us": _timing_median(capture, "end_to_end"),
-        "median_export_us": _timing_median(capture, "crt_export"),
+        "median_end_to_end_us": phase_median(capture, "end_to_end"),
+        "median_export_us": phase_median(capture, "crt_export"),
+        "timing_scope": "descriptive_individual_capture_not_qualified_process_comparison",
         "selector_promotion_eligible": export.get("promotion_eligible") is True,
-        "promotion_eligible": export.get("promotion_eligible") is True,
-        "promotion_blockers": _blockers(capture),
+        "promotion_eligible": False,
+        "promotion_blockers": [
+            *_blockers(capture),
+            "selector_inventory_not_runtime_promotion_evidence",
+        ],
     }
 
 
@@ -146,6 +143,8 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
     return {
         "schema": "rns8_export_selector_report_v1",
         "policy": "same_target_same_contract_export_selector_review_surface",
+        "timing_comparison_qualified": False,
+        "runtime_promotion_authority": False,
         "capture_count": len(rows),
         "groups": [
             {
@@ -162,7 +161,8 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                     "final_output_mode": key[9],
                 },
                 "rows": sorted(
-                    value, key=lambda row: row.get("median_end_to_end_us") or float("inf")
+                    value,
+                    key=lambda row: (str(row.get("export_variant")), str(row.get("selector_key"))),
                 ),
             }
             for key, value in sorted(groups.items(), key=lambda item: str(item[0]))

@@ -132,7 +132,14 @@ def main() -> int:
             rows["experimental:prefix5-byte-ladder-search"]["decision"]
             == "ready_non_promoting_evidence"
         )
-        assert rows["experimental:prefix5-byte-ladder-search"]["speedup_vs_anchor"] == 2.0
+        assert rows["experimental:prefix5-byte-ladder-search"]["speedup_vs_anchor"] is None
+        assert (
+            rows["experimental:prefix5-byte-ladder-search"][
+                "descriptive_individual_capture_ratio_vs_anchor"
+            ]
+            == 2.0
+        )
+        assert not report["timing_comparison_qualified"]
         assert (
             "runtime_ladder_not_selectable"
             in rows["experimental:prefix5-byte-ladder-search"]["blockers"]

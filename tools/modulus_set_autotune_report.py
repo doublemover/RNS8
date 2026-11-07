@@ -275,7 +275,9 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
             "anchor_path": anchor.get("_path") if isinstance(anchor, dict) else None,
             "anchor_backend": _backend(anchor) if isinstance(anchor, dict) else None,
             "median_end_to_end_us": _timing_median(capture),
-            "speedup_vs_anchor": _speedup(capture, anchor),
+            "speedup_vs_anchor": None,
+            "descriptive_individual_capture_ratio_vs_anchor": _speedup(capture, anchor),
+            "timing_scope": "descriptive_individual_capture_not_qualified_process_comparison",
             "promotion_eligible": False,
             "runtime_routing_allowed": False if _modulus_name(capture) != "default" else None,
             "decision": decision,
@@ -286,6 +288,7 @@ def build_report(capture_paths: list[Path], search_report: dict[str, Any]) -> di
         "schema_version": 1,
         "policy": "modulus_set_residue_count_evidence_only",
         "runtime_ladder_changed": False,
+        "timing_comparison_qualified": False,
         "default_change_gate": search_report.get(
             "default_change_gate",
             "spec_cache_schema_proof_and_same_target_review_required",
@@ -310,12 +313,12 @@ def write_outputs(report: dict[str, Any], out_dir: Path) -> Path:
         f"- Runtime ladder changed: `{str(report['runtime_ladder_changed']).lower()}`",
         f"- Default-change gate: `{report['default_change_gate']}`",
         "",
-        "| Decision | Backend | Semantics | Shape | Modulus Set | Prefix | Speedup Vs Anchor | Blockers |",
+        "| Decision | Backend | Semantics | Shape | Modulus Set | Prefix | Descriptive Capture Ratio | Blockers |",
         "|---|---|---|---|---|---:|---:|---|",
     ]
     for row in report["rows"]:
         shape = row["shape"]
-        speedup = row.get("speedup_vs_anchor")
+        speedup = row.get("descriptive_individual_capture_ratio_vs_anchor")
         lines.append(
             "| {decision} | {backend} | {semantics} | {m}x{n}x{k} | `{modulus}` | {prefix} | {speedup} | {blockers} |".format(
                 decision=row["decision"],

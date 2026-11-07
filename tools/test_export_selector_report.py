@@ -96,7 +96,9 @@ def main() -> int:
         row = report["groups"][0]["rows"][0]
         assert row["selector_key"]
         assert row["selected_kernel"] in row["selector_key"]
-        assert row["promotion_eligible"] is True
+        assert row["promotion_eligible"] is False
+        assert report["timing_comparison_qualified"] is False
+        assert report["runtime_promotion_authority"] is False
         assert row["selector_promotion_eligible"] is True
         assert "missing_selector_key" not in row["promotion_blockers"]
 
@@ -114,9 +116,11 @@ def main() -> int:
         reviewable_report = export_selector_report.build_report([reviewable_path])
         reviewable_row = reviewable_report["groups"][0]["rows"][0]
         assert reviewable_row["export_variant"] == "exact-wide-fixed-limb-export"
-        assert reviewable_row["promotion_eligible"] is True
+        assert reviewable_row["promotion_eligible"] is False
         assert reviewable_row["selector_promotion_eligible"] is True
-        assert reviewable_row["promotion_blockers"] == []
+        assert reviewable_row["promotion_blockers"] == [
+            "selector_inventory_not_runtime_promotion_evidence"
+        ]
 
         reviewable_compact = copy.deepcopy(reviewable)
         reviewable_compact["export_variant"]["selector_key"] = reviewable_compact["export_variant"][
@@ -128,9 +132,11 @@ def main() -> int:
         reviewable_compact_report = export_selector_report.build_report([reviewable_compact_path])
         reviewable_compact_row = reviewable_compact_report["groups"][0]["rows"][0]
         assert reviewable_compact_row["export_variant"] == "exact-wide-fixed-limb-export"
-        assert reviewable_compact_row["promotion_eligible"] is True
+        assert reviewable_compact_row["promotion_eligible"] is False
         assert reviewable_compact_row["selector_promotion_eligible"] is True
-        assert reviewable_compact_row["promotion_blockers"] == []
+        assert reviewable_compact_row["promotion_blockers"] == [
+            "selector_inventory_not_runtime_promotion_evidence"
+        ]
 
         blocked = copy.deepcopy(reviewable)
         blocked["export_variant"]["name"] = "compact-d2h-export-candidate"
