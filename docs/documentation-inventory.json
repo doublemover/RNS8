@@ -6011,7 +6011,8 @@
         "native-report-attachments",
         "optional-roctx-ranges",
         "plan-and-preflight",
-        "remaining-implementation-and-validation"
+        "remaining-implementation-and-validation",
+        "windows-dispatch-capture"
       ]
     },
     {

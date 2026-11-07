@@ -66,7 +66,15 @@ def run_capture(
     artifact_roots: Sequence[Path] = (),
     max_artifact_bytes: int | None = None,
     return_on_interrupt: bool = False,
+    on_start=None,
+    cancel_event: threading.Event | None = None,
 ) -> dict:
+    # Supervisors may coordinate separately owned children. The callback only
+    # acknowledges process creation; it does not imply native tool readiness.
+    if on_start is not None and not callable(on_start):
+        raise ValueError("process-start observer must be callable")
+    if cancel_event is not None and not isinstance(cancel_event, threading.Event):
+        raise ValueError("owned process cancellation requires a threading.Event")
     if type(return_on_interrupt) is not bool:
         raise ValueError("return_on_interrupt must be an explicit boolean")
     if (
@@ -126,6 +134,10 @@ def run_capture(
 
     def stop_process_tree():
         if os.name == "nt":
+            if process.poll() is not None:
+                # taskkill resolves a PID afresh. An exited root may have had
+                # its PID reused; never target that unrelated replacement.
+                return
             try:
                 subprocess.run(
                     ["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -173,6 +185,8 @@ def run_capture(
             captured_output_bytes=0,
         )
     try:
+        if on_start is not None:
+            on_start(process.pid)
         for index, pipe in enumerate((process.stdout, process.stderr)):
             reader = threading.Thread(
                 target=drain,
@@ -184,6 +198,11 @@ def run_capture(
             reader.start()
         while True:
             now = time.monotonic()
+            if cancel_event is not None and cancel_event.is_set():
+                interrupted = True
+                capture_error = "owned process capture cancelled by supervisor"
+                stop_process_tree()
+                break
             if exceeded.is_set():
                 limit = "stdout_stderr_bytes"
                 stop_process_tree()

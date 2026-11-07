@@ -15,6 +15,40 @@ from gpu_qualification import validate_result
 
 
 class BoundedProcessCapture(unittest.TestCase):
+    def test_started_pid_observer_can_cancel_its_owned_child(self):
+        cancelled, observed = threading.Event(), []
+
+        def started(pid):
+            observed.append(pid)
+            cancelled.set()
+
+        result = run_capture(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            cwd=Path.cwd(),
+            label="authored-supervised-child",
+            timeout_seconds=5,
+            on_start=started,
+            cancel_event=cancelled,
+        )
+        self.assertEqual(observed, [result["process_id"]])
+        self.assertTrue(result["interrupted"])
+        self.assertIn("supervisor", result["capture_error"])
+        self.assertFalse(capture_succeeded(result))
+
+    def test_start_observer_failure_cleans_up_and_does_not_claim_readiness(self):
+        def failed(pid):
+            raise ValueError("authored start observer rejected " + str(pid))
+
+        result = run_capture(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            cwd=Path.cwd(),
+            label="authored-start-observer",
+            timeout_seconds=5,
+            on_start=failed,
+        )
+        self.assertIn("start observer rejected", result["capture_error"])
+        self.assertFalse(capture_succeeded(result))
+
     def test_streams_pid_unicode_and_final_output_are_preserved(self):
         result = run_capture(
             [

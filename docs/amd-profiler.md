@@ -10,7 +10,7 @@ temporary storage; derived report files describe their actual evidence scope.
 | --- | --- | --- |
 | Linux rocprofv3 | ROCprofiler-SDK 1.4.1 native JSON kernel dispatch | Process/agent/queue/dispatch, exact symbol and file-backed code-object association |
 | Linux rocpd | Native database schema 3.0.4 | Same dispatch join, native graph/stream/event relationships, individual counter observations and vendor definitions |
-| Windows RDP CLI | Candidate 3.5.1 read-only version/profiling help | Controller and service are discovered separately; capture/export integration remains pending |
+| Windows RDP CLI | Candidate 3.5.1 preflight and bounded dispatch-range capture | Owned controller/workload with raw-file custody; opaque RGP remains manual-review evidence |
 | Raw RGP, unsupported databases and exports | Inventory only | No inferred dispatch identity or fabricated counters |
 
 The Linux acquisition planner also accepts repeated `--counter NAME` options
@@ -31,6 +31,41 @@ they never become zeros or cross-instance totals. Receipt replay reconstructs
 the report from the retained database. Complete selected measurements do not
 establish loss-free acquisition, complete run coverage or production latency.
 The acquisition and tampered-report controls are authored and unexecuted.
+
+## Windows dispatch capture
+
+`tools/amd_profiler_windows.py` plans an RDP CLI 3.5.1 dispatch-range capture
+from an admitted production control and its retained Windows capability
+preflight. For example, planning is read-only:
+
+    python tools/amd_profiler_windows.py temp/production.json --capabilities temp/windows-preflight/capabilities.json --out-dir temp/windows-rgp --first-dispatch 8 --dispatch-count 3
+
+Execution requires both `--execute` and `--authorize-driver-profile`. The
+controller connects to an already running local service over loopback; the
+workflow launches no service, GUI, installer, registry or clocks command.
+Counter collection and instruction tracing are separate explicit options.
+Dispatch indices belong to the native process capture and do not establish
+measured-operation, warmup or HIP-ordinal identity.
+
+The maintained [RDP controller source](https://github.com/GPUOpen-Tools/radeon_developer_panel/blob/fcc2ec5e8ed7f3432e59297a59fcec740434ee4b/source/cli/capture_cli.cpp)
+filters paths by substring and waits for a separate application. The owner
+therefore starts the controller first, records bounded concurrent stage output,
+then checks every reported accepted connection against the exact owned
+benchmark PID and path. Process creation is not reported as native readiness.
+Timeout, interruption or workload failure cancels only the owned controller;
+partial bytes and stage records remain available. The shared runner supports
+an explicit supervisor cancellation event and avoids `taskkill` against an
+already exited root PID.
+
+Offline `review_capture(plan_path)` reopens source/tool/binary inputs, compiled
+identity, actual argv/environment/device observations, stage streams and raw
+file hashes. The native save path and byte count must match one nonempty owned
+RGP file. A bounded summary records `raw_saved_unqualified`: it does not decode
+the opaque file or qualify dispatches, device identity, counters, loss state or
+production latency. A supported native decoder/export or manual review remains
+necessary. This implements the issue's raw-RGP fallback without inventing a
+machine-export CLI. The registered ownership, replay, cancellation, drift and
+failure controls remain authored and unexecuted.
 
 The rocpd reader follows AMD's pinned
 [schema source](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/share/rocprofiler-sdk-rocpd/rocpd_tables.sql).
@@ -221,9 +256,9 @@ their actual loaded code objects. Selected-dispatch qualification establishes
 neither complete trace/counter coverage nor a production timing improvement.
 
 This collector is source-implemented with authored offline controls; the final
-validation batch and a supported Linux hardware run remain pending. Windows
-RDP/RGP acquisition, converter/export orchestration and ATT/sampling sessions
-remain separate implementation work.
+validation batch and a supported Linux hardware run remain pending. The
+Windows raw-RGP lane is described above. Native converter/export orchestration
+and ATT/sampling sessions remain separate implementation work.
 
     python tools/gpu_counter_report.py temp/production.json --dispatch-receipt temp/dispatch-receipt.json --out-dir temp/counter-review
 
@@ -312,8 +347,8 @@ start before its launch API returns, so an API-completion-to-kernel-start edge
 is never inferred. Complete literal marker matching still does not prove
 loss-free acquisition or complete work/dependency coverage. These exact native
 table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
-overlapping-caller controls remain authored/unexecuted; acquisition publication
-is connected to publication and receipt replay; the dependency/critical-path
+overlapping-caller controls remain authored/unexecuted. Capture publication
+and receipt replay are connected; the dependency/critical-path
 consumer remains implementation work.
 
 Add `--operation-ranges` to the timeline plan only for the same production
@@ -352,7 +387,7 @@ none establishes pinned-host classification or physical commitment. Sampled
 RSS and the separate host-heap interception lane are not added to these bytes.
 Actual-table free-zero/reuse, uncertain peaks, mixed domains, unmatched frees,
 ambiguous transitions and partial realloc controls are authored and registered,
-but have not executed. Per-operation allocation phase/source attribution and
+but have not executed. Allocation-generation source/phase integration and
 the critical-path report remain separate implementation work.
 
 Active/requested tracing is excluded from production timing admission. The
@@ -363,9 +398,9 @@ counter, allocation, synchronization or profiler call.
 
 ## Remaining implementation and validation
 
-Native acquisition, converter/export receipts, Windows RDP/RGP machine evidence,
-remaining phase/async family coverage and native range-to-dispatch joins, and
-additional ATT/sampling/counter-pass coverage remain under #104.
+Native converter/export receipts, supported Windows RDP/RGP machine evidence
+beyond the opaque manual-review fallback, remaining async family coverage and
+additional ATT/sampling/pass coverage remain under #104.
 Unsupported formats and memory-backed code-object loads remain explicitly
 unqualified. Hardware unavailable locally can be qualified later, after its
 source implementation is ready.
