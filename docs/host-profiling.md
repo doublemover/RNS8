@@ -161,6 +161,17 @@ The report separates sampled CPU exposure from the union, sum and span of
 observed host windows. Neither is exact CPU duration, GPU service or production
 latency. No selected samples is inconclusive rather than evidence of zero work.
 The default session retains process-total scope and an unbound operation field.
+
+Selected-operation CPU reports also retain leaf source sites by exclusive
+phase: native symbol/DSO, source path/line, sample count and sampled exposure.
+The 4,096-site budget has explicit overflow counts and exposure; absent symbols
+or source locations stay unresolved. Acquisition finalization links only actual
+leaf observations to the verified current first-party file snapshots and their
+SHA256 values. Callchain-only lines cannot supply missing leaf credit, and
+selected counts cannot exceed the recorded leaf population. Mixed native text
+observations remain visible. These links identify current source context rather
+than compilation-source contents, exact CPU duration, wait causes or a proven
+critical path. The controls are authored and await the combined validation batch.
 Active Linux compilation, scope/cross-thread controls, pure join controls and
 the integrated native acquisition remain deferred to the final validation batch.
 

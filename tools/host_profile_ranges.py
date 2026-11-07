@@ -11,6 +11,8 @@ from interval_observations import interval_summary
 from host_range_contract import PHASES, uint, range_inventory, measured_roots
 from perf_recording_contract import decoded_sample_witness
 
+MAX_SOURCE_SITES = 4096
+
 
 def join(native: dict, snapshot: dict) -> dict:
     if (
@@ -91,6 +93,7 @@ def join(native: dict, snapshot: dict) -> dict:
             uint(row.get(key), "sample " + key, positive=key != "time_ns")
         sample_threads[row["tid"]].append(row)
     selected, phases, ambiguous, outside = [], {}, 0, 0
+    sites, site_overflow = {}, dict(samples=0, sampled_cpu_exposure_ns=0)
     for thread, thread_samples in sample_threads.items():
         spans = root_by_thread.get(thread, [])
         starts = [span[0] for span in spans]
@@ -126,6 +129,47 @@ def join(native: dict, snapshot: dict) -> dict:
             bucket = phases.setdefault(phase, dict(samples=0, sampled_cpu_exposure_ns=0))
             bucket["samples"] += 1
             bucket["sampled_cpu_exposure_ns"] += sample["period"]
+            source = sample.get("source")
+            if source is not None and not isinstance(source, dict):
+                raise ValueError("typed native selected source observation required")
+            source = source or {}
+            path, line, symbol, dso = (
+                source.get("path"),
+                source.get("line"),
+                sample.get("symbol"),
+                sample.get("dso"),
+            )
+            if (
+                any(
+                    value is not None
+                    and (
+                        type(value) is not str or len(value.encode("utf-8")) > 4096 or "\0" in value
+                    )
+                    for value in (path, symbol, dso)
+                )
+                or line is not None
+                and (type(line) is not int or not 0 <= line < 1 << 32)
+            ):
+                raise ValueError("invalid bounded selected source/symbol observation")
+            key = (phase, path, line, symbol, dso)
+            if key not in sites and len(sites) >= MAX_SOURCE_SITES:
+                site_overflow["samples"] += 1
+                site_overflow["sampled_cpu_exposure_ns"] += sample["period"]
+            else:
+                site = sites.setdefault(
+                    key,
+                    dict(
+                        phase=phase,
+                        native_source_path=path,
+                        line=line,
+                        symbol=symbol,
+                        dso=dso,
+                        samples=0,
+                        sampled_cpu_exposure_ns=0,
+                    ),
+                )
+                site["samples"] += 1
+                site["sampled_cpu_exposure_ns"] += sample["period"]
             selected.append(sample)
     if not selected:
         raise ValueError(
@@ -141,6 +185,8 @@ def join(native: dict, snapshot: dict) -> dict:
         observer_boundary_ambiguous_samples=ambiguous,
         outside_or_unbound_thread_samples=outside,
         exclusive_sampled_phases=dict(sorted(phases.items())),
+        selected_source_sites=list(sites.values()),
+        selected_source_site_overflow=site_overflow,
         selected_sample_witness=decoded_sample_witness(selected),
         measured_host_windows=interval_summary(windows),
         scope="observed_same_thread_host_ranges_not_GPU_service_or_exact_CPU_duration",

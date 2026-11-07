@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import unittest
+from unittest.mock import patch
 
 from host_profile_native import SCHEMA
 from host_profile_ranges import join
@@ -66,6 +67,54 @@ def native(rows=None):
 
 
 class HostRanges(unittest.TestCase):
+    def test_selected_phase_sites_exclude_outside_samples_and_preserve_exposure(self):
+        first = dict(
+            sample(150),
+            symbol="proof_helper",
+            dso="rns8-bench",
+            source=dict(path="/authored/source.cpp", line=7, text="authored"),
+        )
+        outside = dict(first, time_ns=99, symbol="outside_helper")
+        report = join(
+            native([first, dict(first), outside]),
+            snapshot([scope(), scope(1, 0, start=120, end=200, phase=2)]),
+        )
+        (site,) = report["selected_source_sites"]
+        self.assertEqual(
+            (site["phase"], site["symbol"], site["line"]), ("proof", "proof_helper", 7)
+        )
+        self.assertEqual((site["samples"], site["sampled_cpu_exposure_ns"]), (2, 20))
+        self.assertEqual(report["outside_or_unbound_thread_samples"], 1)
+        self.assertFalse(report["source_content_verified"])
+
+    def test_source_site_budget_retains_overflow_counts_without_silent_loss(self):
+        with patch("host_profile_ranges.MAX_SOURCE_SITES", 1):
+            report = join(
+                native(
+                    [
+                        dict(sample(150), symbol="first"),
+                        dict(sample(160), symbol="second"),
+                        dict(sample(170), symbol="first"),
+                    ]
+                ),
+                snapshot(),
+            )
+        self.assertEqual(report["selected_source_sites"][0]["samples"], 2)
+        self.assertEqual(
+            report["selected_source_site_overflow"], dict(samples=1, sampled_cpu_exposure_ns=10)
+        )
+        self.assertEqual(report["selected_samples"], 3)
+
+    def test_malformed_source_sites_cannot_enter_selected_source_accounting(self):
+        for source in (
+            [],
+            dict(path=["bad"], line=7),
+            dict(path="observed.cpp", line=True),
+            dict(path="x" * 4097, line=7),
+        ):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                join(native([dict(sample(150), source=source)]), snapshot())
+
     def test_nested_scopes_attribute_exclusively_without_summing_parent_time(self):
         ranges = snapshot(
             [

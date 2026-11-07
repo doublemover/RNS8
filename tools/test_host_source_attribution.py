@@ -70,6 +70,54 @@ class CurrentSource(unittest.TestCase):
             with self.assertRaises(ValueError):
                 source.source_inventory([bad], root=self.root)
 
+    def test_selected_phase_sites_bind_only_observed_leaf_lines_and_current_file_bytes(self):
+        rows = [self.row(), self.row(text="different native text"), self.row(line=3, text=None)]
+        custody = source.source_inventory(rows, root=self.root)
+        sites = [
+            dict(
+                phase="proof",
+                native_source_path=str(self.file),
+                line=2,
+                samples=2,
+                sampled_cpu_exposure_ns=20,
+                symbol="helper",
+                dso="authored",
+            ),
+            dict(
+                phase="completion",
+                native_source_path="unresolved.cpp",
+                line=2,
+                samples=1,
+                sampled_cpu_exposure_ns=10,
+                symbol=None,
+                dso=None,
+            ),
+        ]
+        report = source.bind_selected_sites(sites, custody)
+        linked = report[0]["current_first_party_source"]
+        self.assertEqual(linked["sha256"], hashlib.sha256(self.data).hexdigest())
+        self.assertEqual(linked["line"], 2)
+        self.assertEqual(
+            set(linked["native_leaf_states_in_process"]),
+            {
+                "native_text_matches_current_source_line",
+                "native_text_differs_from_current_source_line",
+            },
+        )
+        self.assertFalse(report[0]["compiled_source_contents_verified"])
+        self.assertIsNone(report[1]["current_first_party_source"])
+        sites[0]["samples"] = 3
+        with self.assertRaisesRegex(ValueError, "exceed native leaf"):
+            source.bind_selected_sites(sites, custody)
+
+    def test_callchain_line_alone_cannot_supply_selected_leaf_source_credit(self):
+        row = dict(source=None, callchain=[self.row()])
+        custody = source.source_inventory([row], root=self.root)
+        report = source.bind_selected_sites(
+            [dict(phase="proof", native_source_path=str(self.file), line=2, samples=1)], custody
+        )
+        self.assertIsNone(report[0]["current_first_party_source"])
+
 
 if __name__ == "__main__":
     unittest.main()

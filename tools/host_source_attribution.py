@@ -114,6 +114,9 @@ def source_inventory(samples, *, root=ROOT):
         schema="rns8_native_current_source_custody_v1",
         root=str(root),
         files=files,
+        native_source_aliases=[
+            dict(native_path=name, path=str(path)) for name, path in sorted(aliases.items())
+        ],
         current_source_bytes=total,
         selected_frame_observations=selected,
         counts=[
@@ -124,3 +127,63 @@ def source_inventory(samples, *, root=ROOT):
         compiled_source_contents_verified=False,
         source="https://github.com/torvalds/linux/blob/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/util/python.c",
     )
+
+
+def bind_selected_sites(sites, custody):
+    """Link selected leaf sites to the already checked current-source inventory."""
+    if (
+        not isinstance(sites, list)
+        or len(sites) > 4096
+        or not isinstance(custody, dict)
+        or custody.get("schema") != "rns8_native_current_source_custody_v1"
+    ):
+        raise ValueError("bounded selected sites and native current-source custody required")
+    aliases = {row["native_path"]: row["path"] for row in custody["native_source_aliases"]}
+    files = {row["path"]: row for row in custody["files"]}
+    locations, remaining = {}, Counter()
+    for file in files.values():
+        for location in file["locations"]:
+            if location["role"] == "leaf":
+                key = (file["path"], location["line"])
+                remaining[key] += location["observations"]
+                locations.setdefault(key, set()).add(location["state"])
+    result = []
+    for site in sites:
+        if (
+            not isinstance(site, dict)
+            or type(site.get("samples")) is not int
+            or not 1 <= site["samples"] <= 100000
+        ):
+            raise ValueError("selected source site has invalid sample count")
+        if (
+            site.get("native_source_path") is not None
+            and type(site["native_source_path"]) is not str
+            or site.get("line") is not None
+            and (type(site["line"]) is not int or not 0 <= site["line"] < 1 << 32)
+        ):
+            raise ValueError("selected source site has invalid native location")
+        path = aliases.get(site["native_source_path"])
+        key = (path, site["line"])
+        source = None
+        if key in locations:
+            remaining[key] -= site["samples"]
+            if remaining[key] < 0:
+                raise ValueError("selected source samples exceed native leaf observations")
+            source = dict(
+                path=path,
+                sha256=files[path]["sha256"],
+                line=site["line"],
+                native_leaf_states_in_process=sorted(locations[key]),
+                scope="current_source_snapshot_not_compilation_source_checksum",
+            )
+        result.append(
+            dict(
+                site,
+                current_first_party_source=source,
+                current_source_state="linked_current_snapshot"
+                if source
+                else "unresolved_current_first_party_source",
+                compiled_source_contents_verified=False,
+            )
+        )
+    return result

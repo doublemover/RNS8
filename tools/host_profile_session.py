@@ -24,7 +24,7 @@ from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
 from host_profile_ranges import join as join_host_ranges
 from perf_recording_contract import read_recording, validate_decoded_samples
 from perf_mapping_contract import frame_custody
-from host_source_attribution import source_inventory
+from host_source_attribution import source_inventory, bind_selected_sites
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input, bind_host_profile_output
 from process_progress import capture_succeeded
@@ -526,6 +526,10 @@ def finalize(manifest_path: Path) -> dict:
         if plan["operation_ranges"]
         else "unbound"
     )
+    if plan["operation_ranges"]:
+        selected_operation_range["selected_source_sites"] = bind_selected_sites(
+            selected_operation_range["selected_source_sites"], sources
+        )
     # perf forks the benchmark. The launched profiler's PID is intentionally not
     # substituted for the native application PID or used as a sample selector.
     profiled["external_instrumentation"] = dict(
