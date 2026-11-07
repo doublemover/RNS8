@@ -301,7 +301,8 @@ rns8_status validate_grouped_rns_matrices(rns8_matrix* const* matrices, uint32_t
                                           rns8_semantics expected_semantics, int64_t rows,
                                           int64_t cols, bool require_current, int* out_device_id,
                                           uint32_t* out_prefix,
-                                          std::vector<const int8_t*>* out_residue_ptrs) {
+                                          std::vector<const int8_t*>* out_residue_ptrs,
+                                          uint32_t active_prefix = 0) {
   if (!matrices || task_count == 0 || !out_device_id || !out_prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -329,12 +330,20 @@ rns8_status validate_grouped_rns_matrices(rns8_matrix* const* matrices, uint32_t
     if (require_current && !matrix->device_residues_current) {
       return RNS8_INVALID_ARGUMENT;
     }
-    if (require_current && !api::materialized_rns_prefix_covers(*matrix, matrix->prefix))
+    // Explicit operations consume only their active planes. Legacy callers
+    // without an active prefix still require matching full-capacity storage.
+    const uint32_t required_prefix = active_prefix ? active_prefix : matrix->prefix;
+    if (active_prefix &&
+        (!api::uses_rns_storage(expected_semantics) ||
+         !api::rns_matrix_storage_matches(*matrix, RNS8_BACKEND_HIP_DIRECT, matrix->desc.rows,
+                                          matrix->desc.cols, active_prefix)))
+      return RNS8_INVALID_ARGUMENT;
+    if (require_current && !api::materialized_rns_prefix_covers(*matrix, required_prefix))
       return RNS8_RANGE_ERROR;
     if (index == 0) {
       device_id = matrix->hip_device_id;
-      prefix = matrix->prefix;
-    } else if (matrix->hip_device_id != device_id || matrix->prefix != prefix) {
+      prefix = required_prefix;
+    } else if (matrix->hip_device_id != device_id || required_prefix != prefix) {
       return RNS8_INVALID_ARGUMENT;
     }
     if (out_residue_ptrs) {

@@ -257,8 +257,9 @@ if(BUILD_TESTING AND RNS8_BUILD_TESTS)
           if(_stream_mode STREQUAL "stream")
             set(_stream_panel_arguments 2 2 5 2048 192)
           elseif(_stream_mode STREQUAL "stream-overlap")
-            # Minimum pinned/control payload includes eleven 24-byte retry nodes.
-            set(_stream_panel_arguments 2 2 5 3584 2568)
+            # Include pinned slots and ownership records in the host allowance.
+            # Exact minimum-budget boundaries are covered by the planner tests.
+            set(_stream_panel_arguments 2 2 5 3584 4096)
           else()
             set(_stream_panel_arguments 0 0 0 0 0)
           endif()

@@ -263,6 +263,8 @@ void collect_pack_gpu_events(const Args& args, rns8_backend_kind selected_backen
                             ? optional_event_label(samples, "native_i64_to_rns_kernel") +
                                   optional_event_label(samples, "native_u64_to_rns_kernel") +
                                   optional_event_label(samples, kernel_label)
+                        : args.semantics == RNS8_WRAP_U64_MOD_2_64
+                            ? 0.0 // Canonical compact bytes are uploaded without a GPU conversion.
                             : sum_event_label(events, samples, "pack", kernel_label);
   if (events.complete) {
     push_gpu_event_value(events, h2d_label, h2d);
@@ -912,7 +914,9 @@ void collect_finite_oneshot_gpu_events(GpuEventSamples& events) {
 
 void collect_wrap64_export_gpu_events(GpuEventSamples& events) {
   const auto samples = collect_timing_samples(events);
-  const double kernel = sum_event_label(events, samples, "crt_export", "wrap64_export_kernel");
+  // Compact wrap64 words use a direct D2H transfer. Host byte-order conversion,
+  // when needed, is outside the GPU event interval.
+  const double kernel = 0.0;
   const double d2h = sum_event_label(events, samples, "crt_export", "wrap64_export_d2h");
   if (events.complete) {
     push_gpu_event_value(events, "wrap64_export_kernel", kernel);

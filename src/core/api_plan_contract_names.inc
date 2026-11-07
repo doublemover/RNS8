@@ -257,11 +257,9 @@ std::string workspace_mode_for_plan(const rns8_plan& plan) {
     return "resident_device_buffers_with_hipblaslt_scratch";
   }
   if (plan.backend == RNS8_BACKEND_CK) {
-#if RNS8_CK_USE_XDL
-    return "resident_device_buffers_with_ck_centered_pack_workspace";
-#else
-    return "resident_device_buffers_with_ck_canonical_pack_workspace";
-#endif
+    return compiled_ck_implementation().signed_operands
+               ? "resident_device_buffers_with_ck_centered_pack_workspace"
+               : "resident_device_buffers_with_ck_canonical_pack_workspace";
   }
   if (plan.backend == RNS8_BACKEND_ROCWMMA) {
     return "resident_device_buffers_with_rocwmma_pack_workspace";

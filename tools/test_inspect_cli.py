@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
+
 
 def run_command(
     exe: Path, *args: str, env: dict[str, str] | None = None
@@ -70,11 +72,17 @@ def main() -> int:
     ck = run_command(inspect_exe, "--backend", "ck")
     if ck.returncode == 0:
         expect_text(ck.stdout, "capability_status: implemented_opt_in_ck_backend", "ck")
-        expect_text(
-            ck.stdout,
-            "selected_kernel:   ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3",
-            "ck",
+        kernel = next(
+            (
+                line.split(":", 1)[1].strip()
+                for line in ck.stdout.splitlines()
+                if line.startswith("selected_kernel:")
+            ),
+            "",
         )
+        family = ck_kernel_family(kernel)
+        if family is None or kernel != ck_selected_kernel(family):
+            raise AssertionError(f"ck: unknown physical kernel {kernel!r}")
         expect_text(ck.stdout, "exact_validated:   0", "ck")
         expect_text(ck.stdout, "perf_validated:    0", "ck")
         expect_text(

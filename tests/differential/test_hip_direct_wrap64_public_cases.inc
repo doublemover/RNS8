@@ -345,9 +345,8 @@ TEST_CASE("direct HIP public wrap64 tiled byte-limb path matches CPU for random 
   CHECK(hip_b->hip_byte_limbs == hip_b_bytes);
   CHECK(hip_out->hip_byte_limbs == hip_out_bytes);
   const auto warmed_allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
-  CHECK(warmed_allocations.allocate_calls == 0);
-  CHECK(warmed_allocations.free_calls == 0);
-  CHECK(warmed_allocations.allocated_bytes == 0);
+  REQUIRE(warmed_allocations.allocate_calls > 0);
+  REQUIRE(warmed_allocations.allocated_bytes > 0);
   const auto warmed_snapshot =
       capture_wrap64_resident_snapshot(hip_a, hip_b, hip_out, hip_workspace);
 
@@ -554,8 +553,9 @@ TEST_CASE("direct HIP public wrap64 resident path is device-current for large pa
   CHECK(hip_a_upload_bytes == 0);
   CHECK(hip_b_upload_bytes == 0);
   CHECK(hip_export_bytes == 0);
-  REQUIRE(warmed_allocations.allocate_calls > 0);
-  REQUIRE(warmed_allocations.allocated_bytes > 0);
+  CHECK(warmed_allocations.allocate_calls == 0);
+  CHECK(warmed_allocations.free_calls == 0);
+  CHECK(warmed_allocations.allocated_bytes == 0);
   const auto warmed_snapshot =
       capture_wrap64_resident_snapshot(hip_a, hip_b, hip_out, hip_workspace);
 

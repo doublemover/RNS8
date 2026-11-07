@@ -345,7 +345,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_matrix_limbs_to_device(rns8_ma
 
 rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count) {
+    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count, uint32_t active_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residue_ptrs || !device_dst || task_count == 0 || limb_count == 0 ||
       limb_count > 32 || exact_wide_unsigned_export_requires_status(limb_count) ||
@@ -358,7 +358,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device
   uint32_t prefix = 0;
   rns8_status status =
       validate_grouped_rns_matrices(matrices, task_count, RNS8_EXACT_WIDE_UNSIGNED, rows, cols,
-                                    true, &device_id, &prefix, nullptr);
+                                    true, &device_id, &prefix, nullptr, active_prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -375,6 +375,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
+  (void)active_prefix;
   (void)matrices;
   (void)task_count;
   (void)device_residue_ptrs;

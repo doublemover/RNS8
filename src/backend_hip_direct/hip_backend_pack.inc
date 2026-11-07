@@ -213,7 +213,7 @@ rns8_status hip_direct_pack_i64_grouped_matrices_device(
   uint32_t matrix_prefix = 0;
   rns8_status status =
       validate_grouped_rns_matrices(matrices, task_count, expected_semantics, rows, cols, false,
-                                    &matrix_device_id, &matrix_prefix, nullptr);
+                                    &matrix_device_id, &matrix_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -297,7 +297,7 @@ rns8_status hip_direct_pack_u64_grouped_matrices_device(
   uint32_t matrix_prefix = 0;
   rns8_status status =
       validate_grouped_rns_matrices(matrices, task_count, expected_semantics, rows, cols, false,
-                                    &matrix_device_id, &matrix_prefix, nullptr);
+                                    &matrix_device_id, &matrix_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }

@@ -76,9 +76,11 @@ rns8_status hip_direct_export_i64_device(int device_id, const void* device_resid
 #endif
 }
 
-rns8_status hip_direct_export_i64_grouped_matrices_to_device(
-    rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound) {
+rns8_status
+hip_direct_export_i64_grouped_matrices_to_device(rns8_matrix* const* matrices, uint32_t task_count,
+                                                 const void* device_residue_ptrs, void* device_dst,
+                                                 void* device_status, int64_t rows, int64_t cols,
+                                                 uint64_t bound, uint32_t active_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residue_ptrs || !device_dst || !device_status || task_count == 0 ||
       task_count > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
@@ -89,8 +91,9 @@ rns8_status hip_direct_export_i64_grouped_matrices_to_device(
   }
   int device_id = -1;
   uint32_t prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(matrices, task_count, RNS8_BOUNDED_I64, rows,
-                                                     cols, true, &device_id, &prefix, nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, RNS8_BOUNDED_I64, rows, cols, true,
+                                    &device_id, &prefix, nullptr, active_prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -127,6 +130,7 @@ rns8_status hip_direct_export_i64_grouped_matrices_to_device(
   return host_status == static_cast<int>(RNS8_SUCCESS) ? RNS8_SUCCESS
                                                        : static_cast<rns8_status>(host_status);
 #else
+  (void)active_prefix;
   (void)matrices;
   (void)task_count;
   (void)device_residue_ptrs;
@@ -330,9 +334,11 @@ rns8_status hip_direct_export_u64_device(int device_id, const void* device_resid
 #endif
 }
 
-rns8_status hip_direct_export_u64_grouped_matrices_to_device(
-    rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound) {
+rns8_status
+hip_direct_export_u64_grouped_matrices_to_device(rns8_matrix* const* matrices, uint32_t task_count,
+                                                 const void* device_residue_ptrs, void* device_dst,
+                                                 void* device_status, int64_t rows, int64_t cols,
+                                                 uint64_t bound, uint32_t active_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residue_ptrs || !device_dst || !device_status || task_count == 0 ||
       task_count > static_cast<uint32_t>(std::numeric_limits<int>::max()) ||
@@ -343,8 +349,9 @@ rns8_status hip_direct_export_u64_grouped_matrices_to_device(
   }
   int device_id = -1;
   uint32_t prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(matrices, task_count, RNS8_BOUNDED_U64, rows,
-                                                     cols, true, &device_id, &prefix, nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, RNS8_BOUNDED_U64, rows, cols, true,
+                                    &device_id, &prefix, nullptr, active_prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -381,6 +388,7 @@ rns8_status hip_direct_export_u64_grouped_matrices_to_device(
   return host_status == static_cast<int>(RNS8_SUCCESS) ? RNS8_SUCCESS
                                                        : static_cast<rns8_status>(host_status);
 #else
+  (void)active_prefix;
   (void)matrices;
   (void)task_count;
   (void)device_residue_ptrs;

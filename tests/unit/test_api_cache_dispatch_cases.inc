@@ -267,8 +267,11 @@ TEST_CASE("public grouped GEMM preserves unissued outputs and retains shared rea
           auto md =
               finite ? finite_matrix_desc(1, 1, semantics) : exact_matrix_desc(1, 1, semantics);
           rns8_matrix *a = nullptr, *b = nullptr, *c0 = nullptr, *c1 = nullptr;
-          for (auto** matrix : {&a, &b, &c0, &c1})
+          for (auto** matrix : {&a, &b, &c0, &c1}) {
+            if (!finite)
+              md.max_prefix = (matrix == &b || matrix == &c1) ? plan->prefix : 20;
             REQUIRE(rns8_create_matrix(ctx, &md, matrix) == RNS8_SUCCESS);
+          }
           const int64_t value = 1;
           const uint8_t byte = 1;
           for (auto* matrix : {a, b})
@@ -295,6 +298,8 @@ TEST_CASE("public grouped GEMM preserves unissued outputs and retains shared rea
               CHECK(words == std::array<uint64_t, 3>{1, 0, 0});
             }
             const auto materialized = a->materialized_rns_prefix;
+            a->materialized_rns_prefix = plan->prefix;
+            REQUIRE(execute() == RNS8_SUCCESS);
             a->materialized_rns_prefix = plan->prefix - 1;
             CHECK(execute() == RNS8_RANGE_ERROR);
             a->materialized_rns_prefix = materialized;

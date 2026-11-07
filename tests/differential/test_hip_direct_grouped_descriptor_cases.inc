@@ -36,9 +36,9 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   rns8_matrix_desc a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   rns8_matrix_desc b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   rns8_matrix_desc c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-  a_desc.max_prefix = plan->prefix;
+  a_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
   b_desc.max_prefix = plan->prefix;
-  c_desc.max_prefix = plan->prefix;
+  c_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
 
   rns8_matrix* a0 = nullptr;
   rns8_matrix* b0 = nullptr;

@@ -928,9 +928,11 @@ rns8_status hip_direct_export_i64_device(
     void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,
     uint64_t bound, int64_t* dst, int64_t ld,
     HostExportDestination destination_kind = HostExportDestination::borrowed);
-rns8_status hip_direct_export_i64_grouped_matrices_to_device(
-    rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound);
+rns8_status
+hip_direct_export_i64_grouped_matrices_to_device(rns8_matrix* const* matrices, uint32_t task_count,
+                                                 const void* device_residue_ptrs, void* device_dst,
+                                                 void* device_status, int64_t rows, int64_t cols,
+                                                 uint64_t bound, uint32_t active_prefix = 0);
 rns8_status hip_direct_export_i64_tiled_device(
     int device_id, const void* device_residues, void** export_buffer, std::size_t* export_bytes,
     void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols,
@@ -942,9 +944,11 @@ rns8_status hip_direct_export_u64_device(
     void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,
     uint64_t bound, uint64_t* dst, int64_t ld,
     HostExportDestination destination_kind = HostExportDestination::borrowed);
-rns8_status hip_direct_export_u64_grouped_matrices_to_device(
-    rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, void* device_status, int64_t rows, int64_t cols, uint64_t bound);
+rns8_status
+hip_direct_export_u64_grouped_matrices_to_device(rns8_matrix* const* matrices, uint32_t task_count,
+                                                 const void* device_residue_ptrs, void* device_dst,
+                                                 void* device_status, int64_t rows, int64_t cols,
+                                                 uint64_t bound, uint32_t active_prefix = 0);
 rns8_status hip_direct_export_finite_u8_grouped_matrices_to_device(rns8_matrix* const* matrices,
                                                                    uint32_t task_count,
                                                                    const void* device_residue_ptrs,
@@ -977,10 +981,11 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(rns8_matr
                                                                        uint32_t limb_count);
 rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
     rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix);
+    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix,
+    uint32_t active_prefix = 0);
 rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count);
+    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count, uint32_t active_prefix = 0);
 rns8_status hip_direct_export_exact_wide_unsigned_limbs_device(
     int device_id, const void* device_residues, void** export_buffer, std::size_t* export_bytes,
     void** status_buffer, std::size_t* status_bytes, int64_t rows, int64_t cols, uint32_t prefix,
@@ -998,7 +1003,7 @@ rns8_status hip_direct_export_exact_wide_unsigned_matrix_limbs_to_device(rns8_ma
                                                                          uint32_t limb_count);
 rns8_status hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count);
+    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count, uint32_t active_prefix = 0);
 rns8_status hip_direct_synchronize(int device_id);
 
 // Private strict wrap64 research candidates: signed carry-recode or native U8.

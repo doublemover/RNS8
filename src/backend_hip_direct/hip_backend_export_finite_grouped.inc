@@ -198,7 +198,8 @@ rns8_status hip_direct_export_exact_wide_signed_matrix_limbs_to_device(rns8_matr
 
 rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
     rns8_matrix* const* matrices, uint32_t task_count, rns8_semantics expected_semantics,
-    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix) {
+    hip_direct_grouped_device_buffer& pointer_table, int* out_device_id, uint32_t* out_prefix,
+    uint32_t active_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!pointer_table.ptr ||
       pointer_table.bytes < static_cast<std::size_t>(task_count) * sizeof(const int8_t*)) {
@@ -207,8 +208,9 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   auto host_ptrs = std::make_shared<std::vector<const int8_t*>>();
   int device_id = -1;
   uint32_t prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(matrices, task_count, expected_semantics, 0, 0,
-                                                     false, &device_id, &prefix, host_ptrs.get());
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, expected_semantics, 0, 0, false,
+                                    &device_id, &prefix, host_ptrs.get(), active_prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -251,13 +253,14 @@ rns8_status hip_direct_prepare_grouped_matrix_residue_pointers(
   (void)pointer_table;
   (void)out_device_id;
   (void)out_prefix;
+  (void)active_prefix;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
 
 rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
     rns8_matrix* const* matrices, uint32_t task_count, const void* device_residue_ptrs,
-    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count) {
+    void* device_dst, int64_t rows, int64_t cols, uint32_t limb_count, uint32_t active_prefix) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_residue_ptrs || !device_dst || task_count == 0 || limb_count == 0 ||
       limb_count > 32 || exact_wide_signed_export_requires_status(limb_count) ||
@@ -268,8 +271,9 @@ rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
   }
   int device_id = -1;
   uint32_t prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      matrices, task_count, RNS8_EXACT_WIDE_SIGNED, rows, cols, true, &device_id, &prefix, nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(matrices, task_count, RNS8_EXACT_WIDE_SIGNED, rows, cols, true,
+                                    &device_id, &prefix, nullptr, active_prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -286,6 +290,7 @@ rns8_status hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
+  (void)active_prefix;
   (void)matrices;
   (void)task_count;
   (void)device_residue_ptrs;

@@ -56,7 +56,7 @@ void flush_pending_timing_events() {
     if (status == hipSuccess) {
       float milliseconds = 0.0f;
       status = hipEventElapsedTime(&milliseconds, pending.start.get(), pending.stop.get());
-      if (status != hipSuccess) {
+      if (status != hipSuccess || !std::isfinite(milliseconds) || milliseconds < 0.0f) {
         (void)hipDeviceSynchronize();
         status = hipEventElapsedTime(&milliseconds, pending.start.get(), pending.stop.get());
       }

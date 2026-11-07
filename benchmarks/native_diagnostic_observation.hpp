@@ -42,9 +42,14 @@ template <class Run> nlohmann::json observe_native_batch(rns8_context* ctx, Run&
   const auto copies_after = hip_direct_allocation_counters_snapshot();
   const auto after = allocation();
   observation_require(before.epoch == after.epoch, "allocation observation epoch changed");
-  observation_require(hip_direct_timing_failures_complete() &&
-                          hip_direct_timing_failure_snapshot().empty(),
-                      "native diagnostic events are incomplete");
+  const auto failures = hip_direct_timing_failure_snapshot();
+  if (!hip_direct_timing_failures_complete() || !failures.empty()) {
+    std::string message = "native diagnostic events are incomplete";
+    for (const auto& failure : failures)
+      message +=
+          "; " + failure.label + ":" + failure.phase + "=" + std::to_string(failure.backend_status);
+    throw std::runtime_error(message);
+  }
   const auto delta = [](uint64_t last, uint64_t first) {
     observation_require(last >= first, "native diagnostic counters went backwards");
     return last - first;

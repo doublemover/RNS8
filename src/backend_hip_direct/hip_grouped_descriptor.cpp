@@ -590,7 +590,7 @@ rns8_status hip_direct_prepare_grouped_task_residue_pointers(
     uint32_t pointer_prefix = 0;
     const rns8_status prepare_status = hip_direct_prepare_grouped_matrix_residue_pointers(
         matrices.data(), static_cast<uint32_t>(matrices.size()), descriptor.semantics,
-        pointer_table, &pointer_device_id, &pointer_prefix);
+        pointer_table, &pointer_device_id, &pointer_prefix, descriptor.prefix);
     if (prepare_status != RNS8_SUCCESS) {
       return prepare_status;
     }
@@ -775,7 +775,8 @@ rns8_status hip_direct_export_grouped_i64_task_outputs_to_host(
   }
   status = hip_direct_export_i64_grouped_matrices_to_device(
       resources.c_matrices.data(), descriptor.task_count, resources.c_residue_ptrs.ptr,
-      resources.c_slab.ptr, resources.status.ptr, descriptor.m, descriptor.n, bound);
+      resources.c_slab.ptr, resources.status.ptr, descriptor.m, descriptor.n, bound,
+      descriptor.prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -813,7 +814,8 @@ rns8_status hip_direct_export_grouped_u64_task_outputs_to_host(
   }
   status = hip_direct_export_u64_grouped_matrices_to_device(
       resources.c_matrices.data(), descriptor.task_count, resources.c_residue_ptrs.ptr,
-      resources.c_slab.ptr, resources.status.ptr, descriptor.m, descriptor.n, bound);
+      resources.c_slab.ptr, resources.status.ptr, descriptor.m, descriptor.n, bound,
+      descriptor.prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -893,10 +895,10 @@ rns8_status hip_direct_export_grouped_exact_wide_task_outputs_to_host(
       signed_output
           ? hip_direct_export_exact_wide_signed_grouped_matrix_limbs_to_device(
                 resources.c_matrices.data(), descriptor.task_count, resources.c_residue_ptrs.ptr,
-                resources.c_slab.ptr, descriptor.m, descriptor.n, limb_count)
+                resources.c_slab.ptr, descriptor.m, descriptor.n, limb_count, descriptor.prefix)
           : hip_direct_export_exact_wide_unsigned_grouped_matrix_limbs_to_device(
                 resources.c_matrices.data(), descriptor.task_count, resources.c_residue_ptrs.ptr,
-                resources.c_slab.ptr, descriptor.m, descriptor.n, limb_count);
+                resources.c_slab.ptr, descriptor.m, descriptor.n, limb_count, descriptor.prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }

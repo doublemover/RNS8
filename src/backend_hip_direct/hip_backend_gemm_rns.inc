@@ -224,18 +224,19 @@ rns8_status hip_direct_gemm_rns_grouped_matrices_device(
   uint32_t a_prefix = 0;
   uint32_t b_prefix = 0;
   uint32_t c_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m,
-                                                     k, true, &a_device_id, &a_prefix, nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m, k, true,
+                                    &a_device_id, &a_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   status = validate_grouped_rns_matrices(b_matrices, task_count, expected_semantics, k, n, true,
-                                         &b_device_id, &b_prefix, nullptr);
+                                         &b_device_id, &b_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   status = validate_grouped_rns_matrices(c_matrices, task_count, expected_semantics, m, n, false,
-                                         &c_device_id, &c_prefix, nullptr);
+                                         &c_device_id, &c_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -309,18 +310,19 @@ rns8_status hip_direct_gemm_rns_grouped_exact_wide_matrices_device(
   uint32_t a_prefix = 0;
   uint32_t b_prefix = 0;
   uint32_t c_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m,
-                                                     k, true, &a_device_id, &a_prefix, nullptr);
+  rns8_status status =
+      validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m, k, true,
+                                    &a_device_id, &a_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   status = validate_grouped_rns_matrices(b_matrices, task_count, expected_semantics, k, n, true,
-                                         &b_device_id, &b_prefix, nullptr);
+                                         &b_device_id, &b_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   status = validate_grouped_rns_matrices(c_matrices, task_count, expected_semantics, m, n, false,
-                                         &c_device_id, &c_prefix, nullptr);
+                                         &c_device_id, &c_prefix, nullptr, prefix);
   if (status != RNS8_SUCCESS) {
     return status;
   }

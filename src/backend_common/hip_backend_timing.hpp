@@ -92,7 +92,7 @@ Status timed_hip_backend_operation(const char* label, const char* alias, Fn&& fn
     if (observed == hipSuccess) {
       float milliseconds = 0;
       auto elapsed = hipEventElapsedTime(&milliseconds, events.start(), events.stop());
-      if (elapsed != hipSuccess) {
+      if (elapsed != hipSuccess || !std::isfinite(milliseconds) || milliseconds < 0) {
         const auto drained = hipDeviceSynchronize();
         if (drained != hipSuccess)
           return failed_completion(drained, "elapsed_retry_drain");
