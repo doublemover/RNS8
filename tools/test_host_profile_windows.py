@@ -20,6 +20,7 @@ from test_target_qualification_support import QualificationFixture, write
 from test_wpa_sample_reader import sample_fields
 from test_etl_process_contract import native_metadata
 from test_etl_image_contract import image
+from test_etl_range_contract import marker_metadata, windows_snapshot
 from wpa_sample_reader import HEADERS
 
 
@@ -54,10 +55,11 @@ class WindowsHostProfile(unittest.TestCase):
         (self.binary.parent / "rns8-etl-inspect.exe").write_bytes(executable())
         self.out = self.root / "session"
         self.calls, self.fail = [], None
+        self.ranges = False
 
-    def plan(self):
+    def plan(self, **options):
         return host.plan_capture(
-            self.fixture.capture_path, self.wpr, self.exporter, self.pdb, self.out
+            self.fixture.capture_path, self.wpr, self.exporter, self.pdb, self.out, **options
         )
 
     def runner(self, command, **policy):
@@ -107,6 +109,10 @@ class WindowsHostProfile(unittest.TestCase):
                     image(2, 800, image_path_utf8=str(self.binary)),
                 ],
             )
+            if self.ranges:
+                markers = marker_metadata()
+                for key in ("observed_marker_events", "undecoded_marker_events", "marker_events"):
+                    metadata[key] = markers[key]
             result["stdout"] = json.dumps(metadata)
         elif name == "status":
             result.update(returncode=1, stderr="Error code: 0xc5583000")
@@ -124,6 +130,12 @@ class WindowsHostProfile(unittest.TestCase):
                     after=self.fixture.capture["request_identity"]["environment"],
                 ),
             )
+            if self.ranges:
+                value["profiler_ranges"] = windows_snapshot()
+                for key in ("before", "after"):
+                    value["execution_environment_witness"][key] = dict(
+                        value["execution_environment_witness"][key], RNS8_PROFILE_RANGES="1"
+                    )
             write(self.out / "raw/benchmark.json", value)
         elif name == "stop":
             (self.out / "raw/profile.etl").write_bytes(b"synthetic ETL; native decoding is mocked")
@@ -137,6 +149,7 @@ class WindowsHostProfile(unittest.TestCase):
         return result
 
     def execute(self, plan):
+        self.ranges = plan["operation_ranges"]
         with patch.object(host.platform, "system", return_value="Windows"):
             return host.execute_capture(
                 plan, authorize_system_recording=True, runner=self.runner, environment={}
@@ -169,6 +182,45 @@ class WindowsHostProfile(unittest.TestCase):
         self.assertEqual(images["generations"][0]["observed_lifetime_100ns"], 590)
         self.assertFalse(images["loaded_PDB_identity_verified"])
         self.assertEqual([name for name, _, _ in self.calls][-1], "export")
+
+    def test_native_marker_path_is_opt_in_and_requires_same_compiled_provider(self):
+        self.assertFalse(self.plan()["operation_ranges"])
+        with self.assertRaisesRegex(ValueError, "compiled with ETW"):
+            self.plan(operation_ranges=True)
+        value = copy.deepcopy(self.fixture.capture)
+        value["build_manifest"]["configuration"] = (
+            value["build_manifest"]["configuration"].replace(
+                "synthetic fixture", "fixture=authored"
+            )
+            + "\netw_ranges=ON\n"
+        )
+        write(self.fixture.capture_path, value)
+        with patch.object(host, "production_profile_input", return_value=self.binary):
+            plan = self.plan(operation_ranges=True)
+            self.assertEqual(plan["expected_native_environment"]["RNS8_PROFILE_RANGES"], "1")
+            self.assertEqual(plan, host.rebuild(plan))
+        self.assertFalse(self.out.exists())
+
+    def test_actual_synthetic_marker_publication_uses_native_windows_and_raw_snapshot(self):
+        manifest = self.fixture.capture["build_manifest"]
+        manifest["configuration"] = (
+            manifest["configuration"].replace("synthetic fixture", "fixture=authored")
+            + "\netw_ranges=ON\n"
+        )
+        write(self.fixture.capture_path, self.fixture.capture)
+        identity_path = Path(self.fixture.binary_receipts["rns8-bench"]["identity_document"])
+        identity = json.loads(identity_path.read_text())
+        identity.update(build_manifest=manifest, library_build_manifest=manifest)
+        write(identity_path, identity)
+        self.assertEqual(self.execute(self.plan(operation_ranges=True)), 0)
+        result = json.loads((self.out / "host-profile.json").read_text())
+        ranges = json.loads(Path(result["native_operation_ranges"]["path"]).read_text())
+        self.assertEqual(result["measured_operation_range"], "native_measured_windows_bound")
+        self.assertEqual(
+            ranges["phase_attribution"]["threads"][0]["exclusive_phase_wall_ns"]["proof"], 10_000
+        )
+        self.assertEqual(ranges["wpa_relative_clock_join"], "unbound")
+        self.assertFalse(result["promotion_allowed"])
 
     def test_failed_workload_stops_only_owned_instance_and_never_exports(self):
         self.fail = "workload"

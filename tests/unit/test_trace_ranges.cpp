@@ -33,7 +33,7 @@ TEST_CASE("native marker labels bind exact snapshot slots without allocation",
 TEST_CASE("profiler ranges distinguish disabled and unavailable providers", "[cpu][trace]") {
   const auto snapshot = range_snapshot();
   CHECK(snapshot.at("schema") == "rns8_profiler_ranges_v1");
-#if !defined(RNS8_ENABLE_ROCTX) || !RNS8_ENABLE_ROCTX
+#if !RNS8_PROFILE_RANGES_COMPILED
   CHECK(snapshot.at("provider_status") == "disabled_at_build");
   CHECK(snapshot.at("capacity") == 0);
   CHECK(snapshot.at("records").empty());
@@ -44,12 +44,12 @@ TEST_CASE("profiler ranges distinguish disabled and unavailable providers", "[cp
 #endif
 }
 
-TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
-          "[cpu][trace][roctx]") {
-#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+TEST_CASE("enabled native host scopes balance exceptions and cross-thread stops",
+          "[cpu][trace][native_ranges]") {
+#if RNS8_PROFILE_RANGES_COMPILED
   using namespace rns8::detail::trace;
   if (std::string(provider_status()) != "active")
-    SKIP("requires explicit RNS8_PROFILE_RANGES=1 and a current ROCTx provider");
+    SKIP("requires explicit RNS8_PROFILE_RANGES=1 and a supported native provider");
   const auto before = range_snapshot().at("claimed").get<uint64_t>();
   if (before + 3 > 4096)
     SKIP("bounded trace metadata capacity already consumed");
@@ -66,7 +66,16 @@ TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
   worker.join();
   const auto after = range_snapshot();
   REQUIRE(after.at("claimed") == before + 3);
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+  CHECK(after.at("marker_label_contract") == "rns8_etw_slot_v1");
+  CHECK(after.at("host_clock").at("schema") == "rns8_windows_host_range_clock_v1");
+  CHECK(after.at("host_clock").at("frequency_hz").get<uint64_t>() > 0);
+  CHECK(after.at("native_write_failures") == 0);
+#else
   CHECK(after.at("marker_label_contract") == "rns8_phase_slot_v1");
+  CHECK(after.at("host_clock").at("schema") == "rns8_linux_host_range_clock_v1");
+  CHECK(after.at("host_clock").at("clock_id") == 1);
+#endif
   const auto& records = after.at("records");
   REQUIRE(records.size() >= before + 3);
   CHECK(records.at(before).at("stop_state") == 1); // host scope closure
@@ -74,8 +83,6 @@ TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
   CHECK(records.at(before + 2).at("stop_state") == 2); // explicit completion
   CHECK(records.at(before + 2).at("parent_range_id").is_null());
   CHECK(records.at(before + 2).at("operation_id") == 1234);
-  CHECK(after.at("host_clock").at("schema") == "rns8_linux_host_range_clock_v1");
-  CHECK(after.at("host_clock").at("clock_id") == 1);
   CHECK(after.at("host_clock").at("unit") == "nanoseconds");
   for (uint64_t index = before; index < before + 3; ++index) {
     const auto& record = records.at(index);
@@ -94,6 +101,6 @@ TEST_CASE("enabled ROCTx host scopes balance exceptions and cross-thread stops",
   CHECK(records.at(before + 2).at("start_thread_id") !=
         records.at(before + 2).at("stop_thread_id"));
 #else
-  SKIP("optional ROCTx build feature is disabled");
+  SKIP("optional native range build feature is disabled");
 #endif
 }

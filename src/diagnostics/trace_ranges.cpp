@@ -5,17 +5,25 @@
 #include "diagnostics/trace_label.hpp"
 #include <ostream>
 
-#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
-#include <rocprofiler-sdk-roctx/roctx.h>
+#if RNS8_PROFILE_RANGES_COMPILED
 #include <array>
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
-#include <dlfcn.h>
 #include <nlohmann/json.hpp>
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <evntprov.h>
+#else
+#include <rocprofiler-sdk-roctx/roctx.h>
+#include <dlfcn.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
+#endif
 
 namespace rns8::detail::trace {
 namespace {
@@ -24,6 +32,35 @@ struct Stamp {
   uint64_t ns = 0;
   bool available = false;
 };
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+uint64_t qpc_frequency() noexcept {
+  static const uint64_t frequency = []() noexcept {
+    LARGE_INTEGER value{};
+    return QueryPerformanceFrequency(&value) && value.QuadPart > 0 ? uint64_t(value.QuadPart) : 0;
+  }();
+  return frequency;
+}
+Stamp monotonic_stamp() noexcept {
+  LARGE_INTEGER value{};
+  const uint64_t frequency = qpc_frequency();
+  if (!frequency || !QueryPerformanceCounter(&value) || value.QuadPart < 0)
+    return {};
+  const uint64_t ticks = uint64_t(value.QuadPart), seconds = ticks / frequency;
+  const uint64_t remainder = ticks % frequency;
+  if (seconds > UINT64_MAX / 1000000000 || remainder > UINT64_MAX / 1000000000)
+    return {};
+  const uint64_t fraction = remainder * 1000000000 / frequency;
+  if (fraction > UINT64_MAX - seconds * 1000000000)
+    return {};
+  return {seconds * 1000000000 + fraction, true};
+}
+uint64_t native_thread() noexcept {
+  return GetCurrentThreadId();
+}
+uint64_t native_process() noexcept {
+  return GetCurrentProcessId();
+}
+#else
 Stamp monotonic_stamp() noexcept {
   timespec value{};
   if (clock_gettime(CLOCK_MONOTONIC, &value) != 0 || value.tv_sec < 0 || value.tv_nsec < 0 ||
@@ -36,6 +73,10 @@ uint64_t native_thread() noexcept {
   const auto value = syscall(SYS_gettid);
   return value > 0 ? uint64_t(value) : 0;
 }
+uint64_t native_process() noexcept {
+  return uint64_t(getpid());
+}
+#endif
 struct Record {
   uint64_t range = 0;
   Parent parent{};
@@ -51,6 +92,63 @@ std::atomic<uint64_t> claimed{0};
 std::atomic<uint64_t> operation_sequence{1};
 thread_local Tag tag{};
 thread_local Parent parent_range{};
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+// Private v1 wire contract: event IDs/opcodes 1/2 carry one uint64 slot.
+// The same GUID appears in the owned WPR recipe and file-only decoder.
+constexpr GUID etw_provider = {
+    0xac42f789, 0x71b2, 0x4a0b, {0xa4, 0x5c, 0x5c, 0x66, 0xf4, 0x1a, 0xb8, 0x13}};
+std::atomic<bool> provider_shutdown{false};
+std::atomic<uint64_t> native_write_failures{0};
+struct Provider {
+  REGHANDLE handle = 0;
+  const char* status = "disabled_at_runtime";
+  const char* module_path = nullptr;
+  Provider() noexcept {
+    char requested[2]{};
+    if (GetEnvironmentVariableA("RNS8_PROFILE_RANGES", requested, sizeof(requested)) != 1 ||
+        requested[0] != '1')
+      return;
+    status = "requested_provider_unavailable";
+    if (qpc_frequency() && EventRegister(&etw_provider, nullptr, nullptr, &handle) == ERROR_SUCCESS)
+      status = "active";
+  }
+  ~Provider() {
+    provider_shutdown.store(true, std::memory_order_release);
+    if (handle)
+      EventUnregister(handle);
+  }
+  Provider(const Provider&) = delete;
+  Provider& operator=(const Provider&) = delete;
+};
+const Provider& provider() noexcept {
+  static const Provider value;
+  return value;
+}
+bool provider_active() noexcept {
+  return !provider_shutdown.load(std::memory_order_acquire) && provider().handle != 0;
+}
+void write_marker(uint64_t slot, uint16_t id) noexcept {
+  if (!provider_active())
+    return;
+  EVENT_DESCRIPTOR descriptor{};
+  descriptor.Id = id;
+  descriptor.Version = 1;
+  descriptor.Level = 4;
+  descriptor.Opcode = static_cast<UCHAR>(id);
+  descriptor.Keyword = 1;
+  EVENT_DATA_DESCRIPTOR data{};
+  EventDataDescCreate(&data, &slot, sizeof(slot));
+  if (EventWrite(provider().handle, &descriptor, 1, &data) != ERROR_SUCCESS)
+    native_write_failures.fetch_add(1, std::memory_order_relaxed);
+}
+uint64_t start_marker(const char*, uint64_t slot) noexcept {
+  write_marker(slot, 1);
+  return slot;
+}
+void stop_marker(uint64_t range) noexcept {
+  write_marker(range, 2);
+}
+#else
 struct Provider {
   decltype(&roctxRangeStartA) start = nullptr;
   decltype(&roctxRangeStop) stop = nullptr;
@@ -95,6 +193,16 @@ const Provider& provider() noexcept {
   }();
   return value;
 }
+bool provider_active() noexcept {
+  return provider().start != nullptr;
+}
+uint64_t start_marker(const char* marker, uint64_t) noexcept {
+  return provider().start(marker);
+}
+void stop_marker(uint64_t range) noexcept {
+  provider().stop(range);
+}
+#endif
 const char* label(Phase phase) noexcept {
   switch (phase) {
   case Phase::preparation:
@@ -125,10 +233,14 @@ const char* label(Phase phase) noexcept {
 } // namespace
 
 const char* provider_status() noexcept {
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+  if (provider_shutdown.load(std::memory_order_acquire))
+    return "provider_shutdown";
+#endif
   return provider().status;
 }
 uint64_t next_operation() noexcept {
-  return provider().start ? operation_sequence.fetch_add(1, std::memory_order_relaxed) : 0;
+  return provider_active() ? operation_sequence.fetch_add(1, std::memory_order_relaxed) : 0;
 }
 Tag current_tag() noexcept {
   return tag;
@@ -143,8 +255,7 @@ Parent exchange_parent(Parent next) noexcept {
   return std::exchange(parent_range, next);
 }
 Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
-  const auto& api = provider();
-  if (!api.start)
+  if (!provider_active())
     return {};
   Token result;
   const uint64_t index = claimed.fetch_add(1, std::memory_order_relaxed);
@@ -152,7 +263,7 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
   if (!format_marker_label(marker, sizeof(marker), label(phase), index))
     return {}; // A missing claimed record remains unpublished, never a full join.
   const auto start_before = monotonic_stamp();
-  result.range = api.start(marker);
+  result.range = start_marker(marker, index);
   const auto start_after = monotonic_stamp();
   result.active = true; // Range ID zero is valid; availability has its own bit.
   if (index < capacity) {
@@ -162,7 +273,7 @@ Token begin(Phase phase, Tag metadata, Parent parent) noexcept {
     record.parent = parent;
     record.tag = metadata;
     record.phase = phase;
-    record.process = uint64_t(getpid());
+    record.process = native_process();
     record.start_thread = native_thread();
     record.start_before = start_before;
     record.start_after = start_after;
@@ -174,7 +285,7 @@ void finish(Token& token, Outcome outcome) noexcept {
   if (!token.active)
     return;
   const auto stop_before = monotonic_stamp();
-  provider().stop(token.range);
+  stop_marker(token.range);
   const auto stop_after = monotonic_stamp();
   if (token.slot < capacity) {
     auto& record = records[token.slot];
@@ -192,12 +303,23 @@ void write_snapshot(std::ostream& out) {
   out << "{\"schema\":\"rns8_profiler_ranges_v1\",\"provider_status\":\"" << provider_status()
       << "\",\"capacity\":" << capacity << ",\"claimed\":" << count
       << ",\"dropped\":" << (count > capacity ? count - capacity : 0)
-      << ",\"marker_label_contract\":\"rns8_phase_slot_v1\""
+      << ",\"marker_label_contract\":\""
+#if defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES
+      << "rns8_etw_slot_v1\",\"native_write_failures\":"
+      << native_write_failures.load(std::memory_order_acquire)
+      << ",\"scope\":\"host_ranges_not_inferred_GPU_dependencies\",\"host_clock\":{"
+         "\"schema\":\"rns8_windows_host_range_clock_v1\",\"name\":\"QueryPerformanceCounter\","
+         "\"unit\":\"nanoseconds\",\"frequency_hz\":"
+      << qpc_frequency()
+      << ",\"timestamp_scope\":\"brackets_around_native_ETW_calls\"},\"records\":[";
+#else
+      << "rns8_phase_slot_v1\""
       << ",\"scope\":\"host_ranges_not_inferred_GPU_dependencies\",\"host_clock\":{"
          "\"schema\":\"rns8_linux_host_range_clock_v1\",\"clock_id\":"
       << int(CLOCK_MONOTONIC) << ','
       << "\"name\":\"CLOCK_MONOTONIC\",\"unit\":\"nanoseconds\","
          "\"timestamp_scope\":\"brackets_around_native_ROCTx_calls\"},\"records\":[";
+#endif
   bool comma = false;
   uint32_t unpublished = 0;
   for (uint32_t i = 0; i < capacity && i < count; ++i) {

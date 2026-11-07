@@ -37,6 +37,8 @@ constexpr GUID process_provider = {
     0x3d6fa8d0, 0xfe05, 0x11d0, {0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c}};
 constexpr GUID image_provider = {
     0x2cb15d1d, 0x5fc1, 0x11d2, {0xab, 0xe1, 0x00, 0xa0, 0xc9, 0x11, 0xf5, 0x18}};
+constexpr GUID marker_provider = {
+    0xac42f789, 0x71b2, 0x4a0b, {0xa4, 0x5c, 0x5c, 0x66, 0xf4, 0x1a, 0xb8, 0x13}};
 
 struct Property {
   USHORT type = 0;
@@ -53,11 +55,13 @@ struct State {
   uint64_t image_events = 0;
   uint64_t undecoded_image_events = 0;
   size_t image_text_bytes = 0;
+  uint64_t marker_events = 0, undecoded_marker_events = 0;
   uint32_t selected_pid = 0;
   bool stopped = false;
   const char* error = nullptr;
   json selected = json::array();
   json selected_images = json::array();
+  json selected_markers = json::array();
   std::map<uint32_t, Schema> schemas;
 };
 
@@ -219,6 +223,42 @@ void WINAPI event_callback(EVENT_RECORD* event) noexcept {
   if (++state.events > max_events) {
     state.stopped = true;
     state.error = "ETL event budget exhausted";
+    return;
+  }
+  if (IsEqualGUID(event->EventHeader.ProviderId, marker_provider)) {
+    ++state.marker_events;
+    if (event->EventHeader.ProcessId != state.selected_pid)
+      return;
+    const auto& descriptor = event->EventHeader.EventDescriptor;
+    if (descriptor.Version != 1 || (descriptor.Id != 1 && descriptor.Id != 2) ||
+        descriptor.Opcode != descriptor.Id || descriptor.Level != 4 || descriptor.Keyword != 1 ||
+        descriptor.Task || descriptor.Channel || event->UserDataLength != sizeof(uint64_t) ||
+        !event->UserData || !event->EventHeader.ThreadId ||
+        event->EventHeader.TimeStamp.QuadPart < 0) {
+      ++state.undecoded_marker_events;
+      return;
+    }
+    if (state.selected_markers.size() >= 8192) {
+      state.stopped = true;
+      state.error = "selected ETL marker event budget exhausted";
+      return;
+    }
+    // No TDH/manifest guess: this exact private v1 payload is one uint64.
+    uint64_t slot = 0;
+    std::memcpy(&slot, event->UserData, sizeof(slot));
+    try {
+      state.selected_markers.push_back(
+          json{{"pid", state.selected_pid},
+               {"tid", event->EventHeader.ThreadId},
+               {"slot", slot},
+               {"event_id", descriptor.Id},
+               {"time_filetime_100ns", event->EventHeader.TimeStamp.QuadPart},
+               {"record_index", state.events},
+               {"wire_contract", "rns8_etw_slot_v1"}});
+    } catch (...) {
+      state.stopped = true;
+      state.error = "ETL marker decoder allocation failed";
+    }
     return;
   }
   const bool image_event = IsEqualGUID(event->EventHeader.ProviderId, image_provider);
@@ -405,6 +445,9 @@ int wmain(int argc, wchar_t** argv) {
                 {"observed_image_events", state.image_events},
                 {"undecoded_image_events", state.undecoded_image_events},
                 {"image_events", std::move(state.selected_images)},
+                {"observed_marker_events", state.marker_events},
+                {"undecoded_marker_events", state.undecoded_marker_events},
+                {"marker_events", std::move(state.selected_markers)},
                 {"header",
                  {{"pointer_bytes", header.PointerSize},
                   {"clock_type", header.ReservedFlags},

@@ -16,11 +16,13 @@ import time
 import uuid
 
 from benchmark_schema import validate_capture
+from build_manifest import configuration_options
 from check_dependencies_lib.system import find_command
 from compiled_binary_identity import bind_document, canonical_digest, validate_document
 from execution_environment_contract import relevant_environment_key
 from etl_process_contract import process_contract
 from etl_image_contract import image_catalog
+from etl_range_contract import operation_ranges as bind_operation_ranges
 from gpu_qualification import owned_artifact_files
 from host_instrumentation_session import reference, write_json
 from json_evidence import load_evidence_json, parse_evidence_json, same_evidence_value
@@ -32,11 +34,16 @@ from target_qualification import EvidenceStore
 from wpa_sample_reader import read_samples
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "rns8_windows_host_profile_plan_v2"
+SCHEMA = "rns8_windows_host_profile_plan_v3"
 SOURCE_INPUTS = (
     "tools/host_profile_windows.py",
     "tools/etl_process_contract.py",
     "tools/etl_image_contract.py",
+    "tools/etl_range_contract.py",
+    "tools/host_range_contract.py",
+    "tools/native_phase_attribution.py",
+    "tools/interval_observations.py",
+    "tools/build_manifest.py",
     "tools/rns8_etl_inspect.cpp",
     "tools/pe_symbol_identity.py",
     "tools/wpa_sample_reader.py",
@@ -82,8 +89,11 @@ def plan_capture(
     total_seconds=360,
     max_artifact_bytes=512 * 1024**2,
     minimum_free_bytes=1024**3,
+    operation_ranges=False,
     review_existing=False,
 ):
+    if type(operation_ranges) is not bool:
+        raise ValueError("Windows operation range policy must be explicit boolean")
     if (
         any(
             type(value) not in (int, float) or not 0 < value <= 1800 or not math.isfinite(value)
@@ -115,6 +125,16 @@ def plan_capture(
     production_ref = reference(Path(production))
     _, baseline = store.json(production_ref, ROOT)
     executable = production_profile_input(baseline, store)
+    if (
+        operation_ranges
+        and configuration_options(baseline["build_manifest"]["configuration"], strict=True).get(
+            "etw_ranges"
+        )
+        != "ON"
+    ):
+        raise ValueError(
+            "Windows operation ranges require the same production binary compiled with ETW ranges"
+        )
     symbols = symbol_pair(executable, pdb)
     inspector = executable.parent / "rns8-etl-inspect.exe" if inspector is None else Path(inspector)
     if not inspector.is_file():
@@ -174,6 +194,9 @@ def plan_capture(
             "-symbols",
         ],
     )
+    native_environment = dict(baseline["request_identity"]["environment"])
+    if operation_ranges:
+        native_environment["RNS8_PROFILE_RANGES"] = "1"
     result = seal(
         dict(
             schema=SCHEMA,
@@ -185,7 +208,8 @@ def plan_capture(
             symbols=symbols,
             tools=tools,
             source_inputs=[reference(ROOT / path) for path in SOURCE_INPUTS],
-            expected_native_environment=baseline["request_identity"]["environment"],
+            expected_native_environment=native_environment,
+            operation_ranges=operation_ranges,
             symbol_search_environment=dict(
                 _NT_SYMBOL_PATH=str(Path(pdb).resolve(strict=True).parent),
                 _NT_ALT_SYMBOL_PATH="",
@@ -222,6 +246,7 @@ def rebuild(plan, *, review_existing=False):
         instance=plan["instance"],
         inspector=Path(plan["tools"]["inspector"]["path"]),
         review_existing=review_existing,
+        operation_ranges=plan["operation_ranges"],
         **{
             key: plan["budgets"][key]
             for key in (
@@ -286,6 +311,11 @@ def completed_capture(plan, stages):
         file_bytes=(out / "raw/profile.etl").stat().st_size,
     )
     images = image_catalog(native_metadata, process_identity)
+    ranges = (
+        bind_operation_ranges(native_metadata, process_identity, raw.get("profiler_ranges"))
+        if plan["operation_ranges"]
+        else None
+    )
     profiled = bind_host_profile_output(
         production,
         raw,
@@ -330,6 +360,8 @@ def completed_capture(plan, stages):
     publish("samples.json", samples)
     publish("native-process-metadata.json", native_metadata)
     publish("native-image-catalog.json", images)
+    if ranges is not None:
+        publish("native-operation-ranges.json", ranges)
     publish("profiled.json", profiled)
     return dict(
         qualification="native_capture_export_bound_attribution_partial",
@@ -344,7 +376,10 @@ def completed_capture(plan, stages):
         selected_process_identity=process_identity,
         sample_loss=process_identity["header_loss"],
         clock_join="unbound",
-        measured_operation_range="unbound",
+        measured_operation_range="not_requested" if ranges is None else ranges["state"],
+        native_operation_ranges=None
+        if ranges is None
+        else reference(out / "native-operation-ranges.json"),
         production_latency=False,
         promotion_allowed=False,
     )
@@ -530,6 +565,11 @@ def main(argv=None):
     parser.add_argument("--wpaexporter", type=Path)
     parser.add_argument("--etl-inspector", type=Path)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument(
+        "--operation-ranges",
+        action="store_true",
+        help="Enable compiled opt-in ETW markers and bind native measured windows",
+    )
     parser.add_argument("--authorize-system-recording", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -540,6 +580,7 @@ def main(argv=None):
             args.pdb,
             args.out,
             inspector=args.etl_inspector,
+            operation_ranges=args.operation_ranges,
         )
         if args.execute:
             return execute_capture(plan, authorize_system_recording=args.authorize_system_recording)

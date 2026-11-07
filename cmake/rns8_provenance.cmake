@@ -9,6 +9,7 @@ function(rns8_generate_manifest_configuration)
   # These may live in a different checkout and are not covered by our git SHA.
   set(_dependency_trees "")
   string(APPEND _dependency_trees "roctx=${RNS8_ENABLE_ROCTX}\n")
+  string(APPEND _dependency_trees "etw_ranges=${RNS8_ENABLE_ETW_RANGES}\n")
   if(RNS8_ENABLE_ROCTX)
     string(APPEND _dependency_trees "dependency_tree.ROCTX=${RNS8_ROCTX_INCLUDE_DIR}/rocprofiler-sdk-roctx\n")
   endif()

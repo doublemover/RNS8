@@ -7,6 +7,11 @@
       <Buffers Value="64" />
       <MaximumFileSize Value="128" FileMode="Sequential" />
     </SystemCollector>
+    <EventCollector Id="Rns8MarkerCollector" Name="RNS8 host markers">
+      <BufferSize Value="64" />
+      <Buffers Value="16" />
+      <MaximumFileSize Value="16" FileMode="Sequential" />
+    </EventCollector>
     <SystemProvider Id="Rns8CpuProvider">
       <Keywords>
         <Keyword Value="ProcessThread" />
@@ -17,11 +22,21 @@
         <Stack Value="SampledProfile" />
       </Stacks>
     </SystemProvider>
+    <EventProvider Id="Rns8MarkerProvider" Name="ac42f789-71b2-4a0b-a45c-5c66f41ab813" Level="4">
+      <Keywords>
+        <Keyword Value="0x1" />
+      </Keywords>
+    </EventProvider>
     <Profile Id="Rns8Cpu.Verbose.File" Name="Rns8Cpu" Description="Bounded sampled CPU stacks and image/process identities" LoggingMode="File" DetailLevel="Verbose">
       <Collectors>
         <SystemCollectorId Value="Rns8CpuCollector">
           <SystemProviderId Value="Rns8CpuProvider" />
         </SystemCollectorId>
+        <EventCollectorId Value="Rns8MarkerCollector">
+          <EventProviders>
+            <EventProviderId Value="Rns8MarkerProvider" />
+          </EventProviders>
+        </EventCollectorId>
       </Collectors>
     </Profile>
   </Profiles>

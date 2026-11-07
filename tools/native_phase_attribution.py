@@ -45,7 +45,14 @@ def exclusive_segments(identities, index, markers, allowed):
     return result
 
 
-def attribute(index, markers, roots, selected):
+def attribute(
+    index,
+    markers,
+    roots,
+    selected,
+    *,
+    clock_domain="native_ROCprofiler_SDK_timestamp_ns_in_one_process",
+):
     owners, groups, excluded = {}, defaultdict(list), []
     for identity, scope in index.records.items():
         owner = next((item for item in (identity, *index.parents[identity]) if item in roots), None)
@@ -178,7 +185,7 @@ def attribute(index, markers, roots, selected):
         threads=summaries,
         records=attributed,
         excluded_scopes=excluded,
-        clock="native_ROCprofiler_SDK_timestamp_ns_in_one_process",
+        clock=clock_domain,
         measure="observed_marker_wall_nanoseconds_not_CPU_time_or_exclusive_device_service",
         thread_totals_add_to_process_wall=False,
         complete_run_coverage=False,

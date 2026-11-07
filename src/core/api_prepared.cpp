@@ -35,7 +35,7 @@ HostControlObservations* exchange_host_control_observer(HostControlObservations*
 } // namespace rns8::detail
 
 struct rns8_prepared_execution {
-#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+#if RNS8_PROFILE_RANGES_COMPILED
   rns8::detail::trace::AsyncRange trace_operation;
 #endif
   std::unique_ptr<PreparedTransfer> transfer;

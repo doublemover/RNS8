@@ -4,6 +4,13 @@
 #include <iosfwd>
 #include <utility>
 
+#if (defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX) ||                                           \
+    (defined(RNS8_ENABLE_ETW_RANGES) && RNS8_ENABLE_ETW_RANGES)
+#define RNS8_PROFILE_RANGES_COMPILED 1
+#else
+#define RNS8_PROFILE_RANGES_COMPILED 0
+#endif
+
 namespace rns8::detail::trace {
 
 enum class Phase : uint32_t {
@@ -42,7 +49,7 @@ struct Parent {
 const char* provider_status() noexcept;
 void write_snapshot(std::ostream&);
 
-#if defined(RNS8_ENABLE_ROCTX) && RNS8_ENABLE_ROCTX
+#if RNS8_PROFILE_RANGES_COMPILED
 Token begin(Phase, Tag, Parent parent = {}) noexcept;
 void finish(Token&, Outcome) noexcept;
 Tag current_tag() noexcept;

@@ -50,7 +50,7 @@ class RangeInventory:
     parents: dict[int, tuple[int, ...]]
 
 
-def range_inventory(snapshot: dict, pid: int) -> RangeInventory:
+def range_inventory(snapshot: dict, pid: int, *, clock_kind="linux_monotonic") -> RangeInventory:
     uint(pid, "selected PID", positive=True)
     if (
         not isinstance(snapshot, dict)
@@ -66,7 +66,7 @@ def range_inventory(snapshot: dict, pid: int) -> RangeInventory:
     ):
         raise ValueError("complete bounded active host range snapshot required")
     clock = snapshot.get("host_clock")
-    if (
+    linux_clock = (
         not isinstance(clock, dict)
         or clock.get("schema") != "rns8_linux_host_range_clock_v1"
         or type(clock.get("clock_id")) is not int
@@ -74,6 +74,22 @@ def range_inventory(snapshot: dict, pid: int) -> RangeInventory:
         or clock.get("name") != "CLOCK_MONOTONIC"
         or clock.get("unit") != "nanoseconds"
         or clock.get("timestamp_scope") != "brackets_around_native_ROCTx_calls"
+    )
+    windows_clock = (
+        not isinstance(clock, dict)
+        or clock.get("schema") != "rns8_windows_host_range_clock_v1"
+        or clock.get("name") != "QueryPerformanceCounter"
+        or clock.get("unit") != "nanoseconds"
+        or clock.get("timestamp_scope") != "brackets_around_native_ETW_calls"
+        or type(clock.get("frequency_hz")) is not int
+        or not 0 < clock["frequency_hz"] < 1 << 63
+    )
+    if (
+        clock_kind == "linux_monotonic"
+        and linux_clock
+        or clock_kind == "windows_qpc"
+        and windows_clock
+        or clock_kind not in {"linux_monotonic", "windows_qpc"}
     ):
         raise ValueError("native host range clock metadata is unsupported")
     rows = snapshot.get("records")

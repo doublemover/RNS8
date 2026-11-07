@@ -343,10 +343,46 @@ the current tables. Current PE/PDB agreement cannot supply those observations.
 Native ETL/WPR/WPA compatibility and symbol attribution plus all authored
 ownership/cleanup/producer/unit/lifetime controls remain unexecuted. The native
 reader passes a Windows C++17 frontend check, and WPR XML passes the installed
-SDK's schema, as source checks only. Allocation, scheduler/wait, loaded-symbol
-and range/cross-clock adapters and the critical-path report remain implementation
-work. No ETL decoder, WPR recording, elevation or system profiler has run during
+SDK's schema, as source checks only. Windows allocation, scheduler/wait,
+loaded-symbol and sample/range clock adapters and the full causal critical-path
+report remain implementation work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
+
+## Native Windows operation markers
+
+The optional Windows build switch `RNS8_ENABLE_ETW_RANGES=ON` compiles the same
+private RAII host scopes used by the Linux provider. Default builds retain empty
+inline scopes. The compiled option is part of the build manifest; acquisition
+with `--operation-ranges` requires a production control from that same binary
+with runtime markers disabled, then enables `RNS8_PROFILE_RANGES=1` only for the
+diagnostic child. Balanced exception and cross-thread completion controls cover
+both providers without exposing profiler types in the public ABI.
+
+The provider uses process-scoped
+[`EventRegister`](https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventregister)
+and fixed-size [`EventWrite`](https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventwrite)
+payloads: a private versioned start/stop event carries one numeric snapshot slot.
+It installs no manifest, logger or service. Registration has an owned shutdown;
+failed writes are counted separately, and successful writes do not imply that
+a session recorded them. The bounded WPR profile subscribes to this provider;
+its XML passes the installed WPT schema check without running WPR.
+
+The file-only ETL decoder recognizes the exact provider/version/descriptor and
+eight-byte payload, preserving actual PID, TID, native record identity and
+converted FILETIME timestamps. The bound consumer matches start/stop slots and
+threads to the completed host snapshot and observed process lifetime. Duplicate,
+missing, pending or undecodable markers stay partial; contradictory identities
+or parent containment are rejected. Complete native windows feed the shared
+exclusive phase partition, retaining foreign/async scope exclusions and avoiding
+double-counted nested wall time. The private snapshot's QPC brackets remain a
+different clock: this step does not align QPC, WPA-relative sample times or GPU
+events. Consequently native operation windows can be bound while Windows
+sample-to-operation and source attribution remain pending. Raw traces and marker
+receipts never become production latency or loss-free qualification.
+
+The native provider/decoder and exception controls pass C++17 frontend checks;
+the typed association and full synthetic collector controls are authored for the
+deferred validation batch. No provider, ETL fixture, WPR or WPA process ran.
 
 ## Separate Linux host allocation capture
 
