@@ -13,6 +13,25 @@ temporary storage; derived report files describe their actual evidence scope.
 | Windows RDP CLI | Candidate 3.5.1 read-only version/profiling help | Controller and service are discovered separately; capture/export integration remains pending |
 | Raw RGP, unsupported databases and exports | Inventory only | No inferred dispatch identity or fabricated counters |
 
+The Linux acquisition planner also accepts repeated `--counter NAME` options
+for one group of at most eight counters. Its exact ordered group must have a
+retained native availability and `pmc-check` observation for the explicit
+profiler agent. The maintained
+[SDK launcher](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/bin/rocprofv3.py)
+receives one `--pmc` group and performs one application execution; input files,
+multi-pass groups, kernel replay and privileged clock changes are not enabled.
+The two injected counter variables are checked against the benchmark's actual
+environment witness. Preflight collectability remains distinct from runtime
+permission and the observed dispatch/device association.
+
+`counter-pass.json` retains each selected dispatch's requested native
+observations, including vendor units, zero values and individual hardware
+instances. Absent counters and unavailable values or units remain partial;
+they never become zeros or cross-instance totals. Receipt replay reconstructs
+the report from the retained database. Complete selected measurements do not
+establish loss-free acquisition, complete run coverage or production latency.
+The acquisition and tampered-report controls are authored and unexecuted.
+
 The rocpd reader follows AMD's pinned
 [schema source](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/share/rocprofiler-sdk-rocpd/rocpd_tables.sql).
 It reads a finalized standalone database in immutable read-only mode, rejects

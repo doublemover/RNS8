@@ -10,6 +10,8 @@ import unittest
 from unittest.mock import patch
 
 from amd_profiler_capabilities import preflight, probe_plan
+from amd_counter_pass import counter_names, summarize as summarize_counter_pass
+from amd_rocpd import read_process
 from amd_profiler_session import (
     ROOT,
     TRACE_FLAGS,
@@ -56,18 +58,24 @@ class ProfilerSession(unittest.TestCase):
             path.write_bytes(b"AUTHORED NEVER LOADED " + name.encode())
         self.inspector = self.root / "rns8-inspect"
         self.inspector.write_bytes(b"AUTHORED INSPECTOR NEVER EXECUTED")
+        self.configure_preflight()
+        self.out = self.root / "session"
+
+    def configure_preflight(self, counters=()):
         plan = probe_plan(
             "Linux",
             "gfx942",
             agent=7,
             resolver=lambda name: str(self.sdk / "bin" / name),
+            counters=counters,
         )
 
         def probe(command, **kwargs):
             output = {
                 "version": "rocprofv3 version 1.4.1\n",
-                "help": " ".join((*TRACE_FLAGS, "--output-format")),
+                "help": " ".join((*TRACE_FLAGS, "--output-format", "--pmc")),
                 "agents": "GPU:7\n name:gfx942\n logical_node_id:9\n",
+                "pmc": "GPU:7\n" + "".join(f"Counter_Name: {name}\n" for name in counters),
             }.get(kwargs["label"], "authored")
             return dict(
                 command=command,
@@ -79,16 +87,16 @@ class ProfilerSession(unittest.TestCase):
                 stderr="",
             )
 
+        directory = self.root / ("counter-preflight" if counters else "preflight")
         with patch("amd_profiler_capabilities.platform.system", return_value="Linux"):
             preflight(
                 plan,
-                self.root / "preflight",
+                directory,
                 environment={},
                 runner=probe,
                 minimum_free_bytes=1,
             )
-        self.capabilities = self.root / "preflight/capabilities.json"
-        self.out = self.root / "session"
+        self.capabilities = directory / "capabilities.json"
 
     def plan(self, **kwargs):
         return plan_capture(
@@ -138,6 +146,9 @@ class ProfilerSession(unittest.TestCase):
                 fixture.capture["request_identity"]["environment"],
                 self.sdk / "bin/rocprofv3",
                 self.out / "native",
+                counters=command[command.index("--pmc") + 1 : command.index("--output-format")]
+                if "--pmc" in command
+                else (),
             )
             if kwargs["env"].get("RNS8_PROFILE_RANGES") == "1":
                 env["RNS8_PROFILE_RANGES"] = "1"
@@ -255,6 +266,73 @@ class ProfilerSession(unittest.TestCase):
                     runner=lambda *a, **k: self.fail("must not launch"),
                 )
         self.assertFalse(self.out.exists())
+
+    def test_single_counter_group_binds_native_values_and_replays_derived_evidence(self):
+        self.configure_preflight(("AUTHORED_REQUESTS",))
+        plan = self.plan(counters=("AUTHORED_REQUESTS",))
+        command = plan["commands"][-1]["argv"]
+        self.assertEqual(command.count("--pmc"), 1)
+        self.assertNotIn("--replay-mode", command)
+        self.assertEqual(
+            plan["expected_native_environment"]["ROCPROF_COUNTERS"], "pmc: AUTHORED_REQUESTS"
+        )
+        with patch("amd_profiler_session.platform.system", return_value="Linux"):
+            self.assertEqual(execute_capture(plan, environment={}, runner=self.runner), 0)
+        path = self.out / "counter-pass.json"
+        counter_pass = json.loads(path.read_text())
+        self.assertEqual(counter_pass["state"], "observed")
+        metric = counter_pass["dispatches"][0]["observations"]["AUTHORED_REQUESTS"][0]
+        self.assertEqual(metric["value"], 0.0)
+        self.assertEqual(metric["unit"], "requests")
+        self.assertEqual(metric["definition_instance"], 2)
+        self.assertFalse(counter_pass["performance_promotion_allowed"])
+        metric["value"] = 999.0
+        write(path, counter_pass)
+        receipt_path = self.out / "dispatch-receipt.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["counter_pass"]["sha256"] = file_digest(path)
+        write(receipt_path, receipt)
+        with self.assertRaisesRegex(ValueError, "counter pass differs"):
+            validate_dispatch_receipt(
+                dict(path=str(receipt_path), sha256=file_digest(receipt_path)),
+                capture=self.fixture.capture,
+                store=EvidenceStore(),
+                parent=ROOT,
+            )
+
+    def test_counter_group_requires_exact_collectability_and_strict_names_before_output(self):
+        for names in (
+            ("AUTHORED_REQUESTS",),
+            ("x", "x"),
+            ("--input",),
+            (True,),
+            "SQ_WAVES",
+            tuple(f"A{n}" for n in range(9)),
+        ):
+            with self.subTest(names=names), self.assertRaises(ValueError):
+                self.plan(counters=names)
+            self.assertFalse(self.out.exists())
+        self.configure_preflight(("AUTHORED_REQUESTS", "AUTHORED_OTHER"))
+        with self.assertRaisesRegex(ValueError, "exact native preflight"):
+            self.plan(counters=("AUTHORED_REQUESTS",))
+        self.assertEqual(counter_names([]), ())
+
+    def test_missing_native_counter_stays_partial_without_a_zero_or_instance_sum(self):
+        projection = read_process(timeline_database(self.fixture), 222)
+        selected = selected_dispatches(
+            projection["native"], {"synthetic_selected_symbol"}, "gfx942"
+        )
+        report = summarize_counter_pass(
+            projection, selected, ("AUTHORED_REQUESTS", "AUTHORED_OTHER")
+        )
+        self.assertEqual(report["state"], "partial")
+        self.assertEqual(report["dispatches"][0]["missing_counters"], ["AUTHORED_OTHER"])
+        self.assertNotIn("AUTHORED_OTHER", report["dispatches"][0]["observations"])
+        self.assertFalse(report["complete_selected_measurements"])
+        projection["metrics"][0]["missingness"] = "vendor_unit_unavailable"
+        report = summarize_counter_pass(projection, selected, ("AUTHORED_REQUESTS",))
+        self.assertEqual(report["dispatches"][0]["incomplete_counters"], ["AUTHORED_REQUESTS"])
+        self.assertFalse(report["complete_selected_measurements"])
 
     def test_operation_ranges_require_actual_compiled_feature_before_any_output(self):
         self.configure_roctx("OFF")

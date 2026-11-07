@@ -18,6 +18,7 @@ from amd_profiler_capabilities import validate_preflight
 from amd_profiler_evidence import SCHEMA as DISPATCH_SCHEMA, validate_dispatch_receipt
 from amd_rocpd import read_process
 from amd_profiler_ranges import join as join_native_ranges
+from amd_counter_pass import counter_names, summarize as summarize_counter_pass
 from native_allocation_lifetimes import summarize as summarize_allocations
 from build_manifest import configuration_options
 from benchmark_request import (
@@ -53,6 +54,7 @@ SOURCE_INPUTS = (
     "tools/amd_profiler_capabilities.py",
     "tools/amd_rocpd.py",
     "tools/amd_profiler_ranges.py",
+    "tools/amd_counter_pass.py",
     "tools/native_allocation_lifetimes.py",
     "tools/host_range_contract.py",
     "tools/interval_observations.py",
@@ -138,7 +140,9 @@ def timeline_libraries(tool: Path) -> tuple[Path, ...]:
     )
 
 
-def timeline_environment(baseline: dict[str, str], tool: Path, directory: Path) -> dict[str, str]:
+def timeline_environment(
+    baseline: dict[str, str], tool: Path, directory: Path, *, counters=()
+) -> dict[str, str]:
     """Pinned 1.4.1 single-pass launcher contract, not a permissive prefix mask."""
     root = tool.resolve(strict=True).parent.parent
     libraries = timeline_libraries(tool)
@@ -156,6 +160,9 @@ def timeline_environment(baseline: dict[str, str], tool: Path, directory: Path) 
         ROCPROF_OUTPUT_FORMAT="rocpd",
     )
     result.update({"ROCPROF_" + name: "1" for name in TRACE_VARIABLES})
+    names = counter_names(counters)
+    if names:
+        result.update(ROCPROF_COUNTER_COLLECTION="1", ROCPROF_COUNTERS="pmc: " + " ".join(names))
     return result
 
 
@@ -172,6 +179,7 @@ def plan_capture(
     max_output_bytes=16 * 1024**2,
     minimum_free_bytes=5 * 1024**3,
     operation_ranges=False,
+    counters=(),
     _review_existing=False,
 ) -> dict:
     for value in (timeout_seconds, total_seconds):
@@ -197,6 +205,19 @@ def plan_capture(
         inspector=reference(inspector),
     )
     capture, preflight, executable, _ = _inputs(inputs, store)
+    names = counter_names(counters)
+    if names:
+        feature = preflight["features"]["counters"]
+        if (
+            list(names) != preflight["requested_counters"]
+            or feature["official_support"] != "supported"
+            or feature["advertised"] != "available"
+            or feature["permission"] == "denied"
+            or type(preflight["profiler_agent_selector"]) is not int
+        ):
+            raise ValueError(
+                "counter group lacks its exact native preflight collectability observation"
+            )
     if (
         operation_ranges
         and configuration_options(capture["build_manifest"]["configuration"], strict=True).get(
@@ -209,7 +230,7 @@ def plan_capture(
     tool = Path(preflight["tools"]["rocprofv3"]["path"]).resolve(strict=True)
     # A bounded explicit single execution must not inherit pass/replay controls.
     baseline = capture["request_identity"]["environment"]
-    expected = timeline_environment(baseline, tool, out / "native")
+    expected = timeline_environment(baseline, tool, out / "native", counters=names)
     if operation_ranges:
         expected["RNS8_PROFILE_RANGES"] = "1"
     library_receipts = [reference(path) for path in timeline_libraries(tool)]
@@ -220,6 +241,7 @@ def plan_capture(
     command = [
         str(tool),
         *TRACE_FLAGS,
+        *(["--pmc", *names] if names else []),
         "--output-format",
         "rocpd",
         "-d",
@@ -233,7 +255,8 @@ def plan_capture(
     _, raw_preflight = store.json(inputs["capabilities"], ROOT)
     help_rows = [row for row in raw_preflight["observations"] if row["name"] == "help"]
     if len(help_rows) != 1 or any(
-        flag not in help_rows[0]["result"]["stdout"] for flag in TRACE_FLAGS
+        flag not in help_rows[0]["result"]["stdout"]
+        for flag in (*TRACE_FLAGS, *(("--pmc",) if names else ()))
     ):
         raise ValueError("selected rocprofv3 help does not advertise the maintained timeline flags")
     version_rows = [row for row in raw_preflight["observations"] if row["name"] == "version"]
@@ -291,7 +314,7 @@ def plan_capture(
     )
     plan = dict(
         schema=SCHEMA,
-        schema_version=3,
+        schema_version=4,
         session_kind="amd-profiler-timeline",
         system="Linux",
         command_working_directory=str(ROOT),
@@ -299,6 +322,8 @@ def plan_capture(
         **inputs,
         source_inputs=[reference(ROOT / name) for name in SOURCE_INPUTS],
         operation_ranges=operation_ranges,
+        requested_counters=list(names),
+        counter_policy="one_explicit_group_one_application_execution_no_kernel_replay",
         profiler_tool=reference(tool),
         injection_libraries=library_receipts,
         tool_version_output=version_output,
@@ -340,6 +365,7 @@ def _rebuild(plan: dict, *, review_existing=False) -> dict:
         max_output_bytes=plan["commands"][-1]["max_output_bytes"],
         minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
         operation_ranges=plan["operation_ranges"],
+        counters=plan["requested_counters"],
         _review_existing=review_existing,
     )
 
@@ -424,6 +450,14 @@ def validate_acquisition(
     _, retained_allocations = store.json(receipt.get("native_allocations"), parent)
     if not same_evidence_value(retained_allocations, summarize_allocations(timeline)):
         raise ValueError("retained allocation generations differ from actual native evidence")
+    _, retained_counters = store.json(receipt.get("counter_pass"), parent)
+    if not same_evidence_value(
+        retained_counters,
+        summarize_counter_pass(
+            native_projection, receipt["selected_dispatches"], plan["requested_counters"]
+        ),
+    ):
+        raise ValueError("retained counter pass differs from actual native evidence")
     for item in [
         plan["inspector"],
         plan["profiler_tool"],
@@ -439,6 +473,7 @@ def validate_acquisition(
         native_timeline=receipt["native_timeline"],
         operation_join=receipt["operation_join"],
         native_allocations=receipt["native_allocations"],
+        counter_pass=receipt["counter_pass"],
         scope="bounded_selected_dispatch_acquisition_not_complete_profile_coverage",
     )
 
@@ -597,9 +632,17 @@ def finalize(manifest_path: Path) -> dict:
     bound_path, receipt_path = out / "profiled.json", out / "dispatch-receipt.json"
     timeline_path, operation_path = out / "native-timeline.json", out / "operation-join.json"
     allocation_path = out / "native-allocations.json"
+    counter_path = out / "counter-pass.json"
     if any(
         path.exists()
-        for path in (bound_path, receipt_path, timeline_path, operation_path, allocation_path)
+        for path in (
+            bound_path,
+            receipt_path,
+            timeline_path,
+            operation_path,
+            allocation_path,
+            counter_path,
+        )
     ):
         raise ValueError("profiler finalization outputs already exist")
     operation = (
@@ -611,6 +654,9 @@ def finalize(manifest_path: Path) -> dict:
     operation_ref = _write_diagnostic(operation_path, operation, plan)
     allocation_ref = _write_diagnostic(
         allocation_path, summarize_allocations(projection["timeline"]), plan
+    )
+    counter_ref = _write_diagnostic(
+        counter_path, summarize_counter_pass(projection, selected, plan["requested_counters"]), plan
     )
     write_json(bound_path, profiled)
     injection = {
@@ -628,6 +674,7 @@ def finalize(manifest_path: Path) -> dict:
         native_timeline=timeline_ref,
         operation_join=operation_ref,
         native_allocations=allocation_ref,
+        counter_pass=counter_ref,
         selected_static_isa=plan["selected_static_isa"],
         profiler_environment=injection,
         selected_dispatches=selected,
@@ -711,6 +758,7 @@ def main(argv=None) -> int:
     parser.add_argument("--minimum-free-bytes", type=int, default=5 * 1024**3)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--operation-ranges", action="store_true")
+    parser.add_argument("--counter", action="append", default=[])
     args = parser.parse_args(argv)
     try:
         plan = plan_capture(
@@ -725,6 +773,7 @@ def main(argv=None) -> int:
             max_output_bytes=args.max_output_bytes,
             minimum_free_bytes=args.minimum_free_bytes,
             operation_ranges=args.operation_ranges,
+            counters=args.counter,
         )
         if args.execute:
             return execute_capture(plan)
