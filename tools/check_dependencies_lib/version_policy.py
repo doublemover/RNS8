@@ -11,6 +11,7 @@ import importlib.metadata
 import json
 from pathlib import Path
 import re
+from json_evidence import parse_evidence_json
 
 SCHEMA = "rns8_dependency_policy_v1"
 ROLES = {
@@ -38,11 +39,89 @@ def sha256(path: Path) -> str:
 
 
 def load_policy(path: Path) -> dict:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    with path.open("rb") as handle:
+        payload = handle.read(2 * 1024 * 1024 + 1)
+    if len(payload) > 2 * 1024 * 1024:
+        raise ValueError("dependency policy exceeds 2MiB")
+    value = parse_evidence_json(payload.decode("utf-8"))
     errors = validate_policy(value)
     if errors:
         raise ValueError("invalid dependency policy: " + "; ".join(errors))
     return value
+
+
+def update_proposal(current: dict, candidate: dict) -> dict:
+    """Review an operator-supplied official survey without changing any pin.
+
+    Observations and old qualification are not candidate selection authority.
+    The complete input hashes bind even those fields, but the change list keeps
+    them separate from the versions, artifacts and compatibility exceptions.
+    """
+    for policy in (current, candidate):
+        errors = validate_policy(policy)
+        if errors:
+            raise ValueError("invalid proposal policy: " + "; ".join(errors))
+
+    def identity(value):
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        ).hexdigest()
+
+    fields = ("role", "latest_stable", "selected", "platform_selections", "artifact", "exception")
+    old = {item["name"]: item for item in current["components"]}
+    new = {item["name"]: item for item in candidate["components"]}
+    changes = []
+    for name in sorted(old.keys() | new.keys()):
+        before = {key: old[name].get(key) for key in fields} if name in old else None
+        after = {key: new[name].get(key) for key in fields} if name in new else None
+        if before == after:
+            continue
+        role = (new.get(name) or old[name])["role"]
+        group = (
+            "rocm_stack"
+            if role == "accelerator"
+            else "ci_actions"
+            if name.startswith("actions/")
+            else "optional_inventory"
+            if role == "inventory_only"
+            else "host_tools_and_packages"
+        )
+        changes.append(dict(group=group, component=name, before=before, after=after))
+    for key, group in (
+        ("vcpkg", "host_tools_and_packages"),
+        ("bootstrap", "host_tools_and_packages"),
+        ("quality_tools", "host_tools_and_packages"),
+        ("source_pins", "rocm_stack"),
+        ("gpu_sdk_candidate", "rocm_stack"),
+    ):
+        if current.get(key) != candidate.get(key):
+            changes.append(
+                dict(
+                    group=group,
+                    policy_section=key,
+                    before=current.get(key),
+                    after=candidate.get(key),
+                )
+            )
+    return dict(
+        schema="rns8_dependency_update_proposal_v1",
+        scope="offline_operator_supplied_survey_not_live_upstream_discovery",
+        current_policy_canonical_sha256=identity(current),
+        candidate_policy_canonical_sha256=identity(candidate),
+        current_audit_date_utc=current.get("audit_date_utc"),
+        candidate_audit_date_utc=candidate.get("audit_date_utc"),
+        changes=changes,
+        change_count=len(changes),
+        retained_exceptions=[
+            dict(component=item["name"], exception=item["exception"])
+            for item in candidate["components"]
+            if item.get("exception")
+        ],
+        qualification_transferred=False,
+        promotion_allowed=False,
+        repository_modified=False,
+        remaining_gates=candidate["remaining_gates"],
+    )
 
 
 def validate_policy(value: dict) -> list[str]:

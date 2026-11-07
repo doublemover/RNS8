@@ -45,6 +45,76 @@ class Policy(unittest.TestCase):
         self.assertFalse(self.policy["promotion_allowed"])
         self.assertEqual(self.policy["status"], "candidate_pending_qualification")
 
+    def test_update_proposal_is_content_bound_and_keeps_stack_changes_separate(self):
+        candidate = deepcopy(self.policy)
+        python = next(c for c in candidate["components"] if c["name"] == "python")
+        python["artifact"]["sha256"] = "e" * 64
+        checkout = next(c for c in candidate["components"] if c["name"] == "actions/checkout")
+        checkout["selected"]["revision"] = "e" * 40
+        candidate["source_pins"]["ck"]["revision"] = "e" * 40
+        candidate["vcpkg"]["baseline"] = "e" * 40
+        unchanged = deepcopy(self.policy)
+        proposal = p.update_proposal(self.policy, candidate)
+        self.assertEqual(self.policy, unchanged)
+        self.assertEqual(
+            {c["group"] for c in proposal["changes"]},
+            {"host_tools_and_packages", "ci_actions", "rocm_stack"},
+        )
+        self.assertNotEqual(
+            proposal["current_policy_canonical_sha256"],
+            proposal["candidate_policy_canonical_sha256"],
+        )
+        self.assertFalse(proposal["promotion_allowed"])
+        self.assertFalse(proposal["qualification_transferred"])
+        self.assertFalse(proposal["repository_modified"])
+        self.assertEqual(proposal, p.update_proposal(self.policy, candidate))
+        self.assertEqual(p.update_proposal(self.policy, self.policy)["change_count"], 0)
+
+    def test_proposal_keeps_observations_out_of_selection_deltas(self):
+        candidate = deepcopy(self.policy)
+        candidate["components"][0]["last_tested"] = {"fixture_only": True}
+        proposal = p.update_proposal(self.policy, candidate)
+        self.assertEqual(proposal["change_count"], 0)
+        self.assertNotEqual(
+            proposal["current_policy_canonical_sha256"],
+            proposal["candidate_policy_canonical_sha256"],
+        )
+        candidate["promotion_allowed"] = True
+        with self.assertRaisesRegex(ValueError, "must not authorize"):
+            p.update_proposal(self.policy, candidate)
+
+    def test_proposal_cli_is_offline_and_does_not_edit_its_inputs(self):
+        candidate = self.root / "proposal with spaces.json"
+        candidate.write_text(json.dumps(self.policy), encoding="utf-8")
+        before = candidate.read_bytes()
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools/check_dependencies.py"),
+                "--update-proposal",
+                str(candidate),
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        proposal = json.loads(result.stdout)
+        self.assertEqual(proposal["change_count"], 0)
+        self.assertEqual(proposal["current_repository_consistency_errors"], [])
+        self.assertEqual(candidate.read_bytes(), before)
+
+    def test_policy_reader_rejects_duplicate_keys_and_oversize_inputs(self):
+        path = self.root / "invalid-policy.json"
+        path.write_text('{"schema": 1, "schema": 2}', encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            p.load_policy(path)
+        path.write_bytes(b" " * (2 * 1024 * 1024 + 1))
+        with self.assertRaisesRegex(ValueError, "exceeds 2MiB"):
+            p.load_policy(path)
+
     def test_inventory_only_components_are_not_install_requirements(self):
         inventory = [item for item in self.policy["components"] if item["role"] == "inventory_only"]
         self.assertTrue(

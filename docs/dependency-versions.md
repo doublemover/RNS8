@@ -231,6 +231,24 @@ compatibility gates. A failed candidate needs a concrete exception and revisit
 condition. There is no automatic install, merge, driver change or backend/cache
 promotion.
 
+For a reviewable update proposal, copy `metadata/dependencies.json` to
+`temp/dependency-candidate.json`, refresh its candidates from official sources,
+and run:
+
+```sh
+python tools/check_dependencies.py --update-proposal temp/dependency-candidate.json --json
+```
+
+This offline mode compares the supplied survey, not live upstream releases.
+It validates both policies, binds their complete canonical content and reports
+component, vcpkg closure, source-pin, bootstrap and SDK changes. ROCm stack,
+host/package, Actions and unused inventory changes remain separate review groups.
+Observation and historical qualification edits affect the input identity without
+becoming selection changes or transferred qualification. The command checks the
+current repository lock and prints a proposal; it does not modify either policy,
+download, probe, install, merge or promote anything. Review the proposal before
+editing tracked pins, then qualify that coherent candidate in fresh build trees.
+
 
 Explicit GMP/FLINT enablement now performs a compile/link API probe against the
 selected imported targets, including when project tests are disabled. The probe

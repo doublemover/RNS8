@@ -15,6 +15,7 @@ from .version_policy import (
     evaluate_report,
     load_policy,
     sha256,
+    update_proposal,
 )
 
 
@@ -30,6 +31,11 @@ def main() -> int:
         "--check-lock",
         action="store_true",
         help="check reviewed dependency pins/hashes against repository files offline; no probes or installation",
+    )
+    parser.add_argument(
+        "--update-proposal",
+        type=Path,
+        help="compare a reviewed candidate dependency policy offline; no discovery, install, pin edits or promotion",
     )
     parser.add_argument(
         "--require-locked",
@@ -84,7 +90,7 @@ def main() -> int:
     try:
         policy_root = Path(__file__).resolve().parents[2]
         policy = load_policy(policy_root / "metadata/dependencies.json")
-        if args.check_lock:
+        if args.check_lock or args.update_proposal:
             if (
                 args.resolve_only
                 or args.require_locked
@@ -94,11 +100,18 @@ def main() -> int:
                 or args.cmake_cache
                 or args.definitions
                 or args.resolution_request
+                or args.accelerator_probe_dir
+                or (args.check_lock and args.update_proposal)
             ):
                 parser.error(
-                    "--check-lock is an offline consistency check; do not combine it with discovery/probes/version enforcement"
+                    "offline policy modes are exclusive; do not combine them with discovery/probes/version enforcement"
                 )
             errors = check_repository(policy_root, policy)
+            if args.update_proposal:
+                proposal = update_proposal(policy, load_policy(args.update_proposal))
+                proposal["current_repository_consistency_errors"] = errors
+                print(json.dumps(proposal, indent=2, sort_keys=True))
+                return 1 if errors else 0
             checked = {
                 "schema": "rns8_dependency_lock_check_v1",
                 "policy_sha256": sha256(policy_root / "metadata/dependencies.json"),
