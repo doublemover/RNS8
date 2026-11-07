@@ -127,16 +127,12 @@ struct Options {
   std::set<std::string> supplied;
   std::shared_ptr<MemoryBudget> memory = std::make_shared<MemoryBudget>();
 };
-inline void validate_workload_extent(const Options& options) {
-  require((!options.gram || options.m == options.n) &&
-              (!options.gram_five_product || options.gram_reuse),
-          "Gram controls require one square-output source and an explicit experimental batch");
+inline void validate_comparator_extent(const Options& options) {
   const bool large_gram = options.gram && options.gram_reuse && options.size == "large";
   constexpr uint64_t max_gram_reference_products = UINT64_C(2048) * 2048 * 65537;
   require(options.reference_max_products >= 1 &&
-              options.reference_max_products <= max_gram_reference_products &&
-              (!options.supplied.count("--reference-max-products") || large_gram),
-          "--reference-max-products requires an explicit large Gram batch");
+              options.reference_max_products <= max_gram_reference_products,
+          "reference product budget exceeds the bounded comparator limit");
   require(
       options.m >= 1 && options.m <= (large_gram ? 2048u : 512u) && options.n >= 1 &&
           options.n <= (large_gram ? 2048u : 512u) && options.k >= 1 &&
@@ -146,11 +142,21 @@ inline void validate_workload_extent(const Options& options) {
               options.memory_mib <= (large_gram ? 131072u : 4096u),
           "memory budget exceeds the explicit workload cohort limit");
   require(!options.gram_reuse ||
-              (options.gram && options.m == options.n && options.gram_reuse <= 256 &&
+              (options.gram_reuse <= 256 &&
                uint64_t(options.m) * options.n * options.k <= options.reference_max_products &&
                (large_gram ||
                 uint64_t(options.m) * options.n * options.k * options.gram_reuse <= 134217728)),
-          "Gram batch exceeds the per-generation reference or bounded batch work limit");
+          "batch exceeds the per-generation reference or bounded batch work limit");
+}
+inline void validate_workload_extent(const Options& options) {
+  require((!options.gram || options.m == options.n) &&
+              (!options.gram_five_product || options.gram_reuse) &&
+              (!options.gram_reuse || (options.gram && options.m == options.n)),
+          "Gram controls require one square-output source and an explicit experimental batch");
+  require(!options.supplied.count("--reference-max-products") ||
+              (options.gram && options.gram_reuse && options.size == "large"),
+          "--reference-max-products requires an explicit large Gram batch");
+  validate_comparator_extent(options);
 }
 inline Options options(int argc, char** argv) {
   Options out;

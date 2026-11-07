@@ -226,6 +226,15 @@ int main() {
       config.k = 2;
       config.gram_reuse = 3;
       config.gram_export = "once";
+      bool cli_rejected = false;
+      try {
+        validate_workload_extent(config);
+      } catch (const std::invalid_argument&) {
+        cli_rejected = true;
+      }
+      require(cli_rejected && config.memory->reserved == 0,
+              "private repeated comparator shape escaped Gram CLI admission");
+      validate_comparator_extent(config);
       Dataset input = make_data(config, true);
       input.a = {INT64_MAX, INT64_MAX};
       input.b = {INT64_MAX, INT64_MAX};

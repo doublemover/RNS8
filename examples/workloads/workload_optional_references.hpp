@@ -54,7 +54,7 @@ inline Json optional_reference_identity() {
 }
 
 inline uint64_t optional_reference_memory(const Options& options, bool chain) {
-  validate_workload_extent(options);
+  validate_comparator_extent(options);
   const uint64_t cells =
       uint64_t(options.m) * options.k + uint64_t(options.k) * options.n +
       uint64_t(options.m) * options.n +
@@ -72,7 +72,7 @@ inline uint64_t optional_reference_memory(const Options& options, bool chain) {
 }
 inline bool optional_reference_shape(const Dataset& data, const Options& options, bool chain,
                                      uint32_t limbs) {
-  validate_workload_extent(options);
+  validate_comparator_extent(options);
   require(limbs == 1 || limbs == 3,
           "optional comparator supports explicit one/three-limb signed outputs");
   require(data.a.size() == size_t(options.m) * options.k &&
