@@ -19,6 +19,7 @@ from host_instrumentation_session import (
     check_bookends,
     invocation_path,
     reference,
+    valid_total_budget,
     write_json,
 )
 from json_evidence import parse_evidence_json, same_evidence_value
@@ -345,7 +346,13 @@ def execute(args, plan, seeds):
         PYTHONOPTIMIZE="", PYTHONDONTWRITEBYTECODE="1", CTEST_NO_TESTS_ACTION="error"
     )
     output.mkdir(parents=True)
-    session = Session(output, environment, args.timeout_seconds, args.artifact_mib * 1024**2)
+    session = Session(
+        output,
+        environment,
+        args.timeout_seconds,
+        args.artifact_mib * 1024**2,
+        total_seconds=getattr(args, "total_seconds", None),
+    )
     result = dict(
         schema="rns8_native_production_mutation_session_v1",
         status="blocked",
@@ -480,6 +487,7 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
     parser.add_argument("--artifact-mib", type=int, default=32768)
     parser.add_argument("--source-mib", type=int, default=512)
     parser.add_argument("--execute", action="store_true")
@@ -526,11 +534,13 @@ def main(argv=None):
             or not 1 <= args.timeout_seconds <= 14400
             or not 512 <= args.artifact_mib <= 65536
             or not 32 <= args.source_mib <= 2048
+            or not valid_total_budget(args.total_seconds)
         ):
             raise ValueError("native mutation budgets exceed supported bounds")
         seeds = registry()
         plan = dict(
             schema="rns8_native_production_mutation_plan_v1",
+            total_seconds=args.total_seconds,
             output=str(output),
             seed_ids=[seed["id"] for seed in seeds],
             baseline_builds=1 + int(args.mull_runner is not None),

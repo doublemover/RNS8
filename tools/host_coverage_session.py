@@ -23,6 +23,7 @@ from host_instrumentation_session import (
     reference,
     source_inventory,
     version_number,
+    valid_total_budget,
     write_json,
 )
 from json_evidence import parse_evidence_json
@@ -86,7 +87,13 @@ def execute(args, plan):
     output.mkdir(parents=True)
     (output / "setup-profiles").mkdir()
     (output / "test-profiles").mkdir()
-    session = Session(output, environment, args.timeout_seconds, args.artifact_mib * 1024**2)
+    session = Session(
+        output,
+        environment,
+        args.timeout_seconds,
+        args.artifact_mib * 1024**2,
+        total_seconds=getattr(args, "total_seconds", None),
+    )
     result = dict(
         schema="rns8_native_host_coverage_session_v1",
         status="blocked",
@@ -327,6 +334,7 @@ def main(argv=None):
     parser.add_argument("--allowed-skips", type=Path)
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
     parser.add_argument("--artifact-mib", type=int, default=32768)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
@@ -338,6 +346,7 @@ def main(argv=None):
             not 1 <= args.jobs <= 64
             or not 1 <= args.timeout_seconds <= 14400
             or not 256 <= args.artifact_mib <= 65536
+            or not valid_total_budget(args.total_seconds)
         ):
             raise ValueError("native coverage budget outside supported bounds")
         for name in (
@@ -373,6 +382,7 @@ def main(argv=None):
             command.append("-DCMAKE_TOOLCHAIN_FILE=" + str(args.toolchain))
         plan = dict(
             schema="rns8_native_host_coverage_plan_v1",
+            total_seconds=args.total_seconds,
             output=str(output),
             build=str(build),
             configure=command,

@@ -11,6 +11,8 @@ import re
 import shutil
 import secrets
 import sys
+import math
+import time
 
 from analysis_inputs import cache_values, load_inputs, target_artifacts
 from benchmark_request import file_digest
@@ -174,8 +176,24 @@ def runtime_inventory(session, compiler: Path, lane: str) -> dict:
     )
 
 
+def valid_total_budget(seconds):
+    return seconds is None or (
+        type(seconds) in (int, float) and 0 < seconds <= 86400 and math.isfinite(seconds)
+    )
+
+
 class Session:
-    def __init__(self, output: Path, environment: dict, timeout: int, artifact_bytes: int):
+    def __init__(
+        self,
+        output: Path,
+        environment: dict,
+        timeout: int,
+        artifact_bytes: int,
+        *,
+        total_seconds=None,
+    ):
+        if not valid_total_budget(total_seconds):
+            raise ValueError("host session needs a finite total budget within24hours")
         self.output, self.environment, self.timeout, self.artifact_bytes = (
             output,
             environment,
@@ -183,6 +201,7 @@ class Session:
             artifact_bytes,
         )
         self.stages = []
+        self.deadline = time.monotonic() + total_seconds if total_seconds is not None else None
 
     def run(
         self,
@@ -195,12 +214,18 @@ class Session:
         max_output_bytes=32 * 1024**2,
         environment=None,
     ) -> dict:
+        child_timeout = timeout or self.timeout
+        if self.deadline is not None:
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError("host session total time budget exhausted before stage: " + name)
+            child_timeout = min(child_timeout, remaining)
         result = run_capture(
             command,
             cwd=cwd,
             label="host-check:" + name,
             env=self.environment if environment is None else environment,
-            timeout_seconds=timeout or self.timeout,
+            timeout_seconds=child_timeout,
             max_output_bytes=max_output_bytes,
             artifact_roots=(self.output,),
             max_artifact_bytes=self.artifact_bytes,
@@ -638,6 +663,7 @@ def execute(args, plan):
         environment,
         args.timeout_seconds,
         args.artifact_mib * 1024**2,
+        total_seconds=getattr(args, "total_seconds", None),
     )
     try:
         source = source_inventory()
@@ -894,6 +920,11 @@ def main(argv=None):
     )
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parser.add_argument(
+        "--total-seconds",
+        type=int,
+        help="total owned child-process budget; cleanup/publication remains bounded separately",
+    )
     parser.add_argument("--artifact-mib", type=int, default=32768)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
@@ -905,6 +936,7 @@ def main(argv=None):
             args.jobs not in range(1, 65)
             or not 1 <= args.timeout_seconds <= 14400
             or not 256 <= args.artifact_mib <= 65536
+            or not valid_total_budget(args.total_seconds)
         ):
             raise ValueError("host lane budgets exceed supported bounds")
         output = args.out.resolve()
@@ -950,6 +982,7 @@ def main(argv=None):
             raise ValueError("Windows lane requires explicit vcpkg toolchain")
         plan = dict(
             schema="rns8_host_dynamic_check_plan_v1",
+            total_seconds=args.total_seconds,
             preset=args.preset,
             system=system,
             lane=lane,

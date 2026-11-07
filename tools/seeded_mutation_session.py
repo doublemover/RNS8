@@ -18,6 +18,7 @@ from host_instrumentation_session import (
     reference,
     source_inventory,
     write_json,
+    valid_total_budget,
 )
 from json_evidence import parse_evidence_json
 from quality_inventory import ROOT
@@ -166,7 +167,13 @@ def execute(args, plan, seeds, prepared):
         )
     environment.update(PYTHONOPTIMIZE="", PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1")
     output.mkdir(parents=True)
-    session = Session(output, environment, args.timeout_seconds, args.artifact_mib * 1024**2)
+    session = Session(
+        output,
+        environment,
+        args.timeout_seconds,
+        args.artifact_mib * 1024**2,
+        total_seconds=getattr(args, "total_seconds", None),
+    )
     result = dict(
         schema="rns8_production_mutation_session_v1",
         status="blocked",
@@ -265,6 +272,7 @@ def main(argv=None):
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--timeout-seconds", type=int, default=180)
+    parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
     parser.add_argument("--artifact-mib", type=int, default=1024)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
@@ -273,7 +281,11 @@ def main(argv=None):
         output = args.out.resolve()
         if output == ROOT / "temp" or not output.is_relative_to(ROOT / "temp") or output.exists():
             raise ValueError("fresh ignored production mutation output required")
-        if not 1 <= args.timeout_seconds <= 1800 or not 128 <= args.artifact_mib <= 4096:
+        if (
+            not 1 <= args.timeout_seconds <= 1800
+            or not 128 <= args.artifact_mib <= 4096
+            or not valid_total_budget(args.total_seconds)
+        ):
             raise ValueError("production mutation budgets exceed supported bounds")
         seeds = registry()["seeds"]
         prepared = {}
@@ -288,6 +300,7 @@ def main(argv=None):
                 ast.parse(row["mutant"])
         plan = dict(
             schema="rns8_production_mutation_plan_v1",
+            total_seconds=args.total_seconds,
             python=str(args.python),
             output=str(output),
             registry=reference(REGISTRY),

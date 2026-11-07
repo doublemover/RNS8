@@ -80,6 +80,14 @@ failure without automatic retry. Configure/build/test commands, native outputs,
 sources, objects, tools, matching compiler runtime files, binaries and installed
 static library are digest-bound and checked again at completion.
 
+The host instrumentation, native/Python coverage and native/Python mutation
+drivers accept `--total-seconds` in addition to each child's timeout. One
+monotonic deadline caps later children to the remaining allowance and prevents
+new child launches after exhaustion. Plans retain the selected budget; omitted
+values preserve the existing per-child policy. Bounded process termination and
+report publication remain outside that child allowance, so CI leaves an explicit
+artifact-upload reserve. The deadline controls are authored and unexecuted.
+
 ```sh
 python tools/host_instrumentation_session.py --preset cpu-tsan-release \
   --out temp/host-tsan-candidate --cmake /path/to/cmake --ctest /path/to/ctest \

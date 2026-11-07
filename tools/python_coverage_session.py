@@ -19,6 +19,7 @@ from host_instrumentation_session import (
     invocation_path,
     source_inventory,
     write_json,
+    valid_total_budget,
 )
 from json_evidence import parse_evidence_json
 from python_coverage_contract import (
@@ -186,7 +187,13 @@ def execute(args, plan, selected_policy, version):
         raise ValueError("isolated Python coverage rejects inherited interpreter/runtime injection")
     environment.update(PYTHONOPTIMIZE="", PYTHONNOUSERSITE="1")
     output.mkdir(parents=True)
-    session = Session(output, environment, args.timeout_seconds, args.artifact_mib * 1024**2)
+    session = Session(
+        output,
+        environment,
+        args.timeout_seconds,
+        args.artifact_mib * 1024**2,
+        total_seconds=getattr(args, "total_seconds", None),
+    )
     result = dict(
         schema="rns8_python_branch_coverage_session_v1",
         status="blocked",
@@ -363,6 +370,7 @@ def main(argv=None):
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
     parser.add_argument("--artifact-mib", type=int, default=2048)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
@@ -371,7 +379,11 @@ def main(argv=None):
         output = args.out.resolve()
         if output == ROOT / "temp" or not output.is_relative_to(ROOT / "temp") or output.exists():
             raise ValueError("fresh ignored Python coverage output required")
-        if not 1 <= args.timeout_seconds <= 7200 or not 128 <= args.artifact_mib <= 8192:
+        if (
+            not 1 <= args.timeout_seconds <= 7200
+            or not 128 <= args.artifact_mib <= 8192
+            or not valid_total_budget(args.total_seconds)
+        ):
             raise ValueError("Python coverage budgets outside supported bounds")
         selected = policy()
         lock = load_quality_lock(ROOT)
@@ -386,6 +398,7 @@ def main(argv=None):
         )
         plan = dict(
             schema="rns8_python_branch_coverage_plan_v1",
+            total_seconds=args.total_seconds,
             output=str(output),
             python=str(args.python),
             python_version=[int(part) for part in python_version.split(".")],

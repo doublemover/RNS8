@@ -574,6 +574,23 @@ class ObjectContracts(unittest.TestCase):
 
 
 class SessionControls(unittest.TestCase):
+    def test_total_deadline_caps_later_children_and_prevents_work_after_exhaustion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                mock.patch.object(session.time, "monotonic", side_effect=[100, 102, 106]),
+                mock.patch.object(session, "run_capture", return_value=capture()) as run,
+            ):
+                owned = session.Session(Path(directory), {}, 60, 1024**2, total_seconds=5)
+                owned.run("first", ["inert fixture only"])
+                self.assertEqual(run.call_args.kwargs["timeout_seconds"], 3)
+                with self.assertRaisesRegex(ValueError, "total time budget exhausted"):
+                    owned.run("second", ["must not launch"])
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(len(owned.stages), 1)
+        for value in (True, 0, -1, float("nan"), float("inf"), 86401, 10**1000):
+            with self.assertRaises(ValueError):
+                session.Session(Path("unused"), {}, 60, 1024**2, total_seconds=value)
+
     def test_shared_installed_stage_binds_archive_package_sources_and_case_inventory(self):
         for lane, mutation in (
             ("address-undefined", None),
