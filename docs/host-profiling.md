@@ -94,19 +94,48 @@ and counts symbolized/source-location samples within matched files separately
 from raw native location counts. Empty/missing IDs, deleted files and special
 DSOs stay unresolved. A [GNU build ID is not a content checksum](https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dbuild_002did),
 so it is retained alongside SHA256. Matching the native ID to a current file does
-not establish transient loaded-image history or verify the contents of a source
-file named by debug information. Callchain modules still have native-path-only
-identity. These boundaries remain explicit even when every leaf ID matches.
+not establish transient loaded-image history or the source bytes used at
+compilation. Separate recorded-mapping and current-source checks below extend
+attribution without borrowing those claims from leaf build-ID coverage.
 The ELF/native integration controls are source-authored and unexecuted; no
 native profile, source-attributed bottleneck or performance benefit is claimed.
 
-Native sample schema v3 also retains map start/end/file offset. Resolved maps
+Native sample schema v4 retains map start/end/file offset. Resolved maps
 must contain their sampled IP and fit the64-bit address ABI. ELF executable
 load segments provide a separate count of samples whose native map translates
 to an executable file extent. That count is distinct from build-ID coverage:
 an ID can match while mapping attribution stays unresolved. The native map
-observation is not an independent raw-MMAP witness or a source-content proof;
+observation is checked separately against raw-MMAP evidence where available;
 cross-clock joins remain open.
+
+The recording audit now preserves bounded native MMAP/MMAP2 and process
+address-space boundaries. A separate indexed join resolves leaf and callchain
+PID/IP/time observations only against unique recorded user mappings with an
+earlier timestamp in the same clock domain, executable protection and an actual
+recorded MMAP2 build ID. The acquisition recipe explicitly requests the upstream
+[build-ID mapping mode](https://github.com/torvalds/linux/blob/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/Documentation/perf-record.txt).
+Matching current ELF build ID and executable file extent are separate checks.
+Native names must agree with the address-selected map; a basename alone never
+selects an identity. Wrong processes, untimed or foreign-clock maps, inherited
+maps without their own records, missing IDs and address reuse remain unresolved.
+Any overlapping address reuse in the recording is conservatively ambiguous,
+even if a more complete temporal map history could resolve it. Lookup uses a
+sweep-built interval index and binary search; limits are8,192 mappings,4MiB of
+mapping records and500,000 leaf/caller observations. Raw unwind stacks are not
+independently replayed and complete transient loaded-image history is not claimed.
+
+The native producer also resolves source tuples for caller addresses through
+the upstream optional-address `srccode` interface. Bounded current first-party
+files are hashed once, requested lines are compared with the native text, and
+paths and bytes are rechecked before publication. Missing/relative/external
+locations, line mismatches and unavailable text retain distinct states. Limits
+are256 files,8MiB per file and64MiB total; files outside the repository are not
+opened by this check. These are current source snapshots and native debug-line
+observations, not compilation source checksums. Both mapping/ELF and source
+inventories are independently reconstructed by acquisition finalization, so
+editing and resealing their counts cannot supply missing evidence. Their binary,
+source, substitution and budget controls are authored; runtime execution remains
+deferred with the final batch.
 
 The existing optional Linux ROCTx producer now adds a versioned host-clock
 extension to its range records: actual process/start-thread/stop-thread IDs and

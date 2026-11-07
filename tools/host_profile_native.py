@@ -15,6 +15,8 @@ from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
 from execution_observation import execution_observation
 from elf_module_identity import module_inventory
+from perf_mapping_contract import frame_custody
+from host_source_attribution import source_inventory
 from json_evidence import load_evidence_json
 from perf_recording_contract import (
     SCHEMA as RECORDING_CONTRACT_SCHEMA,
@@ -22,7 +24,7 @@ from perf_recording_contract import (
     validate_decoded_samples,
 )
 
-SCHEMA = "rns8_perf_native_samples_v3"
+SCHEMA = "rns8_perf_native_samples_v4"
 PRODUCER_CONTRACT = "linux_perf_standalone_session_sample_api_v1"
 PRODUCER_SOURCE = (
     "https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt"
@@ -144,6 +146,18 @@ def optional_integer(value: Any, name: str) -> int | None:
     return None if value is None else integer(value, name)
 
 
+def source_record(source):
+    if source is None:
+        return None
+    if type(source) is not tuple or len(source) != 3:
+        raise ValueError("unexpected native perf source tuple")
+    return dict(
+        path=text(source[0], "source path"),
+        line=integer(source[1], "source line"),
+        text=text(source[2], "source text"),
+    )
+
+
 def sample_record(sample: Any) -> dict:
     """Use producer attributes directly; legacy callback dictionaries are unsupported."""
     frames = []
@@ -157,17 +171,10 @@ def sample_record(sample: Any) -> dict:
                     ip=integer(node.ip, "callchain IP"),
                     symbol=text(node.symbol, "callchain symbol"),
                     dso=text(node.dso, "callchain DSO"),
+                    source=source_record(sample.srccode(node.ip)),
                 )
             )
-    source = sample.srccode()
-    if source is not None:
-        if type(source) is not tuple or len(source) != 3:
-            raise ValueError("unexpected native perf source tuple")
-        source = dict(
-            path=text(source[0], "source path"),
-            line=integer(source[1], "source line"),
-            text=text(source[2], "source text"),
-        )
+    source = source_record(sample.srccode())
     event = str(sample.evsel)
     # The producer's evsel repr encloses the original event selector.
     if event.startswith("evsel(") and event.endswith(")"):
@@ -203,7 +210,7 @@ def sample_record(sample: Any) -> dict:
         dso_build_id=text(sample.dso_bid, "DSO build ID"),
         source=source,
         callchain=frames,
-        callchain_module_identity="native_path_only_not_independently_verified_build_ids",
+        callchain_module_identity="native_paths_with_separate_recorded_mapping_custody",
     )
 
 
@@ -279,6 +286,8 @@ def decode(
     if recording["recorded_machine"] is not None and recording["recorded_machine"] != machine:
         raise ValueError("native perf machine differs from the recorded header")
     modules = module_inventory(rows, machine=machine)
+    frames = frame_custody(rows, recording, machine=machine)
+    sources = source_inventory(rows)
     if file_digest(data) != digest or file_digest(module_path) != module_digest:
         raise ValueError("native perf data or decoder module changed during module inspection")
     result = dict(
@@ -298,6 +307,14 @@ def decode(
             Path(__file__).with_name("perf_recording_contract.py")
         ),
         leaf_module_custody=modules,
+        recorded_frame_custody=frames,
+        current_source_custody=sources,
+        current_source_custody_source_sha256=file_digest(
+            Path(__file__).with_name("host_source_attribution.py")
+        ),
+        recorded_frame_custody_source_sha256=file_digest(
+            Path(__file__).with_name("perf_mapping_contract.py")
+        ),
         leaf_module_custody_source_sha256=file_digest(
             Path(__file__).with_name("elf_module_identity.py")
         ),

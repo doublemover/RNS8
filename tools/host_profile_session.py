@@ -28,6 +28,8 @@ from gpu_qualification import ROOT, execute_plan, write_json
 from host_profile_native import PRODUCER_CONTRACT, SCHEMA as NATIVE_SCHEMA
 from host_profile_ranges import join as join_host_ranges
 from perf_recording_contract import read_recording, validate_decoded_samples
+from perf_mapping_contract import frame_custody
+from host_source_attribution import source_inventory
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input
 from process_progress import capture_succeeded
@@ -55,6 +57,8 @@ SOURCE_INPUTS = (
     "tools/json_evidence.py",
     "tools/execution_inventory.py",
     "tools/perf_recording_contract.py",
+    "tools/perf_mapping_contract.py",
+    "tools/host_source_attribution.py",
     "tools/elf_module_identity.py",
 )
 
@@ -314,6 +318,7 @@ def plan_capture(
             "--max-size",
             "64M",
             "--no-buildid-cache",
+            "--buildid-mmap",
             "--output",
             str(out / "native/perf.data"),
             "--",
@@ -489,6 +494,10 @@ def finalize(manifest_path: Path) -> dict:
         or samples.get("loss_status") != recording["loss"]["status"]
         or samples.get("leaf_module_custody_source_sha256")
         != file_digest(ROOT / "tools/elf_module_identity.py")
+        or samples.get("recorded_frame_custody_source_sha256")
+        != file_digest(ROOT / "tools/perf_mapping_contract.py")
+        or samples.get("current_source_custody_source_sha256")
+        != file_digest(ROOT / "tools/host_source_attribution.py")
         or samples.get("production_latency") is not False
         or samples.get("promotion_allowed") is not False
     ):
@@ -505,7 +514,17 @@ def finalize(manifest_path: Path) -> dict:
     modules = module_inventory(samples["samples"], machine=samples["machine"])
     if not same_evidence_value(samples.get("leaf_module_custody"), modules):
         raise ValueError("native leaf module identities changed or contradict the sample receipt")
-    for module in modules["modules"]:
+    frames = frame_custody(samples["samples"], recording, machine=samples["machine"])
+    if not same_evidence_value(samples.get("recorded_frame_custody"), frames):
+        raise ValueError(
+            "native frame attribution differs from recorded mappings/current ELF files"
+        )
+    sources = source_inventory(samples["samples"])
+    if not same_evidence_value(samples.get("current_source_custody"), sources):
+        raise ValueError("native source attribution differs from current first-party source files")
+    for source in sources["files"]:
+        store.reference(source, ROOT)
+    for module in [*modules["modules"], *frames["current_modules"]["modules"]]:
         if module["file"] is not None:
             store.reference(module["file"], ROOT)
     if type(samples.get("selected_process_samples")) is not int or samples[
@@ -556,6 +575,8 @@ def finalize(manifest_path: Path) -> dict:
         scope=samples["scope"],
         loss_status=samples["loss_status"],
         leaf_module_custody=modules,
+        recorded_frame_custody=frames,
+        current_source_custody=sources,
         selected_operation_range=selected_operation_range,
         production_latency=False,
         promotion_allowed=False,

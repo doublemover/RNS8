@@ -442,6 +442,24 @@ class HostSessionBinding(unittest.TestCase):
         self.assertEqual(receipt["qualification"], "binding_failed")
         self.assertFalse((self.out / "profiled.json").exists())
 
+    def test_resealed_recorded_frame_attribution_requires_native_mapping_inputs(self):
+        def change(value):
+            value["recorded_frame_custody"]["selected_frame_observations"] += 1
+
+        self.sample_change = change
+        self.assertEqual(self.execute(), 1)
+        receipt = json.loads((self.out / "host-profile.json").read_text())
+        self.assertEqual(receipt["qualification"], "binding_failed")
+        self.assertFalse((self.out / "profiled.json").exists())
+
+    def test_resealed_current_source_counts_cannot_replace_native_source_custody(self):
+        def change(value):
+            value["current_source_custody"]["selected_frame_observations"] += 1
+
+        self.sample_change = change
+        self.assertEqual(self.execute(), 1)
+        self.assertFalse((self.out / "profiled.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

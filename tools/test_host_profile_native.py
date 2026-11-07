@@ -39,7 +39,7 @@ def sample(pid=41):
         dso="librns8.so",
         dso_long_name="/fixture/librns8.so",
         dso_bid="1234abcd",
-        srccode=lambda: ("/fixture/source.cpp", 17, "return value;"),
+        srccode=lambda address=None: ("/fixture/source.cpp", 17, "return value;"),
         callchain=[SimpleNamespace(ip=4099, symbol="exact_product", dso="librns8.so")],
     )
 
@@ -159,7 +159,7 @@ class NativePerf(unittest.TestCase):
         row = self.rows[0]
         row.symbol = row.sym_start = row.sym_end = row.sym_offset = None
         row.dso_bid = row.callchain = None
-        row.srccode = lambda: None
+        row.srccode = lambda address=None: None
         report = self.decode()
         self.assertEqual(report["symbolized_samples"], 0)
         self.assertEqual(report["source_attributed_samples"], 0)
@@ -170,7 +170,7 @@ class NativePerf(unittest.TestCase):
         first, second = sample(), sample()
         second.sample_tid = 43
         second.sample_time += 1
-        second.srccode = lambda: (None, 0, None)
+        second.srccode = lambda address=None: (None, 0, None)
         self.rows = [first, second]
         report = self.decode()
         self.assertEqual([row["tid"] for row in report["samples"]], [42, 43])
@@ -216,7 +216,7 @@ class NativePerf(unittest.TestCase):
         for path in (self.data, self.module):
             original = path.read_bytes()
             row = sample()
-            row.srccode = lambda path=path: path.write_bytes(b"changed") and None
+            row.srccode = lambda address=None, path=path: path.write_bytes(b"changed") and None
             self.rows = [row]
             with self.subTest(path=path.name), self.assertRaisesRegex(ValueError, "changed"):
                 self.decode()

@@ -12,7 +12,9 @@ import hashlib
 from pathlib import Path
 import struct
 
-SCHEMA = "rns8_perf_recording_contract_v1"
+from perf_mapping_contract import mapping_record, MAX_MAPPINGS, MAX_MAPPING_BYTES
+
+SCHEMA = "rns8_perf_recording_contract_v2"
 LINUX_REVISION = "47f05f71ad988c3180bdba807151e6e86ed75aa3"
 SOURCES = [
     f"https://github.com/torvalds/linux/blob/{LINUX_REVISION}/" + path
@@ -287,6 +289,7 @@ def read_recording(
 
         witness, counts, read_counters = SampleWitness(), Counter(), {}
         ring_lost = lost_samples = sample_count = record_count = 0
+        mappings, boundaries, mapping_bytes = [], [], 0
 
         def trailer_attribute(payload: bytes) -> dict:
             if len(attributes) == 1:
@@ -307,17 +310,20 @@ def read_recording(
             """Validate ID-bearing trailers without borrowing the sampling layout."""
             length = event["trailer_size"]
             if not length:
-                return
+                return dict(time_ns=None, clock_id=event["clock_id"])
             if len(payload) < length:
                 raise ValueError("truncated perf sample-ID trailer")
             cursor = len(payload) - length
             recorded_ids = []
+            timestamp = None
             for bit in (2, 4, 64, 512, 128, SAMPLE_IDENTIFIER):
                 if event["sample_type"] & bit:
                     value = struct.unpack_from("<Q", payload, cursor)[0]
                     cursor += 8
                     if bit in (64, SAMPLE_IDENTIFIER):
                         recorded_ids.append(value)
+                    if bit == 4:
+                        timestamp = value
                     if bit == 128 and value >> 32:
                         raise ValueError("perf trailer CPU reserved bits are nonzero")
             if (
@@ -327,6 +333,7 @@ def read_recording(
                 and any(value != identity for value in recorded_ids)
             ):
                 raise ValueError("perf record and trailer event identities disagree")
+            return dict(time_ns=timestamp, clock_id=event["clock_id"])
 
         def read_values(payload: bytes, start: int, pid: int, tid: int, event: dict):
             cursor = start
@@ -368,7 +375,7 @@ def read_recording(
                 raise ValueError("perf recording record budget exhausted")
             if end - offset < 8:
                 raise ValueError("truncated perf record header")
-            record_type, _, record_size = struct.unpack("<IHH", read_at(offset, 8))
+            record_type, misc, record_size = struct.unpack("<IHH", read_at(offset, 8))
             if record_size < 8 or record_size > end - offset:
                 raise ValueError("invalid or truncated perf record extent")
             if record_type in {11, 12, 21, 64, 66, 70, 71, 72, 75, 76, 77, 80, 81, 83, 84, 85, 86}:
@@ -377,8 +384,52 @@ def read_recording(
                 raise ValueError("unsupported unknown perf record type")
             record_count += 1
             counts[record_type] += 1
-            payload = read_at(offset + 8, record_size - 8) if record_type in {2, 8, 9, 13} else b""
-            if record_type == 2:
+            payload = (
+                read_at(offset + 8, record_size - 8)
+                if record_type in {1, 2, 3, 4, 7, 8, 9, 10, 13}
+                else b""
+            )
+            if record_type in {1, 10}:
+                if len(mappings) >= MAX_MAPPINGS or mapping_bytes + record_size > MAX_MAPPING_BYTES:
+                    raise ValueError("recorded perf mapping inventory exceeds byte/count budget")
+                event = trailer_attribute(payload)
+                stamp = validate_trailer(payload, event)
+                mappings.append(
+                    mapping_record(
+                        payload,
+                        kind=record_type,
+                        misc=misc,
+                        trailer_size=event["trailer_size"],
+                        ordinal=record_count,
+                        **stamp,
+                    )
+                )
+                mapping_bytes += record_size
+            elif record_type in {3, 4, 7}:
+                event = trailer_attribute(payload)
+                stamp = validate_trailer(payload, event)
+                body = (
+                    payload[: len(payload) - event["trailer_size"]]
+                    if event["trailer_size"]
+                    else payload
+                )
+                if len(body) < (8 if record_type == 3 else 24):
+                    raise ValueError("truncated perf process address-space record")
+                pid, second = struct.unpack_from("<II", body)
+                invalidates = record_type == 3 and bool(misc & (1 << 13))
+                if record_type != 3:
+                    tid, _ = struct.unpack_from("<II", body, 8)
+                    invalidates = (record_type == 7 and pid != second) or (
+                        record_type == 4 and pid == tid
+                    )
+                    stamp["time_ns"] = struct.unpack_from("<Q", body, 16)[0]
+                if invalidates:
+                    if len(boundaries) >= MAX_MAPPINGS:
+                        raise ValueError("perf process address-space boundary budget exhausted")
+                    boundaries.append(
+                        dict(pid=pid, kind=record_type, record_ordinal=record_count, **stamp)
+                    )
+            elif record_type == 2:
                 if len(payload) < 16:
                     raise ValueError("truncated perf lost-event record")
                 identity, lost = struct.unpack_from("<QQ", payload)
@@ -497,6 +548,9 @@ def read_recording(
         sample_records=sample_count,
         sample_witness_contract="per_thread_sorted_le_pid32_tid32_time64_period64_ip64_cpu64_v1",
         sample_witness=witness.public(),
+        recorded_mappings=mappings,
+        process_mapping_boundaries=boundaries,
+        recorded_mapping_bytes=mapping_bytes,
         clock=clock,
         recorded_machine=machine,
         event_ids=dict(count=len(ids), payload_sha256=hashlib.sha256(ids_bytes).hexdigest()),
