@@ -79,6 +79,30 @@ shows stage/count/elapsed with a ten-second heartbeat. Full CTest uses a
 600-second per-test timeout. A free-space threshold is checked before execution
 and each command (`--min-free-gib`, default 2); it is a stop threshold, not a
 promise that a complete build will fit. `--jobs` bounds build/CTest concurrency.
+
+Optional `--stage-forecast FILE` binds a complete list of exact command names
+to operator-supplied lower, expected and upper durations. The JSON schema is
+`rns8_session_stage_forecast_v1`; each `stages` row has `name`, `lower_seconds`,
+`expected_seconds` and `upper_seconds`, with durations written as decimal
+strings. All selected stages plus closeout must fit the upper forecast. Before
+each stage, the runner checks its upper duration against actual remaining time;
+it stops before launching work that no longer fits. Forecasts are unqualified
+estimates, and existing timeouts remain hard command limits.
+
+An operator may also provide `--price-per-hour`, `--maximum-cost` and `--currency`
+together. Quotes use explicit decimal strings and a three-letter currency;
+`--price-scope allocation` is the whole allocation rate, while
+`--price-scope per-selected-device` multiplies the rate by the explicitly selected
+device count. `--already-incurred-cost` records a user-supplied initial amount.
+Exact decimal arithmetic caps owned execution time at affordable whole seconds
+and retains the requested budget, rate basis and forecast cost separately.
+Quoted-cost execution requires a complete stage forecast. These are linear
+operator estimates, without price lookup, provisioning, reservation extension
+or automatic shutdown. Provider rounding, idle time between resumptions and
+actual billing remain outside owned-command accounting. The operator still owns
+reservation closeout. Forecast inputs and quote decisions are replayed on resume;
+changed data invalidates the old session budget. No new session or budget
+fixture has executed during the source frontload.
 The runner does not impose OS RSS, CPU affinity, GPU memory, thermal or power
 limits. Record and enforce allocation limits separately on the actual host.
 

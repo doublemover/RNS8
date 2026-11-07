@@ -22,6 +22,7 @@ from pathlib import Path
 
 from process_progress import run_capture, capture_succeeded
 from session_artifacts import load_inventory, inspect_cache, stage_cache
+from session_budget import plan_budget, replay_budget, stage_fits
 from source_gemm_contract import (
     CONTRACT as SOURCE_GEMM_CONTRACT,
     load_contract as load_source_gemm_contract,
@@ -945,12 +946,30 @@ def execute_plan(
 
     checkpoint("in_progress")
     try:
+        forecast = {}
+        if manifest.get("session_budget") is not None:
+            budget = replay_budget(manifest["session_budget"], manifest["commands"])
+            if (
+                budget["blockers"]
+                or type(total) not in (int, float)
+                or type(reserve) not in (int, float)
+                or total != budget["effective_total_seconds"]
+                or reserve != budget["reserve_seconds"]
+            ):
+                raise ValueError(
+                    "effective session budget is blocked or differs from frozen forecast/quote"
+                )
+            if budget["forecast"] is not None:
+                forecast = {row["name"]: row for row in budget["forecast"]["stages"]}
         for item in manifest["commands"]:
             validate_source_case(item)
         for index, item in enumerate(manifest["commands"][len(results) :], len(results) + 1):
             remaining = total - prior_elapsed - (clock() - started) - reserve
             if remaining <= 0:
                 checkpoint("budget_exhausted")
+                return 1
+            if not stage_fits(forecast.get(item["name"]), remaining):
+                checkpoint("stage_forecast_does_not_fit", item["name"])
                 return 1
             if shutil.disk_usage(out).free < manifest["budgets"]["minimum_free_bytes"]:
                 checkpoint("disk_budget_exhausted")
@@ -1181,6 +1200,8 @@ def execute_plan(
             if errors:
                 print(f"STOP: {item['name']}: {'; '.join(errors)}", file=sys.stderr, flush=True)
                 return 1
+        if manifest.get("session_budget") is not None:
+            replay_budget(manifest["session_budget"], manifest["commands"])
     except (OSError, ValueError, TypeError) as error:
         checkpoint("blocked", str(error))
         print(f"STOP: session evidence could not be bound: {error}", file=sys.stderr, flush=True)
@@ -1255,6 +1276,22 @@ def main(argv=None) -> int:
         help="whole session wall-clock cap including resumed command time",
     )
     parser.add_argument("--export-reserve-seconds", type=float, default=30)
+    parser.add_argument(
+        "--stage-forecast",
+        type=Path,
+        help="Complete operator duration ranges for exact command names",
+    )
+    parser.add_argument(
+        "--price-per-hour", help="Operator-supplied decimal quote; no price lookup or provisioning"
+    )
+    parser.add_argument("--maximum-cost", help="Decimal ceiling under the supplied linear quote")
+    parser.add_argument("--currency", help="Explicit three-letter quoted currency")
+    parser.add_argument(
+        "--price-scope", choices=("allocation", "per-selected-device"), default="allocation"
+    )
+    parser.add_argument(
+        "--already-incurred-cost", help="Operator-supplied quoted cost already incurred"
+    )
     parser.add_argument("--min-free-gib", type=float, default=2)
     parser.add_argument(
         "--minimum-host-memory-gib",
@@ -1431,6 +1468,22 @@ def main(argv=None) -> int:
                         "ctest.exe" if request.host == "Windows" else "ctest"
                     )
                 )
+    try:
+        session_budget = plan_budget(
+            commands,
+            total_seconds=args.total_seconds,
+            reserve_seconds=args.export_reserve_seconds,
+            forecast_path=args.stage_forecast,
+            price_per_hour=args.price_per_hour,
+            maximum_cost=args.maximum_cost,
+            currency=args.currency,
+            price_scope=args.price_scope,
+            selected_devices=len(args.devices),
+            already_incurred_cost=args.already_incurred_cost,
+        )
+    except (OSError, ValueError, TypeError) as error:
+        parser.error(str(error))
+    blockers += session_budget["blockers"]
     manifest = {
         "schema_version": 2,
         "generated_utc": datetime.now(timezone.utc).isoformat(),
@@ -1463,6 +1516,7 @@ def main(argv=None) -> int:
         "physical_identity_verified": False,
         "session_kind": args.session_kind,
         "dependency_resolution_sha256": resolution["identity_sha256"],
+        "session_budget": session_budget,
         "artifact_inventory": artifacts,
         "artifact_cache_receipt": artifact_receipt,
         "selected_tool_files": {
@@ -1476,7 +1530,7 @@ def main(argv=None) -> int:
             {**environment, **resolution["compiler_environment"]}
         ),
         "budgets": {
-            "total_seconds": args.total_seconds,
+            "total_seconds": session_budget["effective_total_seconds"],
             "export_reserve_seconds": args.export_reserve_seconds,
             "minimum_free_bytes": int(args.min_free_gib * 1024**3),
             "jobs": args.jobs,
