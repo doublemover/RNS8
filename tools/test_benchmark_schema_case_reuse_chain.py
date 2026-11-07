@@ -800,12 +800,13 @@ class ReuseChainCases(unittest.TestCase):
         capture = as_exact_wide_residue_chain_independent_final_export_capture(
             expect_valid("v4_bounded_i64_ck.json")
         )
-        product = math.prod(DEFAULT_MODULI[: capture["selected_prefix"]])
+        prefix = capture.get("selected_prefix", capture["prefix"])
+        product = math.prod(DEFAULT_MODULI[:prefix])
         limbs = ((product - 1).bit_length() + 63) // 64
         metadata = dict(
             schema="rns8_exact_wide_intermediate_materialization_v1",
             limb_count=limbs,
-            prefix=capture["selected_prefix"],
+            prefix=prefix,
             basis_product=str(product),
             logical_ld=capture["n"],
             host_payload_bytes=capture["m"] * capture["n"] * limbs * 8,

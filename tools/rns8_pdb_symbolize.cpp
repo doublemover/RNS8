@@ -141,9 +141,14 @@ json symbolize(const json& request) {
     fail("explicit PDB load failed");
   IMAGEHLP_MODULEW64 module{};
   module.SizeOfStruct = sizeof(module);
+  const GUID empty_guid{};
+  // A direct PDB load has no executable for DbgHelp to match: PdbUnmatched
+  // may be set. The consumer binds these native GUID/age fields to the PE's
+  // independently parsed RSDS identity before accepting any source lookup.
   if (!module_info(session.key, base, &module) || module.BaseOfImage != base ||
       module.ImageSize != size || (module.SymType != SymPdb && module.SymType != SymDia) ||
-      module.PdbUnmatched || module.DbgUnmatched)
+      !module.PdbAge || std::memcmp(&module.PdbSig70, &empty_guid, sizeof(GUID)) == 0 ||
+      module.DbgUnmatched)
     fail("native PDB module identity unavailable or unmatched");
   // The fixed native array can truncate long paths. Bound termination before
   // handing it to filesystem APIs; equivalent also handles Windows path case.

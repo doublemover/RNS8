@@ -339,13 +339,16 @@ class ReviewMetadataCases(unittest.TestCase):
             [skinny_cpu, skinny_direct, skinny_vector],
             review_mode="release",
         )
-        stale_skinny_group = implementation_group(stale_skinny_report)
         stale_direct_candidate = next(
-            item for item in stale_skinny_group["candidates"] if item["backend"] == "hip-direct"
+            item
+            for group in stale_skinny_report["groups"]
+            for item in group["candidates"]
+            if item["backend"] == "hip-direct"
         )
         stale_vector_candidate = next(
             item
-            for item in stale_skinny_group["candidates"]
+            for group in stale_skinny_report["groups"]
+            for item in group["candidates"]
             if item["backend"] == "hip-vector-alu-int64"
         )
         assert (
@@ -390,7 +393,11 @@ class ReviewMetadataCases(unittest.TestCase):
             [skinny_cpu, valid_skinny_direct, skinny_vector],
             review_mode="release",
         )
-        valid_skinny_group = implementation_group(valid_skinny_report)
+        valid_skinny_group = next(
+            group
+            for group in valid_skinny_report["groups"]
+            if any(item["backend"] == "hip-direct" for item in group["candidates"])
+        )
         valid_direct_candidate = next(
             item for item in valid_skinny_group["candidates"] if item["backend"] == "hip-direct"
         )

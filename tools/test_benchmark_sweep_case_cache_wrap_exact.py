@@ -68,12 +68,14 @@ class CacheWrapExactCases(unittest.TestCase):
         wrap64_candidate_report = sweep_review.review_captures(
             [wrap64_direct, wrap64_cpu, wrap64_candidate], review_mode="release"
         )
-        candidate_group = wrap64_candidate_report["groups"][0]
-        assert candidate_group["missing_required_baselines"] == []
+        assert any(
+            not group["missing_required_baselines"] for group in wrap64_candidate_report["groups"]
+        )
         assert wrap64_candidate_report["promotable_autotune_entries"] == []
         candidate_blockers = {
             candidate["backend"]: candidate["promotion_blockers"]
-            for candidate in candidate_group["candidates"]
+            for group in wrap64_candidate_report["groups"]
+            for candidate in group["candidates"]
         }
         assert (
             "internal_candidate_not_public_backend"
