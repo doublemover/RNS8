@@ -298,11 +298,15 @@ TEST_CASE("public grouped GEMM preserves unissued outputs and retains shared rea
               CHECK(words == std::array<uint64_t, 3>{1, 0, 0});
             }
             const auto materialized = a->materialized_rns_prefix;
+            const auto proven_prefix = a->exact_range_prefix;
             a->materialized_rns_prefix = plan->prefix;
+            a->exact_range_prefix = plan->prefix;
             REQUIRE(execute() == RNS8_SUCCESS);
             a->materialized_rns_prefix = plan->prefix - 1;
+            a->exact_range_prefix = plan->prefix - 1;
             CHECK(execute() == RNS8_RANGE_ERROR);
             a->materialized_rns_prefix = materialized;
+            a->exact_range_prefix = proven_prefix;
           }
           const uint64_t generations[]{c0->content_generation, c1->content_generation};
           SynchronousDispatchFixture state;
