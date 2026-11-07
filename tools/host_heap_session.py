@@ -19,6 +19,7 @@ from heaptrack_native import read_allocations
 from host_instrumentation_session import Session, reference, valid_total_budget, write_json
 from json_evidence import same_evidence_value
 from profiler_contract import production_profile_input, bind_host_profile_output
+from profiler_artifacts import write_diagnostic
 from target_qualification import EvidenceStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,7 @@ SOURCE_INPUTS = (
     "tools/heaptrack_native.py",
     "tools/host_instrumentation_session.py",
     "tools/profiler_contract.py",
+    "tools/profiler_artifacts.py",
     "tools/elf_module_identity.py",
     "tools/execution_environment_contract.py",
     "tools/execution_observation.py",
@@ -216,8 +218,14 @@ def execute_capture(plan: dict, *, environment=None) -> int:
         if not same_evidence_value(plan, rebuild(plan, review_existing=True)):
             raise ValueError("heap diagnostic source, library or production inputs changed")
         store.finish()
-        write_json(out / "allocations.json", allocations)
-        write_json(out / "profiled.json", profiled)
+        for name, document in (("allocations.json", allocations), ("profiled.json", profiled)):
+            write_diagnostic(
+                out / name,
+                document,
+                root=out,
+                total_bytes=plan["budgets"]["artifact_bytes"],
+                minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+            )
         result.update(
             qualification="native_allocation_generation_capture_bound_attribution_partial",
             production_capture=plan["production_capture"],
@@ -237,7 +245,22 @@ def execute_capture(plan: dict, *, environment=None) -> int:
         result.update(error=str(error) or type(error).__name__, raw_artifacts_preserved=True)
     finally:
         result["stages"] = session.stages
-        write_json(out / "host-heap.json", result)
+        if result["qualification"].startswith("native_allocation_"):
+            try:
+                write_diagnostic(
+                    out / "host-heap.json",
+                    result,
+                    root=out,
+                    total_bytes=plan["budgets"]["artifact_bytes"],
+                    minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+                )
+            except (OSError, ValueError, TypeError) as error:
+                result.update(
+                    qualification="incomplete", error=str(error), raw_artifacts_preserved=True
+                )
+                write_json(out / "host-heap.json", result)
+        else:
+            write_json(out / "host-heap.json", result)
     return 0 if result["qualification"].startswith("native_allocation_") else 1
 
 

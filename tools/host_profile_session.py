@@ -27,6 +27,7 @@ from perf_mapping_contract import frame_custody
 from host_source_attribution import source_inventory, bind_selected_sites
 from json_evidence import parse_evidence_json, same_evidence_value
 from profiler_contract import production_profile_input, bind_host_profile_output
+from profiler_artifacts import write_diagnostic
 from process_progress import capture_succeeded
 from target_qualification import EvidenceStore, session_stage
 from timing_eligibility import capture_identity
@@ -40,6 +41,7 @@ SOURCE_INPUTS = (
     "tools/host_range_contract.py",
     "tools/interval_observations.py",
     "tools/profiler_contract.py",
+    "tools/profiler_artifacts.py",
     "tools/build_instrumentation.py",
     "tools/execution_environment_contract.py",
     "tools/execution_observation.py",
@@ -542,7 +544,13 @@ def finalize(manifest_path: Path) -> dict:
     if bound.exists():
         raise ValueError("host profile finalization cannot overwrite a bound capture")
     store.finish()
-    write_json(bound, profiled)
+    write_diagnostic(
+        bound,
+        profiled,
+        root=out,
+        total_bytes=plan["commands"][3]["max_artifact_bytes"],
+        minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+    )
     return dict(
         schema="rns8_host_perf_acquisition_v1",
         acquisition_session=proof,
@@ -590,7 +598,13 @@ def execute_capture(plan: dict, *, environment=None, runner=None) -> int:
         return result
     try:
         receipt = finalize(out / "manifest.json")
-        write_json(out / "host-profile.json", receipt)
+        write_diagnostic(
+            out / "host-profile.json",
+            receipt,
+            root=out,
+            total_bytes=plan["commands"][3]["max_artifact_bytes"],
+            minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+        )
         return 0
     except (OSError, ValueError, TypeError, KeyError) as error:
         write_json(

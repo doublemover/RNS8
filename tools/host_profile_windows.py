@@ -27,6 +27,7 @@ from json_evidence import load_evidence_json, parse_evidence_json, same_evidence
 from pe_symbol_identity import symbol_pair, native_image
 from process_progress import capture_succeeded, run_capture
 from profiler_contract import production_profile_input, bind_host_profile_output
+from profiler_artifacts import write_diagnostic
 from target_qualification import EvidenceStore
 from wpa_sample_reader import read_samples
 
@@ -40,6 +41,7 @@ SOURCE_INPUTS = (
     "tools/pe_symbol_identity.py",
     "tools/wpa_sample_reader.py",
     "tools/profiler_contract.py",
+    "tools/profiler_artifacts.py",
     "tools/process_progress.py",
     "tools/execution_observation.py",
     "tools/execution_environment_contract.py",
@@ -248,6 +250,16 @@ def instance_absent(capture):
 
 def completed_capture(plan, stages):
     out, store = Path(plan["output_directory"]), EvidenceStore()
+
+    def publish(name, value):
+        return write_diagnostic(
+            out / name,
+            value,
+            root=out,
+            total_bytes=plan["budgets"]["max_artifact_bytes"],
+            minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+        )
+
     if not same_evidence_value(plan, rebuild(plan, review_existing=True)):
         raise ValueError("Windows profile source/tool/production/symbol inputs changed")
     _, production = store.json(plan["production_capture"], ROOT)
@@ -294,7 +306,7 @@ def completed_capture(plan, stages):
     ):
         raise ValueError("Windows identity JSON belongs to another process")
     identity_path = out / "identity.json"
-    write_json(identity_path, native_id)
+    publish("identity.json", native_id)
     compiled = bind_document(
         Path(plan["benchmark"]["path"]),
         identity_path,
@@ -315,10 +327,10 @@ def completed_capture(plan, stages):
         mode="cpu_sampling",
     )
     store.finish()
-    write_json(out / "samples.json", samples)
-    write_json(out / "native-process-metadata.json", native_metadata)
-    write_json(out / "native-image-catalog.json", images)
-    write_json(out / "profiled.json", profiled)
+    publish("samples.json", samples)
+    publish("native-process-metadata.json", native_metadata)
+    publish("native-image-catalog.json", images)
+    publish("profiled.json", profiled)
     return dict(
         qualification="native_capture_export_bound_attribution_partial",
         compiled_binary_identity=compiled,
@@ -484,7 +496,21 @@ def execute_capture(
         if capture_succeeded(stages.get("cancel", {}))
         else "not_started_or_cleanup_unconfirmed",
     )
-    write_json(out / "host-profile.json", seal(result))
+    if failure:
+        write_json(out / "host-profile.json", seal(result))
+    else:
+        try:
+            write_diagnostic(
+                out / "host-profile.json",
+                seal(result),
+                root=out,
+                total_bytes=plan["budgets"]["max_artifact_bytes"],
+                minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+            )
+        except (OSError, ValueError, TypeError) as error:
+            failure = str(error)
+            result.update(qualification="incomplete", error=failure, raw_artifacts_preserved=True)
+            write_json(out / "host-profile.json", seal(result))
     return 1 if failure else 0
 
 

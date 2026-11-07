@@ -24,6 +24,7 @@ from host_instrumentation_session import reference
 from json_evidence import parse_evidence_json, same_evidence_value
 from process_progress import capture_succeeded, run_capture
 from profiler_contract import production_profile_input, bind_host_profile_output
+from profiler_artifacts import write_diagnostic
 from target_qualification import EvidenceStore
 
 SCHEMA = "rns8_windows_rdp_capture_v1"
@@ -32,6 +33,7 @@ SOURCE_INPUTS = (
     "tools/amd_profiler_capabilities.py",
     "tools/process_progress.py",
     "tools/profiler_contract.py",
+    "tools/profiler_artifacts.py",
     "tools/compiled_binary_identity.py",
     "tools/target_qualification.py",
     "tools/gpu_qualification.py",
@@ -333,17 +335,13 @@ def review_capture(plan_path: Path):
 
 
 def publish_summary(path, summary, plan):
-    raw = (
-        json.dumps(summary, sort_keys=True, allow_nan=False, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
-    out = Path(plan["output_directory"])
-    retained = sum(item.stat().st_size for item in owned_artifact_files(out, out.parent))
-    if len(raw) > 64 * 1024**2 or retained + len(raw) > plan["budgets"]["max_artifact_bytes"]:
-        raise ValueError("derived RDP summary exceeds its retained artifact budget")
-    if shutil.disk_usage(out).free < plan["budgets"]["minimum_free_bytes"] + len(raw):
-        raise ValueError("derived RDP summary lacks its free-space reserve")
-    with path.open("xb") as stream:
-        stream.write(raw)
+    return write_diagnostic(
+        path,
+        summary,
+        root=Path(plan["output_directory"]),
+        total_bytes=plan["budgets"]["max_artifact_bytes"],
+        minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+    )
 
 
 def execute_capture(

@@ -32,6 +32,15 @@ the report from the retained database. Complete selected measurements do not
 establish loss-free acquisition, complete run coverage or production latency.
 The acquisition and tampered-report controls are authored and unexecuted.
 
+AMD and host-profile publishers share an exclusive diagnostic writer. It
+encodes arrays/maps incrementally, enforces the64MiB document limit and the
+session's retained-byte/free-space budgets while emitting, and computes the
+receipt digest during the write. Derived captures, receipts and successful
+summaries use the same policy as timeline/allocation/counter sidecars. Existing
+outputs cannot be replaced; failed publication keeps unqualified scratch bytes
+and a failure outcome. Small failure records remain separate from successful
+evidence publication. This source change has no measured performance credit.
+
 ## Windows dispatch capture
 
 `tools/amd_profiler_windows.py` plans an RDP CLI 3.5.1 dispatch-range capture

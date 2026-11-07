@@ -10,7 +10,6 @@ import math
 import os
 from pathlib import Path
 import platform
-import shutil
 import sys
 import uuid
 
@@ -45,6 +44,7 @@ from json_evidence import parse_evidence_json, same_evidence_value
 from process_progress import capture_succeeded
 from target_qualification import EvidenceStore, session_stage
 from profiler_contract import production_profile_input
+from profiler_artifacts import write_diagnostic
 from timing_eligibility import capture_identity
 
 SCHEMA = "rns8_amd_profiler_session_v1"
@@ -63,6 +63,7 @@ SOURCE_INPUTS = (
     "tools/host_range_contract.py",
     "tools/interval_observations.py",
     "tools/profiler_contract.py",
+    "tools/profiler_artifacts.py",
     "tools/execution_observation.py",
     "tools/execution_host_identity.py",
     "tools/execution_environment_contract.py",
@@ -523,20 +524,13 @@ def selected_dispatches(native: dict, symbols: set[str], target: str) -> list[di
 
 
 def _write_diagnostic(path: Path, value: dict, plan: dict) -> dict:
-    raw = (
-        json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":")) + "\n"
-    ).encode()
-    if len(raw) > 64 * 1024**2:
-        raise ValueError("derived profiler document exceeds64MiB")
-    out = Path(plan["output_directory"])
-    retained = sum(item.stat().st_size for item in owned_artifact_files(out, out.parent))
-    if retained + len(raw) > plan["commands"][-1]["max_artifact_bytes"]:
-        raise ValueError("derived profiler document exceeds total artifact budget")
-    if shutil.disk_usage(out).free < plan["budgets"]["minimum_free_bytes"] + len(raw):
-        raise ValueError("derived profiler document lacks its free-space reserve")
-    with path.open("xb") as stream:
-        stream.write(raw)
-    return reference(path)
+    return write_diagnostic(
+        path,
+        value,
+        root=Path(plan["output_directory"]),
+        total_bytes=plan["commands"][-1]["max_artifact_bytes"],
+        minimum_free_bytes=plan["budgets"]["minimum_free_bytes"],
+    )
 
 
 def finalize(manifest_path: Path) -> dict:
@@ -663,7 +657,7 @@ def finalize(manifest_path: Path) -> dict:
     counter_ref = _write_diagnostic(
         counter_path, summarize_counter_pass(projection, selected, plan["requested_counters"]), plan
     )
-    write_json(bound_path, profiled)
+    _write_diagnostic(bound_path, profiled, plan)
     injection = {
         key: value
         for key, value in observed.environment.items()
@@ -698,7 +692,7 @@ def finalize(manifest_path: Path) -> dict:
         complete_run_coverage=False,
         performance_promotion_allowed=False,
     )
-    write_json(receipt_path, receipt)
+    _write_diagnostic(receipt_path, receipt, plan)
     facts = validate_dispatch_receipt(
         reference(receipt_path), capture=capture, store=store, parent=ROOT
     )
@@ -734,7 +728,7 @@ def execute_capture(plan: dict, *, environment=None, runner=None) -> int:
         return result
     try:
         facts = finalize(out / "manifest.json")
-        write_json(out / "profile-summary.json", facts)
+        _write_diagnostic(out / "profile-summary.json", facts, plan)
         return 0
     except (OSError, ValueError, TypeError, KeyError) as error:
         write_json(

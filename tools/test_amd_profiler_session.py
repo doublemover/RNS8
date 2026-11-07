@@ -353,6 +353,38 @@ class ProfilerSession(unittest.TestCase):
             _write_diagnostic(target, dict(state="authored"), plan)
         self.assertFalse(target.exists())
 
+    def test_streamed_derived_publication_bounds_partial_output_and_never_overwrites(self):
+        plan = self.plan()
+        self.out.mkdir()
+        partial = self.out / "oversized.json"
+        with (
+            patch("profiler_artifacts.MAX_DOCUMENT_BYTES", 16),
+            self.assertRaisesRegex(ValueError, "exceeds64MiB"),
+        ):
+            _write_diagnostic(partial, dict(payload="x" * 128), plan)
+        self.assertTrue(partial.exists())
+        self.assertLessEqual(partial.stat().st_size, 16)
+        complete = self.out / "derived with spaces.json"
+        receipt = _write_diagnostic(complete, dict(observed=0, unknown=None), plan)
+        self.assertEqual(receipt["sha256"], file_digest(complete))
+        before = complete.read_bytes()
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            _write_diagnostic(complete, dict(observed=999), plan)
+        self.assertEqual(complete.read_bytes(), before)
+
+    def test_derived_publication_requires_owned_parent_and_actual_free_reserve(self):
+        plan = self.plan()
+        self.out.mkdir()
+        with self.assertRaisesRegex(ValueError, "owned session"):
+            _write_diagnostic(self.root / "escaped.json", dict(state="authored"), plan)
+        self.assertFalse((self.root / "escaped.json").exists())
+        target = self.out / "no-space.json"
+        with patch("profiler_artifacts.shutil.disk_usage") as disk:
+            disk.return_value.free = 0
+            with self.assertRaisesRegex(ValueError, "free-space reserve"):
+                _write_diagnostic(target, dict(state="authored"), plan)
+        self.assertFalse(target.exists())
+
     def test_selection_uses_native_symbols_and_agents_not_temporal_neighbours(self):
         native = self.fixture.native["rocprofiler-sdk-tool"][0]
         self.assertEqual(
