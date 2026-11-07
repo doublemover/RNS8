@@ -298,3 +298,53 @@ SDK's schema, as source checks only. Allocation, scheduler/wait, loaded-symbol
 and range/cross-clock adapters and the critical-path report remain implementation
 work. No ETL decoder, WPR recording, elevation or system profiler has run during
 the source frontload.
+
+## Separate Linux host allocation capture
+
+`tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
+native `libheaptrack_preload.so`. Its plan reads the existing admissible
+production observation, same optimized benchmark, ELF tuple and source/library
+hashes without launching or installing anything:
+
+```sh
+python tools/host_heap_session.py --production temp/production.json \
+  --preload /path/to/libheaptrack_preload.so --out temp/host-heap-candidate
+```
+
+`--execute` is reserved for the validation/diagnostic batch. The adapter launches
+the benchmark directly, first checking its compiled identity without injection,
+then supplying the explicit preload and owned raw output. This follows the
+upstream [preload producer](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/heaptrack_preload.cpp)
+without a shell wrapper, compressor, GUI, process attachment or persistent
+settings. The upstream library removes both injection variables before main;
+the actual native argv/environment, process PID, exact output and common
+work/proof/device/reuse contract must still match. Inherited heaptrack controls
+are cleared, and the production baseline cannot carry interception controls.
+The native environment witness and Python request policy share those key names.
+Missing output, failed process, changed library/source/capture or wrong native
+PID cannot publish a bound allocation result. Failure receipts preserve owned
+logs and partial files; elapsed time, output and artifacts are bounded.
+
+`tools/heaptrack_native.py` reads only the reviewed1.5.0 raw-format3
+[producer records](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/libheaptrack.cpp).
+It retains allocation pointer generations, parent trace nodes and module-cache
+generations; matched frees recover requested size from their live allocation.
+Duplicate live pointers, future trace parents, mixed processes, unknown record
+formats, reversed clocks, truncated strings and exhausted budgets fail closed.
+Unmatched frees retain unknown pre-capture lifetime instead of subtracting zero.
+The summary includes count/size/trace distributions, observed live high water,
+retained requested payload and adjacent allocation/free pairs. Native free/new
+pairs do not identify a realloc call, so the realloc count stays unavailable.
+
+Timestamp records bracket groups of events at floored milliseconds. Allocation
+lifetime bounds include that uncertainty; no per-event nanosecond timestamp or
+operation/thread clock join is invented. RSS pages use the recorded page size
+and remain sampled RSS, separate from tracked payload and its observed peak.
+Neither quantity is an exact whole-process transient peak or leak proof. Device
+and pinned storage stay unobserved by this host-heap lane. Raw addresses and
+module records alone do not establish loaded symbols or source ownership.
+Operation/phase association, symbol attribution, complete interception and
+separate Windows heap/scheduler integration remain source work. The native
+format controls and direct-child producer/consumer controls are authored and
+registered; no decoder, preload, fixture, benchmark or profiler has run in this
+source pass.

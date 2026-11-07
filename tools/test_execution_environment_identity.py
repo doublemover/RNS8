@@ -61,6 +61,8 @@ class EnvironmentIdentity(unittest.TestCase):
             ("HIP_VISIBLE_DEVICES", ("0", "1")),
             ("HSA_ENABLE_SDMA", ("0", "1")),
             ("LD_LIBRARY_PATH", ("/fixture/a", "/fixture/b")),
+            ("HEAPTRACK_UNWIND_DEPTH", ("16", "32")),
+            ("DUMP_HEAPTRACK_OUTPUT", ("/fixture/a.raw", "/fixture/b.raw")),
         ):
             with self.subTest(control=key):
                 a, b = [self.capture(str(i), {key: value}) for i, value in enumerate(values)]

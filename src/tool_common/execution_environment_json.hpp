@@ -19,8 +19,8 @@ extern char** environ;
 namespace rns8::tools {
 namespace environment_observation_detail {
 inline bool relevant(std::string_view key) noexcept {
-  constexpr std::string_view prefixes[]{"RNS8_",   "OMP_", "HIP_", "ROCR_", "ROCP_",
-                                        "ROCPROF", "HSA_", "KMP_", "PERF_", "MULL_"};
+  constexpr std::string_view prefixes[]{"RNS8_", "OMP_", "HIP_",  "ROCR_", "ROCP_",     "ROCPROF",
+                                        "HSA_",  "KMP_", "PERF_", "MULL_", "HEAPTRACK_"};
   const auto matches = [&](std::string_view name, bool exact) {
     if (key.size() < name.size() || (exact && key.size() != name.size()))
       return false;
@@ -39,7 +39,7 @@ inline bool relevant(std::string_view key) noexcept {
     if (matches(prefix, false))
       return true;
   return matches("CUDA_VISIBLE_DEVICES", true) || matches("LD_LIBRARY_PATH", true) ||
-         matches("LD_PRELOAD", true);
+         matches("LD_PRELOAD", true) || matches("DUMP_HEAPTRACK_OUTPUT", true);
 }
 std::string utf8(const char* text, std::size_t size);
 inline nlohmann::json snapshot() {

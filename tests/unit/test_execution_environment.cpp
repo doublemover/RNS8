@@ -79,6 +79,8 @@ TEST_CASE("native execution observations bind actual arguments and environment c
   CHECK(relevant("PERF_CONFIG"));
   CHECK(relevant("MULL_CONFIG"));
   CHECK(relevant("MULL_MUTANT_IDS"));
+  CHECK(relevant("HEAPTRACK_UNWIND_DEPTH"));
+  CHECK(relevant("DUMP_HEAPTRACK_OUTPUT"));
   CHECK(relevant("HIP_VISIBLE_DEVICES"));
   CHECK(relevant("LD_PRELOAD"));
   CHECK_FALSE(relevant("UNRELATED_AUTH_TOKEN"));

@@ -6140,6 +6140,7 @@
       "anchors": [
         "host-cpu-and-allocation-diagnostics",
         "native-linux-cpu-sample-decoding",
+        "separate-linux-host-allocation-capture",
         "windows-acquisition-boundary"
       ]
     },

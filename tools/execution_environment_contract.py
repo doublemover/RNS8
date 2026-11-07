@@ -13,8 +13,11 @@ ENVIRONMENT_PREFIXES = (
     "KMP_",
     "PERF_",
     "MULL_",
+    "HEAPTRACK_",
 )
-ENVIRONMENT_KEYS = frozenset(("CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD"))
+ENVIRONMENT_KEYS = frozenset(
+    ("CUDA_VISIBLE_DEVICES", "LD_LIBRARY_PATH", "LD_PRELOAD", "DUMP_HEAPTRACK_OUTPUT")
+)
 
 
 def relevant_environment_key(key: str) -> bool:

@@ -51,7 +51,8 @@ def production_profile_input(value: dict, store: EvidenceStore) -> Path:
         raise ValueError("production has no stable static executable association")
     binary = store.verify(Path(artifact["executable_path"]), artifact["executable_sha256"])
     if any(
-        key.startswith(("ROCP_", "ROCPROF", "PERF_", "MULL_")) or key == "LD_PRELOAD"
+        key.startswith(("ROCP_", "ROCPROF", "PERF_", "MULL_", "HEAPTRACK_"))
+        or key in {"LD_PRELOAD", "DUMP_HEAPTRACK_OUTPUT"}
         for key in request["environment"]
     ):
         raise ValueError("production environment already contains profiler injection")
