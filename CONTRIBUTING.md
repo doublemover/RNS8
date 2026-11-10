@@ -152,8 +152,12 @@ boundary, but cannot accept incomplete analysis.
 The runner retains the plan, original/projected commands, allowlisted compiler
 environment, observed first-party include footprint, native YAML, process logs,
 partial interrupted output and compact pass receipts. Per-process/session time,
-output, artifact and free-space budgets are bounded; unavailable peak-memory
-observations remain explicit. `python tools/quality.py analyze
+output, artifact and free-space budgets are bounded. An owned resource worker
+records terminal peak working set on Windows and `wait4` child max RSS on Linux,
+with native units, child/supervisor identities and exact commands retained.
+The session reports the maximum observed child peak; this is not concurrent
+process-tree memory. Unavailable observations and their count remain explicit,
+including workers stopped by a time/output limit. `python tools/quality.py analyze
 --verify-receipt temp/analysis-session/results.json` reopens the current configured
 compiler inventory, exact per-pass databases/commands and native YAML, then
 reconstructs findings, include footprints, branch visibility, missing-header

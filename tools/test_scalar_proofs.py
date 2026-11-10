@@ -35,7 +35,7 @@ from scalar_proof_contract import (
     resource_observation,
 )
 from scalar_proof_session import execute
-from scalar_proof_worker import run_owned
+from owned_child_resources import run_owned
 
 
 def process(value, code=0):
@@ -121,7 +121,7 @@ def authored_plan(root, output, models):
 def authored_resources(selected, command, pid=51000, code=0):
     system = selected["native_host"]["os"]
     return dict(
-        schema="rns8_scalar_proof_child_resources_v1",
+        schema="rns8_owned_child_resources_v1",
         command=command,
         os=system,
         process_id=pid,
@@ -200,10 +200,10 @@ class ScalarProofAdmission(unittest.TestCase):
     def test_resource_worker_owns_one_linux_wait_and_windows_handle_scope(self):
         command = ["/authored/cbmc"]
         with (
-            patch("scalar_proof_worker.platform.system", return_value="Linux"),
-            patch("scalar_proof_worker.os.posix_spawn", return_value=5001, create=True) as spawn,
+            patch("owned_child_resources.platform.system", return_value="Linux"),
+            patch("owned_child_resources.os.posix_spawn", return_value=5001, create=True) as spawn,
             patch(
-                "scalar_proof_worker.os.wait4",
+                "owned_child_resources.os.wait4",
                 return_value=(5001, 0, SimpleNamespace(ru_maxrss=1234)),
                 create=True,
             ) as wait,
@@ -218,10 +218,10 @@ class ScalarProofAdmission(unittest.TestCase):
         process_owner = MagicMock()
         process_owner.__enter__.return_value = child
         with (
-            patch("scalar_proof_worker.platform.system", return_value="Windows"),
-            patch("scalar_proof_worker.subprocess.Popen", return_value=process_owner),
+            patch("owned_child_resources.platform.system", return_value="Windows"),
+            patch("owned_child_resources.subprocess.Popen", return_value=process_owner),
             patch(
-                "scalar_proof_worker.windows_observer", return_value=nullcontext(lambda: 7654321)
+                "owned_child_resources.windows_observer", return_value=nullcontext(lambda: 7654321)
             ),
         ):
             value = run_owned(command)
@@ -238,9 +238,9 @@ class ScalarProofAdmission(unittest.TestCase):
 
         child.wait.side_effect = KeyboardInterrupt
         with (
-            patch("scalar_proof_worker.platform.system", return_value="Windows"),
-            patch("scalar_proof_worker.subprocess.Popen", return_value=process_owner),
-            patch("scalar_proof_worker.windows_observer", side_effect=observed),
+            patch("owned_child_resources.platform.system", return_value="Windows"),
+            patch("owned_child_resources.subprocess.Popen", return_value=process_owner),
+            patch("owned_child_resources.windows_observer", side_effect=observed),
         ):
             with self.assertRaises(KeyboardInterrupt):
                 run_owned(command)

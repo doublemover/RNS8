@@ -90,7 +90,7 @@ def proof_command(
     result = Path(selected["output"]) / (name + "-" + model + ".child-resources.json")
     return [
         selected["proof_python_invocation"],
-        str(ROOT / "tools/scalar_proof_worker.py"),
+        str(ROOT / "tools/owned_child_resources.py"),
         "--result",
         str(result),
         "--",
@@ -124,7 +124,7 @@ def resource_observation(
             "worker_python_executable",
             "worker_python_version",
         }
-        or document.get("schema") != "rns8_scalar_proof_child_resources_v1"
+        or document.get("schema") != "rns8_owned_child_resources_v1"
         or type(document.get("os")) is not str
         or document["os"] != selected["native_host"]["os"]
         or document.get("worker_python_executable") != selected["proof_python"]["path"]

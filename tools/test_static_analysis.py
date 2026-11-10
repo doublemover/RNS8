@@ -331,6 +331,8 @@ class StaticAnalysis(unittest.TestCase):
             "omit_source",
             "forge_projection",
             "boolean_count",
+            "invent_memory_peak",
+            "boolean_memory_count",
         ):
             with self.subTest(mutation=mutation):
                 result, out = self.run_authored(mutation="finding")
@@ -376,6 +378,11 @@ class StaticAnalysis(unittest.TestCase):
                     )
                     save(plan_path, plan)
                     result["plan_identity_sha256"] = plan["identity_sha256"]
+                elif mutation == "invent_memory_peak":
+                    result["peak_process_memory_bytes"] = 12345678
+                    result["memory_observed_processes"] = 1
+                elif mutation == "boolean_memory_count":
+                    result["memory_observed_processes"] = False
                 else:
                     summary["program_diagnostic_count"] = True
                 save(full_path, full)

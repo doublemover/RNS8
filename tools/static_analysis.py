@@ -22,8 +22,9 @@ from benchmark_request import file_digest
 from compiled_binary_identity import canonical_digest
 from compiler_context import compiler_environment
 from gpu_qualification import owned_artifact_files, write_json
-from json_evidence import load_evidence_json
+from json_evidence import load_evidence_json, same_evidence_value
 from process_progress import run_capture, capture_succeeded
+from observed_process import observed_capture, resource_record
 from quality_inventory import ROOT, inventory
 from quality_policy import load_quality_lock
 
@@ -415,6 +416,38 @@ def retained_process(root: Path, label: str, artifacts: dict) -> dict:
     ):
         raise ValueError("native analyzer process identity or command invalid")
     result = dict(value)
+    if "resource_supervisor" in value:
+        resource = root / (label + ".resources.json")
+        supervisor = value["resource_supervisor"]
+        if (
+            value.get("resource_artifact") != str(resource)
+            or type(supervisor) is not dict
+            or type(supervisor.get("command")) is not list
+            or supervisor["command"][1:5]
+            != [str(ROOT / "tools/owned_child_resources.py"), "--result", str(resource), "--"]
+            or supervisor["command"][5:] != value["command"]
+            or supervisor.get("returncode") != value.get("returncode")
+            or supervisor.get("elapsed_seconds") != value.get("elapsed_seconds")
+        ):
+            raise ValueError("native resource supervisor command/custody differs")
+        document = value.get("child_resources")
+        if document is not None:
+            if (
+                str(resource) not in artifacts
+                or _read_record(resource) != document
+                or value.get("resource_observation_error") is not None
+                or value.get("process_identity_scope") != "observed_owned_native_child"
+                or value["process_id"] != document.get("process_id")
+            ):
+                raise ValueError("native resource measurement artifact/PID binding differs")
+            resource_record(document, value["command"], supervisor)
+        elif (
+            not value.get("resource_observation_error")
+            or value.get("process_identity_scope")
+            != "resource_supervisor_without_child_observation"
+            or value["process_id"] != supervisor.get("process_id")
+        ):
+            raise ValueError("missing native resource measurement must remain explicit")
     if type(value.get("streams")) is not dict or set(value["streams"]) != {"stdout", "stderr"}:
         raise ValueError("complete native analyzer streams required")
     for stream in ("stdout", "stderr"):
@@ -428,6 +461,25 @@ def retained_process(root: Path, label: str, artifacts: dict) -> dict:
             raise ValueError("native analyzer stream custody or budget invalid")
         result[stream] = expected.read_text(encoding="utf-8")
     return result
+
+
+def memory_summary(processes):
+    observations = [
+        value["child_resources"]
+        for value in processes
+        if (value.get("child_resources") or {}).get("status") == "observed"
+    ]
+    return dict(
+        peak_process_memory_bytes=max(
+            (row["peak_memory_bytes"] for row in observations), default=None
+        ),
+        memory_observation="maximum_observed_owned_child_peak_not_concurrent_tree_total"
+        if observations
+        else "no_native_child_peak_observed",
+        memory_observed_processes=len(observations),
+        memory_unobserved_processes=len(processes) - len(observations),
+        memory_scopes=sorted({row["scope"] for row in observations}),
+    )
 
 
 def parse_control_rejected(process: dict, diagnostics: list[dict], missing: Path) -> bool:
@@ -808,6 +860,16 @@ def verify_receipt(path: Path) -> dict:
         or result.get("performance_promotion_allowed") is not False
     ):
         raise ValueError("static analysis cannot qualify hardware or performance")
+    processes = [
+        retained_process(root, Path(name).name.removesuffix(".process.json"), artifacts)
+        for name in artifacts
+        if Path(name).parent == root and name.endswith(".process.json")
+    ]
+    if any(
+        not same_evidence_value(result.get(key), value)
+        for key, value in memory_summary(processes).items()
+    ):
+        raise ValueError("analysis peak-memory summary differs from retained native measurements")
     return result
 
 
@@ -851,6 +913,7 @@ def execute(
     started, run_id, rows, preflight_controls = clock(), str(uuid.uuid4()), [], []
     witnesses = dict(plan["input_artifacts"])
     retained = {}
+    processes = []
 
     def retain(path):
         retained[str(path)] = file_digest(path)
@@ -913,8 +976,7 @@ def execute(
             hardware_qualification=False,
             performance_promotion_allowed=False,
             external_dependency_identity="configured_paths_and_manifest_not_full_external_tree_rehash",
-            peak_process_memory_bytes=None,
-            memory_observation="not_available_from_owned_process_runner",
+            **memory_summary(processes),
         )
         result["identity_sha256"] = canonical_digest(result)
         write_json(out / "results.json", result)
@@ -953,7 +1015,13 @@ def execute(
             raise ValueError("analysis session time budget exhausted")
         if shutil.disk_usage(out).free < plan["budgets"]["minimum_free_bytes"]:
             raise ValueError("analysis free-space budget exhausted")
-        value = runner(
+        capture = observed_capture if runner is run_capture else runner
+        resource_options = (
+            dict(resource_path=out / (name + ".resources.json"))
+            if capture is observed_capture
+            else {}
+        )
+        value = capture(
             argv,
             cwd=cwd,
             env=child if env is None else env,
@@ -963,7 +1031,9 @@ def execute(
             artifact_roots=[out],
             max_artifact_bytes=plan["budgets"]["max_artifact_bytes"],
             return_on_interrupt=True,
+            **resource_options,
         )
+        processes.append(value)
         value["working_directory"] = str(cwd)
         streams = {}
         for stream in ("stdout", "stderr"):

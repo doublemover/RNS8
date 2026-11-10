@@ -1,6 +1,6 @@
-"""Own one verifier child and retain scoped terminal resource observations.
+"""Own one native tool child and retain scoped terminal resource observations.
 
-Only the explicit proof driver invokes this worker. Child stdout/stderr pass
+The explicit proof and analysis drivers invoke this worker. Child stdout/stderr pass
 through unchanged; resource metadata goes to a fresh, separate JSON document.
 """
 
@@ -17,7 +17,7 @@ import struct
 import sys
 import time
 
-SCHEMA = "rns8_scalar_proof_child_resources_v1"
+SCHEMA = "rns8_owned_child_resources_v1"
 
 
 @contextmanager
@@ -134,7 +134,7 @@ def run_owned(command: list[str]) -> dict:
                 except OSError as error:
                     result["resource_error"] = str(error)
     else:
-        raise ValueError("scalar child resource observation supports Windows/Linux only")
+        raise ValueError("native child resource observation supports Windows/Linux only")
     result["elapsed_seconds"] = time.monotonic() - start
     return result
 
@@ -162,7 +162,7 @@ def main():
         code = result["returncode"]
         return code if type(code) is int and 0 <= code <= 125 else 125
     except (ValueError, OSError) as error:
-        print("scalar proof child/resource acquisition failed: " + str(error), file=sys.stderr)
+        print("native child/resource acquisition failed: " + str(error), file=sys.stderr)
         return 125
 
 
