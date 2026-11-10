@@ -90,9 +90,10 @@ codec; the summary retains their hashes and every actual callback verdict.
 Replay count and wall deadline are bounded; the callback must separately bound
 its own native process. Exhaustion retains the best reproducer and does not
 claim minimality. A completed pass is a local fixed point, not a global minimum.
-This component launches nothing and does not attest native execution; wiring
-the bounded session adapter and qualifying native replay remain open. Minimizer controls
-use synthetic callbacks only.
+This component launches nothing and does not attest native execution. The
+explicit replay/shrink adapter below owns bounded native child processes and
+their provenance; the minimizer's synthetic callback controls qualify only its
+reduction logic. Native execution status is tracked in the roadmap.
 
 ## Deterministic native replay
 
