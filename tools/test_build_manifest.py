@@ -91,6 +91,37 @@ def dependency_scratch():
 
 
 class BuildManifestTest(unittest.TestCase):
+    def test_explicit_text_attributes_keep_cross_client_status_consistent(self):
+        with dependency_scratch() as directory:
+            root = Path(directory)
+            source, config, _ = dependency_fixture(root)
+
+            def git(*args):
+                return subprocess.check_output(
+                    ["git", "-C", str(source), *args], stderr=subprocess.DEVNULL
+                )
+
+            git("init")
+            git("config", "core.autocrlf", "false")
+            (source / ".gitattributes").write_bytes(b"* text=auto\n")
+            (source / "src").mkdir()
+            tracked = source / "src/arithmetic.cpp"
+            tracked.write_bytes(b"int value = 1;\r\n")
+            git("add", ".")
+            git(
+                "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "A"
+            )
+            # Preserve checkout bytes while refreshing the Windows-style file.
+            # A size-changing LF-to-CRLF rewrite is itself reported by Git status.
+            tracked.write_bytes(b"int value = 1;\r\n")
+            clean = generate(source, config)
+            self.assertFalse(clean["source_dirty"])
+            self.assertEqual(clean["source_commit"], git("rev-parse", "HEAD").decode().strip())
+            tracked.write_bytes(b"int value = 2;\r\n")
+            changed = generate(source, config)
+            self.assertTrue(changed["source_dirty"])
+            self.assertNotEqual(clean["source_digest"], changed["source_digest"])
+
     def test_source_digest_uses_case_sensitive_relative_name_order(self):
         with dependency_scratch() as directory:
             root = Path(directory)

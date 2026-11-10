@@ -1,3 +1,6 @@
+# Normalize text consistently for native Git and Windows clients sharing a checkout.
+* text=auto
+
 # Certificate identities hash exact tracked bytes across Windows and Linux.
 /tools/data/wrap64_signed*.json text eol=lf
 /tools/data/rank23-october-55.txt text eol=lf
