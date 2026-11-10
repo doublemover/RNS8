@@ -1,0 +1,195 @@
+{
+  "schema": "rns8_native_linux_provenance_qualification_v1",
+  "date": "2026-11-09",
+  "issue": 84,
+  "decision": "acceptance_complete",
+  "execution": "solo",
+  "scope": "Native Linux ELF CPU build and installed package execution under Ubuntu24.04/WSL2; not native Linux GPU qualification.",
+  "artifact_source": {
+    "source_commit": "10dcddeb7c68eb33d16d7bc52cc701f22147a582",
+    "source_digest": "e7bb0beed9486f102445c38fc22ce3d1b298123764484097a29f9116a991b867",
+    "source_dirty": false,
+    "dependency_digest": "6f1fc440103b645dc3c2b348e42a382c8eefe38bd68e5e35da5c27e15771010a",
+    "identity_scope": "source-config-and-selected-dependency-content",
+    "linkage": "static-rns8"
+  },
+  "toolchain": {
+    "compiler": "LLVM/Clang23.1.5",
+    "cmake": "4.4.5",
+    "ninja": "1.13.2",
+    "python": "3.15.2",
+    "stdlib": "Ubuntu24.04 GNU13 libstdc++",
+    "hip": "disabled",
+    "openmp": "disabled"
+  },
+  "dependencies": {
+    "resolution_kind": "native",
+    "vcpkg_status_required": false,
+    "vcpkg_receipt_present": false,
+    "boost": "1.92.0",
+    "json": "3.12.0",
+    "catch2": "3.16.1",
+    "source_installation": "Native upstream-source packages; locked source archives checked, native Catch2 library built and installed. No Windows package binaries or vcpkg status used.",
+    "content_identity": {
+      "files": {},
+      "receipts": {
+        "BUILD_TOOLS": {
+          "bytes": 435,
+          "sha256": "98c2c2dbfe8802618011a6de8dddf8d5c4f0350a6034472ca016673e649395b8"
+        },
+        "POLICY": {
+          "bytes": 87747,
+          "sha256": "51d0f9a04f9f0128407048e4af25d7675a135c65c4387577bd1401f457d8d986"
+        }
+      },
+      "resolution_kind": "native",
+      "schema": "rns8_dependency_content_v1",
+      "selection": {
+        "bootstrap_requirements_sha256": "98c2c2dbfe8802618011a6de8dddf8d5c4f0350a6034472ca016673e649395b8",
+        "builtins": "OFF",
+        "ck": "OFF",
+        "compiler": "Clang 23.1.5",
+        "compiler_path": "/home/sneak/.cache/rns8/issue-closeout-20261109/host-llvm/llvm-23.1.5-linux-x86_64/LLVM-23.1.5-Linux-X64/bin/clang++",
+        "config": "Release",
+        "cpu_amx": "OFF",
+        "dependency_policy_sha256": "51d0f9a04f9f0128407048e4af25d7675a135c65c4387577bd1401f457d8d986",
+        "dependency_resolution_kind": "native",
+        "dependency_resolution_sha256": "792aa78e1336c670477690c2bfc06c766921d167e4a8dfb5ecfbeb54cd43f0ae",
+        "device_asan": "OFF",
+        "device_asan_compile_flags": "",
+        "device_asan_link_flags": "",
+        "device_asan_rocm_version": "",
+        "distributed_mpi": "OFF",
+        "etw_ranges": "OFF",
+        "flags": " -O3 -DNDEBUG",
+        "flint": "OFF",
+        "garner_table": "OFF",
+        "generated_native_wmma": "OFF",
+        "gmp": "OFF",
+        "hip": "OFF",
+        "hip_compiler": "",
+        "hip_stl_overlay_sha256": "none",
+        "hip_version": "",
+        "hipblaslt": "OFF",
+        "hipblaslt_algorithm_index": "",
+        "host_control_diagnostics": "OFF",
+        "host_coverage": "OFF",
+        "host_instrumentation_compile_flags": "",
+        "host_instrumentation_link_flags": "",
+        "host_sanitizer": "none",
+        "openmp": "OFF",
+        "rccl": "OFF",
+        "residue_dot4": "OFF",
+        "residue_scalar_control": "OFF",
+        "rocshmem": "OFF",
+        "roctx": "OFF",
+        "rocwmma": "OFF",
+        "targets": "gfx1100",
+        "windows_clang_asan": "OFF"
+      },
+      "trees": {
+        "BOOST": {
+          "bytes": 31958491,
+          "files": 2292,
+          "sha256": "cc722f5f1d5c34f5da9c44099a41d7291f3ddf7f03bb8331288d813fe340c6e6"
+        },
+        "CATCH2_1": {
+          "bytes": 640095,
+          "files": 183,
+          "sha256": "df02d7905c21f00a87ff7b249a8616fc8e83d29390d46a912b79c9310c6a7136"
+        },
+        "JSON_1": {
+          "bytes": 953214,
+          "files": 46,
+          "sha256": "8f846e9ae18be5b624e608d5f51e0790d89b20b362705c32c882535196bea42c"
+        },
+        "JSON_2": {
+          "bytes": 953214,
+          "files": 46,
+          "sha256": "8f846e9ae18be5b624e608d5f51e0790d89b20b362705c32c882535196bea42c"
+        }
+      }
+    }
+  },
+  "validation": {
+    "native_unit": {
+      "passed": 631,
+      "skipped": 64,
+      "failed": 0,
+      "cases": 695,
+      "receipt": {
+        "scratch_path": "temp/issue-closeout-20261109/linux-native-unit.xml",
+        "sha256": "fa9ee9a322263bf6062af34f3d8c0c067c59c74a6e6f79dde179f145ee837cf6"
+      }
+    },
+    "public_allocation_failure": {
+      "passed": true,
+      "fault_points": 756,
+      "receipt": {
+        "scratch_path": "temp/issue-closeout-20261109/linux-native-allocation-faults.log",
+        "sha256": "84676ec7b698c2f802aba88353c2ffe838da999c21b05bcf72c53bb5b6352606"
+      }
+    },
+    "installed_consumers": {
+      "static": {
+        "passed": 7,
+        "failed": 0,
+        "receipt": {
+          "scratch_path": "temp/issue-closeout-20261109/linux-consumer-static-tests.log",
+          "sha256": "041c90b0194b2165ed09b4a9549e4ee77c91558076f3957237c09f2e034ff0d9"
+        }
+      },
+      "shared": {
+        "passed": 7,
+        "failed": 0,
+        "receipt": {
+          "scratch_path": "temp/issue-closeout-20261109/linux-consumer-shared-tests.log",
+          "sha256": "4f39d6e165f5a886a55f6c01bf4e01b1a5c7400a8dce03476e10c332fa8a04a9"
+        }
+      }
+    },
+    "manifest_regressions": {
+      "windows": {
+        "passed": 14,
+        "skipped": 0,
+        "receipt": {
+          "scratch_path": "temp/issue-closeout-20261109/build-manifest-line-ending-tests.log",
+          "sha256": "4ea4850a4f3cc316e98425e9f5dea1f340c523eaa680bbd2b9ca4325d7d4f4a3"
+        }
+      },
+      "linux": {
+        "passed": 13,
+        "skipped": 1,
+        "receipt": {
+          "scratch_path": "temp/issue-closeout-20261109/linux-build-manifest-tests.log",
+          "sha256": "963c148bf4d458774dd154e0c4d02fc99875d5077aa460cc1cef0b3e3dea5846"
+        }
+      },
+      "scope": "Real isolated Git plus generator-to-validator native/vcpkg and fail-closed dependency/source mutation controls; Windows-only linker case skipped on Linux."
+    },
+    "existing_collector_admission": {
+      "capture": "/mnt/c/Users/sneak/Development/RNS8/temp/issue-closeout-20261109/linux-native-cpu-admission.json",
+      "capture_sha256": "ea3f69ec555f6a43244cb4655038b892dce4aaa77eea70bfc84502bb7cd9ce51",
+      "schema_load": "passed",
+      "existing_review_path": "passed",
+      "manifest_complete": true,
+      "backend": "cpu-reference",
+      "performance_promotion": false,
+      "review_receipt": {
+        "scratch_path": "temp/issue-closeout-20261109/linux-native-cpu-review.json",
+        "sha256": "954175c49509d920eccacaf994bc636f601abca796a43c097d52b2d699113f76"
+      },
+      "scope": "Actual native CPU capture accepted by the unchanged schema loader and ordinary review path; no synthetic GPU capture or performance promotion."
+    }
+  },
+  "qualification_remaining_elsewhere": [
+    "Linux ROCm GPU arithmetic, ISA and performance evidence",
+    "Multi-GPU/Instinct and broader operating-system qualification",
+    "Other issue-specific measurements and sanitizer configurations"
+  ],
+  "notes": [
+    "The earlier manifest with unknown source identity remains nonqualifying. Cross-client stat and text normalization are repaired, not bypassed.",
+    "Fresh build is source-bound to10dcddeb. Later analyzer-tooling source changes are separate and receive no native binary execution credit.",
+    "The first driver completed package tests but used the wrong backend key when finalizing the receipt. The finalizer consumed the existing capture and did not rerun or alter its measurements."
+  ]
+}
