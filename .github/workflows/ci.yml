@@ -136,6 +136,40 @@ jobs:
       - name: Test CPU
         run: ctest --preset linux-cpu-debug --output-on-failure
 
+      - name: Replay deterministic arithmetic cases through the native CPU adapter
+        run: |
+          python tools/fuzz_cases.py --out temp/ci-native-arithmetic-corpus > "$RUNNER_TEMP/rns8-native-corpus.json"
+          python tools/fuzz_replay.py \
+            --exe build/linux-cpu-debug/rns8-arithmetic-replay \
+            --case temp/ci-native-arithmetic-corpus/history-0-7.r8f \
+            --case temp/ci-native-arithmetic-corpus/history-1-7.r8f \
+            --case temp/ci-native-arithmetic-corpus/metamorphic-2-base.r8f \
+            --case temp/ci-native-arithmetic-corpus/history-4-7.r8f \
+            --case temp/ci-native-arithmetic-corpus/history-5-7.r8f \
+            --backend cpu-reference --device -1 \
+            --out temp/ci-native-rns-replay --seconds 120 --case-seconds 20 --execute \
+            > temp/ci-native-rns-replay-report.json
+          python tools/fuzz_replay.py \
+            --exe build/linux-cpu-debug/rns8-arithmetic-replay \
+            --case temp/ci-native-arithmetic-corpus/metamorphic-3-base.r8f \
+            --backend wrap64-byte-limb --device -1 \
+            --out temp/ci-native-wrap-replay --seconds 60 --case-seconds 20 --execute \
+            > temp/ci-native-wrap-replay-report.json
+          python -c 'import json; from pathlib import Path; reports = [json.loads(Path("temp/ci-native-" + lane + "-replay-report.json").read_text()) for lane in ("rns", "wrap")]; print("Native CPU replay:", [report["counts"] for report in reports]); assert all(report["accepted"] for report in reports)'
+
+      - name: Retain deterministic native CPU replay evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-cpu-arithmetic-replay
+          path: |
+            temp/ci-native-arithmetic-corpus.manifest.json
+            temp/ci-native-rns-replay-report.json
+            temp/ci-native-wrap-replay-report.json
+            temp/ci-native-rns-replay/
+            temp/ci-native-wrap-replay/
+          if-no-files-found: ignore
+
   linux-openmp-matrix:
     needs: source-quality
     runs-on: ubuntu-24.04
