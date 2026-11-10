@@ -61,8 +61,11 @@ Copied trees remain unknown/dirty for general target provenance, and these
 correctness-only receipts are explicitly non-promotable. They cannot become
 production performance or source-checkout qualification evidence.
 
-Complete discovery and an exact twelve-case CTest selection are retained. A filter
-mismatch stops **before** execution. The baseline must pass every selected case;
+Discovery of the exact selected CTest names and their built native commands is
+retained. Unbuilt, unrelated registered tests are outside a focused mutation
+inventory; the report labels this scope. A filter mismatch stops **before**
+execution. The complete default batch selects twelve cases, while a `--seed`
+subset selects only its witnesses. The baseline must pass every selected case;
 the publication seed requires both the reserved publication assertion and the
 real public CPU concurrency route to fail as expected. A mutant only counts as
 `killed_by_assertion` when the complete CTest process reports ordinary failed

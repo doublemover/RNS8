@@ -305,7 +305,12 @@ def variant(session, args, inputs, *, name, tests, seed=None, compiler_flags=Non
     }
     row["manifest"] = reference(manifest_path)
     inventory_ref, inventory = session.tests(
-        name + "-cases", build, args.ctest, required=tests, selection_names=tests
+        name + "-cases",
+        build,
+        args.ctest,
+        required=tests,
+        selection_names=tests,
+        selected_inventory_only=True,
     )
     row["test_inventory"] = inventory_ref
     if source_content_digest(source) != digest:

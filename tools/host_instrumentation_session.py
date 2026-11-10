@@ -289,11 +289,13 @@ class Session:
         required,
         allowed=None,
         selection_names=None,
+        selected_inventory_only=False,
         runtime_witness=None,
     ):
         command = [str(ctest), "--test-dir", str(build), "--no-tests=error"]
-        _, full = self.json(name + "-discovery", [*command, "--show-only=json-v1"])
         selection_ref = None
+        if selected_inventory_only and selection_names is None:
+            raise ValueError("selected inventory needs explicit test names")
         if selection_names is not None:
             if (
                 not isinstance(selection_names, list)
@@ -303,14 +305,20 @@ class Session:
                     for item in selection_names
                 )
                 or len(set(selection_names)) != len(selection_names)
-                or not set(selection_names).issubset(discovery(full))
             ):
-                raise ValueError("explicit nonempty discovered test selection required")
+                raise ValueError("explicit nonempty test selection required")
             path = self.output / (name + "-selection.txt")
             with path.open("x", encoding="utf-8") as handle:
                 handle.write("\n".join(selection_names) + "\n")
             selection_ref = reference(path)
-            command.extend(["--tests-from-file", str(path)])
+            if selected_inventory_only:
+                command.extend(["--tests-from-file", str(path)])
+        _, full = self.json(name + "-discovery", [*command, "--show-only=json-v1"])
+        if selection_names is not None:
+            if not set(selection_names).issubset(discovery(full)):
+                raise ValueError("explicit nonempty discovered test selection required")
+            if not selected_inventory_only:
+                command.extend(["--tests-from-file", str(path)])
         _, selected = self.json(name + "-selection", [*command, "--show-only=json-v1"])
         discovery(full)
         discovery(selected)
@@ -350,6 +358,9 @@ class Session:
         )
         source, junit_ref = bounded_read(junit_path)
         value = reconcile(full, selected, source, required=required, allowed_skips=allowed)
+        value["inventory_scope"] = (
+            "selected_registered_tests_only" if selected_inventory_only else "all_registered_tests"
+        )
         value["inputs"] = dict(discovered=full_ref, selected=selected_ref, junit=junit_ref)
         if selection_ref:
             check_bookends(selection_ref)

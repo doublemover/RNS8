@@ -316,6 +316,51 @@ def capture(stdout="", stderr="", returncode=0):
     )
 
 
+class SelectedInventoryControls(unittest.TestCase):
+    def test_selected_native_inventory_ignores_unbuilt_unrelated_registrations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "rns8_tests"
+            executable.write_bytes(b"built native test fixture")
+            selected = inventory("required native case")
+            selected["tests"][0]["command"][0] = str(executable)
+            full = copy.deepcopy(selected)
+            full["tests"].append(dict(name="unbuilt", command=[], properties=[]))
+            owner = session.Session(root, {}, 10, 1024 * 1024)
+
+            def discover(_name, command):
+                return capture(), selected if "--tests-from-file" in command else full
+
+            def run(_name, command, **_kwargs):
+                Path(command[command.index("--output-junit") + 1]).write_text(
+                    report(("required native case", "run", "")), encoding="utf-8"
+                )
+                return capture()
+
+            with (
+                mock.patch.object(owner, "json", side_effect=discover),
+                mock.patch.object(owner, "run", side_effect=run),
+            ):
+                _, result = owner.tests(
+                    "selected-native",
+                    root,
+                    executable,
+                    required=["required native case"],
+                    selection_names=["required native case"],
+                    selected_inventory_only=True,
+                )
+                self.assertEqual(result["status"], "passed")
+                self.assertEqual(result["inventory_scope"], "selected_registered_tests_only")
+                with self.assertRaisesRegex(ValueError, "duplicate test or absent native command"):
+                    owner.tests(
+                        "full-native",
+                        root,
+                        executable,
+                        required=["required native case"],
+                        selection_names=["required native case"],
+                    )
+
+
 class DetectorControls(unittest.TestCase):
     def test_only_intended_bound_nonzero_diagnostic_supplies_sensitivity(self):
         rows = (
