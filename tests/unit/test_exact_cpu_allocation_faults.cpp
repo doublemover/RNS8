@@ -463,16 +463,20 @@ struct PublicExportWorkerFault {
     // Arm only this worker and perform a real allocation here. Never leave an
     // armed failure behind for an unrelated OpenMP-runtime allocation.
     fault::begin(0);
-    try {
-      void* pointer = ::operator new(8);
-      fault::end();
-      ::operator delete(pointer);
-    } catch (...) {
-      const auto result = fault::end();
-      state.allocation_failed.store(result.triggered && result.calls == 1);
-      state.failed.store(worker);
-      throw;
-    }
+    struct Observation {
+      PublicExportWorkerFault& state;
+      uint32_t worker;
+      ~Observation() {
+        const auto result = fault::end();
+        state.allocation_failed.store(result.triggered && result.calls == 1);
+        state.failed.store(worker);
+      }
+    } observation{state, worker};
+    // Let the original bad_alloc propagate directly into the public traversal's
+    // catch. Observation disarms the worker during that unwinding, without a
+    // second catch/rethrow boundary in this allocator sensitivity fixture.
+    void* pointer = ::operator new(8);
+    ::operator delete(pointer);
   }
 };
 
