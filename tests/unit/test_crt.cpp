@@ -313,6 +313,9 @@ TEST_CASE("Address-domain qualification proves complete spans without allocation
   CHECK_FALSE(qualified_i32_matrix_address(32768, 65536, 65536)); // signed plane product overflows
   CHECK(qualified_i32_matrix_address(32767, 65536, 65536));
   CHECK_FALSE(qualified_i32_matrix_address(32767, 65536, 65536, 2));
+  CHECK_FALSE(qualified_i32_matrix_address(1, 1, 1, 0));
+  CHECK_FALSE(qualified_i32_matrix_address(1, 1, 1, 1, 0));
+  CHECK_FALSE(qualified_i32_matrix_address(1, 0, 0));
   CHECK_FALSE(checked_address_domain(UINT64_MAX, 8, 8, 8, 1, 0, domain));
   CHECK_FALSE(checked_address_domain(1, 8, 8, 8, UINT64_MAX, 8, domain));
   CHECK_FALSE(checked_address_domain(1, UINT64_MAX, UINT64_MAX, 8, 1, 0, domain));

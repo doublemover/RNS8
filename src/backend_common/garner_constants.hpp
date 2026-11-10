@@ -1,5 +1,6 @@
 #ifndef RNS8_BACKEND_COMMON_GARNER_CONSTANTS_HPP
 #define RNS8_BACKEND_COMMON_GARNER_CONSTANTS_HPP
+#include <cstddef>
 #include <cstdint>
 
 namespace rns8::detail::garner {
@@ -59,14 +60,16 @@ constexpr Constants make_constants() {
     }
   }
   for (uint32_t pair = 0; pair < 10; ++pair) {
-    const uint32_t lhs = moduli[2 * pair], rhs = moduli[2 * pair + 1];
-    out.pair_moduli[pair] = lhs * rhs;
+    const std::size_t first = std::size_t{2} * pair;
+    const uint32_t lhs = moduli[first], rhs = moduli[first + 1];
+    const uint32_t pair_modulus = lhs * rhs;
+    out.pair_moduli[pair] = pair_modulus;
     out.pair_inner_inverses[pair] = inverse(lhs % rhs, rhs);
     uint32_t prefix_mod = 1;
-    for (uint32_t j = 0; j < 2 * pair; ++j)
+    for (std::size_t j = 0; j < first; ++j)
       prefix_mod =
-          static_cast<uint32_t>((static_cast<uint64_t>(prefix_mod) * moduli[j]) % (lhs * rhs));
-    out.pair_prefix_inverses[pair] = inverse(prefix_mod, lhs * rhs);
+          static_cast<uint32_t>((static_cast<uint64_t>(prefix_mod) * moduli[j]) % pair_modulus);
+    out.pair_prefix_inverses[pair] = inverse(prefix_mod, pair_modulus);
   }
   return out;
 }

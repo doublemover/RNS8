@@ -39,7 +39,7 @@ void hipblaslt_prepack_counters_reset();
 HipblasLtPrepackCounters hipblaslt_prepack_counters_snapshot();
 
 constexpr std::size_t kHipblasLtAlignment = 16u;
-constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = 32u * 1024u * 1024u;
+constexpr std::size_t kHipblasLtBaselineWorkspaceBytes = std::size_t{32} * 1024 * 1024;
 
 inline bool hipblaslt_round_up_aligned(uint64_t value, uint64_t& rounded) {
   constexpr uint64_t alignment = static_cast<uint64_t>(kHipblasLtAlignment);
