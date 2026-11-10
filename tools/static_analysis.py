@@ -339,10 +339,17 @@ def included_headers(stderr: str, directory: Path, known: dict[Path, str]) -> li
     return [result[key] for key in sorted(result)]
 
 
-def _forced_include(compiler: Path, path: Path) -> list[str]:
+def _analysis_flags(compiler: Path, path: Path) -> list[str]:
     if compiler.stem.lower() in {"cl", "clang-cl"}:
-        return ["/FI" + str(path)]
-    return ["-include", str(path)]
+        return [
+            "/FI" + str(path),
+            "/clang:-H",
+            "/clang:-Xclang",
+            "/clang:-analyzer-opt-analyze-headers",
+        ]
+    # Standalone functions in the injected header are otherwise excluded from
+    # the analyzer. Keep this diagnostic-only option in the recorded argv.
+    return ["-include", str(path), "-H", "-Xclang", "-analyzer-opt-analyze-headers"]
 
 
 def analyzer_command(
@@ -356,7 +363,6 @@ def analyzer_command(
         "--config-file=" + str(ROOT / ".clang-tidy"),
         "--header-filter=" + _header_filter(),
         "--export-fixes=" + str(diagnostics),
-        "--extra-arg=-H",
         *("--extra-arg=" + argument for argument in injected),
     ]
 
@@ -493,7 +499,7 @@ def verify_analyzer_controls(
         "--config-file=" + str(ROOT / ".clang-tidy"),
         "--export-fixes=" + str(diagnostic),
     ]
-    command = prefix + ["--extra-arg=" + part for part in _forced_include(compiler, missing)]
+    command = prefix + ["--extra-arg=" + part for part in _analysis_flags(compiler, missing)]
     if (
         missing.exists()
         or item.get("missing_header") != str(missing)
@@ -564,7 +570,7 @@ def verify_analyzed_pass(
     control, lines = control_header()
     injected = detailed.get("diagnostic_flags")
     if (
-        injected != _forced_include(compiler, control)
+        injected != _analysis_flags(compiler, control)
         or detailed.get("injected_diagnostic_header") != str(control)
         or detailed.get("injected_header_sha256") != file_digest(control)
     ):
@@ -1064,7 +1070,7 @@ def execute(
                     str(first.context.source),
                     "--config-file=" + str(ROOT / ".clang-tidy"),
                     "--export-fixes=" + str(diagnostic_path),
-                    *("--extra-arg=" + argument for argument in _forced_include(compiler, missing)),
+                    *("--extra-arg=" + argument for argument in _analysis_flags(compiler, missing)),
                 ],
                 "parse-error-control",
                 env={**child, **dict(first.context.environment)},
@@ -1149,7 +1155,7 @@ def execute(
             compiler = (
                 inputs.compiler if task.context.kind == "host" else Path(projected["arguments"][0])
             )
-            injected = _forced_include(compiler, control)
+            injected = _analysis_flags(compiler, control)
             argv = analyzer_command(
                 plan, directory, task.context.source, diagnostics_path, injected
             )
@@ -1207,6 +1213,7 @@ def execute(
                 or value.get("timed_out")
                 or value.get("limit_exceeded")
                 or value.get("capture_error")
+                or status == "unsupported_toolchain"
             ):
                 break
         for path, digest in witnesses.items():

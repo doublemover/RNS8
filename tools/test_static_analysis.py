@@ -23,11 +23,26 @@ from static_analysis import (
     select_changed_tasks,
     planned_tasks,
     verify_receipt,
+    _analysis_flags,
 )
 from compiled_binary_identity import canonical_digest
 
 
 class StaticAnalysis(unittest.TestCase):
+    def test_analysis_flags_enable_header_bodies_and_native_include_tracing(self):
+        header = Path("header with spaces.hpp")
+        for compiler in (Path("cl.exe"), Path("clang-cl.exe")):
+            flags = _analysis_flags(compiler, header)
+            self.assertEqual(flags[0], "/FI" + str(header))
+            self.assertIn("/clang:-H", flags)
+            self.assertIn("/clang:-Xclang", flags)
+            self.assertIn("/clang:-analyzer-opt-analyze-headers", flags)
+            self.assertNotIn("-H", flags)
+        flags = _analysis_flags(Path("clang++"), header)
+        self.assertEqual(flags[:2], ["-include", str(header)])
+        self.assertIn("-H", flags)
+        self.assertEqual(flags[-2:], ["-Xclang", "-analyzer-opt-analyze-headers"])
+
     def setUp(self):
         (ROOT / "temp").mkdir(exist_ok=True)
         self.temporary = tempfile.TemporaryDirectory(dir=ROOT / "temp")
@@ -235,6 +250,18 @@ class StaticAnalysis(unittest.TestCase):
             self.verify_protocol_fixture(out / "results.json")["identity_sha256"],
             result["identity_sha256"],
         )
+
+    def test_missing_branch_capability_stops_with_unattempted_contexts_visible(self):
+        self.inputs = replace(
+            self.inputs,
+            contexts=tuple(replace(self.context, identity=c * 64) for c in ("a", "b", "c")),
+        )
+        result, _ = self.run_authored(mutation="missing_control")
+        self.assertEqual(result["status"], "incomplete_or_unsupported")
+        self.assertEqual(result["selected_passes"], 3)
+        self.assertEqual(result["attempted_passes"], 1)
+        self.assertEqual(result["unattempted_passes"], 2)
+        self.assertEqual(result["analyzed_passes"], 0)
 
     def test_incremental_selection_preserves_all_contexts_and_replays_exact_scope(self):
         other = self.root / "another.cpp"

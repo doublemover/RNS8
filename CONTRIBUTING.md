@@ -121,6 +121,14 @@ coverage. Unsupported flags, missing inputs, failed parsing, timeouts and absent
 branch diagnostics remain incomplete coverage. No target substitution or fake
 SDK header is used.
 
+Analyzer invocations explicitly enable analysis of header function bodies so the
+injected host/device negative control is actually visited. Include tracing uses
+the selected driver's spelling (`/clang:-H` for CL mode). These diagnostic-only
+arguments remain in the receipt; they do not change production compilation.
+A missing branch control stops that lane with remaining passes unattempted,
+rather than spending a full batch repeating an unsupported capability. Real
+findings and ordinary source parse failures remain available for batch triage.
+
 `--changed-paths-json '["src/core/api.cpp"]'` can select changed translation
 units while retaining every configured ABI, preprocessor and GPU target context
 for those files. A header, fragment, configuration, unknown, missing or deleted
