@@ -8,6 +8,7 @@ from typing import Any
 
 from .config import CSV_FIELDS
 
+
 def csv_value(value: Any) -> str | int | float | None:
     if isinstance(value, list):
         return ",".join(str(item) for item in value)
@@ -83,7 +84,9 @@ def scenario_metadata_counts(database: dict[str, Any], row_key: str) -> Counter[
     return Counter(str(row.get(row_key)) for row in database["rows"] if row.get(row_key))
 
 
-def append_roofline_priority_table(lines: list[str], heading: str, priority: list[dict[str, Any]]) -> None:
+def append_roofline_priority_table(
+    lines: list[str], heading: str, priority: list[dict[str, Any]]
+) -> None:
     if not priority:
         return
     lines.extend(
@@ -91,13 +94,13 @@ def append_roofline_priority_table(lines: list[str], heading: str, priority: lis
             "",
             heading,
             "",
-            "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | median GOP/s | median AI ops/B | backends | hint |",
-            "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---|---|",
+            "| rank | target | scenario | semantics | target id | captures | bottleneck us | e2e us | median share | useful GOP/s | representation GOP/s | useful AI ops/B | backends | hint |",
+            "|---:|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|",
         ]
     )
     for item in priority:
         lines.append(
-            "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {ai} | {backends} | {hint} |".format(
+            "| {rank} | {target} | {scenario} | {semantics} | {target_id} | {captures} | {bottleneck_us} | {e2e_us} | {share} | {gops} | {representation_gops} | {ai} | {backends} | {hint} |".format(
                 rank=item.get("rank"),
                 target=item.get("roofline_target"),
                 scenario=item.get("scenario_family"),
@@ -107,8 +110,9 @@ def append_roofline_priority_table(lines: list[str], heading: str, priority: lis
                 bottleneck_us=format_number(item.get("total_bottleneck_us")),
                 e2e_us=format_number(item.get("total_end_to_end_us")),
                 share=format_number(item.get("median_bottleneck_share")),
-                gops=format_number(item.get("median_measured_gops")),
-                ai=format_number(item.get("median_arithmetic_intensity_ops_per_byte")),
+                gops=format_number(item.get("median_useful_gops")),
+                representation_gops=format_number(item.get("median_representation_gops")),
+                ai=format_number(item.get("median_useful_arithmetic_intensity_ops_per_byte")),
                 backends=",".join(item.get("backends") or []),
                 hint=item.get("optimization_hint"),
             )
@@ -181,6 +185,31 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 value_heading=label,
                 counts=scenario_metadata_counts(database, row_key),
             )
+    inventory_rows = [
+        row for row in database["rows"] if (row.get("isa_inventory") or {}).get("isa_report_count")
+    ]
+    if inventory_rows:
+        lines.extend(
+            [
+                "",
+                "## Unqualified ISA inventory diagnostics",
+                "",
+                "These reports are preserved independently of selected-symbol admission. Missing bindings do not provide per-capture resource values.",
+                "",
+                "| capture | inventory reports | selected association |",
+                "|---|---:|---|",
+            ]
+        )
+        for row in inventory_rows:
+            association = row.get("isa_association") or {}
+            state = (
+                "qualified static mapping"
+                if association.get("qualified")
+                else ", ".join(association.get("reasons") or ["unknown"])
+            )
+            lines.append(
+                f"| {row.get('capture_path')} | {row['isa_inventory']['isa_report_count']} | {state} |"
+            )
     isa_rows = [row for row in database["rows"] if row.get("isa_report_count")]
     if isa_rows:
         lines.extend(
@@ -188,24 +217,48 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 "",
                 "## ISA Resources",
                 "",
-                "| backend | target | captures | reports | matrix | dense int | sparse int | WMMA | MFMA | SMFMAC | SWMMAC | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
-                "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+                "Artifact-bound selected static symbols only; counts are opcode inventory, not executed work. Resource maxima across an explicit symbol set are not one kernel's occupancy.",
+                "",
+                "| backend | target | kernel | artifact/symbol identity | captures | reports | matrix | dense int | sparse int | WMMA | MFMA | SMFMAC | SWMMAC | global stores | LDS mentions | LDS bytes | scratch bytes | waits | instructions | VGPR | SGPR | occupancy |",
+                "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
             ]
         )
-        groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+        groups = defaultdict(list)
         for row in isa_rows:
-            groups[(str(row.get("backend")), ",".join(row.get("isa_report_targets") or []))].append(row)
-        for (backend, target), grouped_rows in sorted(groups.items()):
+            identities = sorted(
+                (
+                    str((r.get("isa_capture_binding") or {}).get("artifact_sha256")),
+                    str(r.get("isa_code_object_sha256")),
+                    str(r.get("isa_selected_symbol")),
+                )
+                for r in row.get("isa_resource_reports", [])
+            )
+            identity = json.dumps(identities, separators=(",", ":"))
+            groups[
+                (
+                    str(row.get("backend")),
+                    ",".join(row.get("isa_report_targets") or []),
+                    str(row.get("selected_kernel")),
+                    identity,
+                )
+            ].append(row)
+        for (backend, target, kernel, identity), grouped_rows in sorted(groups.items()):
             representative = grouped_rows[0]
             lines.append(
-                "| {backend} | {target} | {captures} | {reports} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {smfmac} | {swmmac} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
+                "| {backend} | {target} | {kernel} | {identity} | {captures} | {reports} | {matrix} | {dense_int} | {sparse_int} | {wmma} | {mfma} | {smfmac} | {swmmac} | {stores} | {lds} | {lds_bytes} | {scratch} | {waits} | {instructions} | {vgpr} | {sgpr} | {occupancy} |".format(
                     backend=backend,
                     target=target,
+                    kernel=kernel,
+                    identity=identity,
                     captures=len(grouped_rows),
                     reports=representative.get("isa_report_count"),
                     matrix=format_number(representative.get("isa_matrix_instruction_count")),
-                    dense_int=format_number(representative.get("isa_dense_integer_matrix_instruction_count")),
-                    sparse_int=format_number(representative.get("isa_sparse_integer_matrix_instruction_count")),
+                    dense_int=format_number(
+                        representative.get("isa_dense_integer_matrix_instruction_count")
+                    ),
+                    sparse_int=format_number(
+                        representative.get("isa_sparse_integer_matrix_instruction_count")
+                    ),
                     wmma=format_number(representative.get("isa_wmma_count")),
                     mfma=format_number(representative.get("isa_mfma_count")),
                     smfmac=format_number(representative.get("isa_smfmac_count")),
@@ -226,8 +279,8 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
             "",
             "## Rows",
             "",
-            "| scenario | semantics | backend | kernel | shape | bottleneck | pack split | e2e us | GOP/s | AI ops/B | ISA | blockers |",
-            "|---|---|---|---|---|---|---|---:|---:|---:|---|---|",
+            "| scenario | semantics | backend | kernel | shape | bottleneck | pack split | e2e us | work model | useful GOP/s | representation GOP/s | useful AI ops/B | ISA | blockers |",
+            "|---|---|---|---|---|---|---|---:|---|---:|---:|---:|---|---|",
         ]
     )
     rows = sorted(
@@ -242,7 +295,7 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
         shape = f"{row.get('m')}x{row.get('n')}x{row.get('k')}"
         blockers = ",".join(str(item) for item in row.get("promotion_blockers") or [])
         lines.append(
-            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {pack_split} | {e2e} | {gops} | {ai} | {isa} | {blockers} |".format(
+            "| {scenario} | {semantics} | {backend} | {kernel} | {shape} | {bottleneck} | {pack_split} | {e2e} | {work_model} | {gops} | {representation_gops} | {ai} | {isa} | {blockers} |".format(
                 scenario=row.get("scenario_family"),
                 semantics=row.get("semantics"),
                 backend=row.get("backend"),
@@ -251,12 +304,12 @@ def write_markdown(database: dict[str, Any], path: Path) -> None:
                 bottleneck=row.get("bottleneck_class"),
                 pack_split=row.get("pack_split_dominant_operand") or "",
                 e2e=format_number(row.get("median_end_to_end_us")),
-                gops=format_number(row.get("measured_gops")),
-                ai=format_number(row.get("arithmetic_intensity_ops_per_byte")),
+                work_model=row.get("representation_kind", "unavailable"),
+                gops=format_number(row.get("useful_gops")),
+                representation_gops=format_number(row.get("representation_gops")),
+                ai=format_number(row.get("useful_arithmetic_intensity_ops_per_byte")),
                 isa=format_isa_brief(row),
                 blockers=blockers or "",
             )
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-

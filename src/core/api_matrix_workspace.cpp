@@ -1,6 +1,11 @@
 #include "core/api_internal.hpp"
+#include "core/host_upload_packet.hpp"
+#include "backend_common/locality_schedule.hpp"
+#include "backend_common/allocation_observations.hpp"
 
 #include <atomic>
+#include <cstring>
+#include "core/matrix_cleanup.hpp"
 
 namespace rns8::detail::api {
 #include "api_matrix_currentness_storage.inc"

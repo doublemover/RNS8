@@ -1,19 +1,13 @@
-rns8_status run_hip_resident_ring_gemm(
-    const std::vector<int8_t>& A,
-    const std::vector<int8_t>& B,
-    std::vector<int8_t>& C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus,
-    uint32_t modulus_index,
-    uint32_t selected_prefix) {
-  const std::size_t a_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(lda) * sizeof(int8_t);
-  const std::size_t b_bytes = static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb) * sizeof(int8_t);
-  const std::size_t c_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc) * sizeof(int8_t);
+rns8_status run_hip_resident_ring_gemm(const std::vector<int8_t>& A, const std::vector<int8_t>& B,
+                                       std::vector<int8_t>& C, int64_t m, int64_t n, int64_t k,
+                                       int64_t lda, int64_t ldb, int64_t ldc, uint16_t modulus,
+                                       uint32_t modulus_index, uint32_t selected_prefix) {
+  const std::size_t a_bytes =
+      static_cast<std::size_t>(m) * static_cast<std::size_t>(lda) * sizeof(int8_t);
+  const std::size_t b_bytes =
+      static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb) * sizeof(int8_t);
+  const std::size_t c_bytes =
+      static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc) * sizeof(int8_t);
   if (A.size() * sizeof(int8_t) < a_bytes || B.size() * sizeof(int8_t) < b_bytes ||
       C.size() * sizeof(int8_t) < c_bytes) {
     return RNS8_INVALID_ARGUMENT;
@@ -39,20 +33,9 @@ rns8_status run_hip_resident_ring_gemm(
     status = rns8::detail::hip_direct_copy_host_to_device(0, device_c, C.data(), c_bytes);
   }
   if (status == RNS8_SUCCESS) {
-    status = rns8::detail::hip_direct_ring_gemm_i8_device(
-        0,
-        device_a,
-        device_b,
-        device_c,
-        m,
-        n,
-        k,
-        lda,
-        ldb,
-        ldc,
-        modulus,
-        modulus_index,
-        selected_prefix);
+    status = rns8::detail::hip_direct_ring_gemm_i8_device(0, device_a, device_b, device_c, m, n, k,
+                                                          lda, ldb, ldc, modulus, modulus_index,
+                                                          selected_prefix);
   }
   if (status == RNS8_SUCCESS) {
     status = rns8::detail::hip_direct_copy_device_to_host(0, C.data(), device_c, c_bytes);
@@ -60,9 +43,12 @@ rns8_status run_hip_resident_ring_gemm(
   const rns8_status free_c = rns8::detail::hip_direct_free(0, device_c);
   const rns8_status free_b = rns8::detail::hip_direct_free(0, device_b);
   const rns8_status free_a = rns8::detail::hip_direct_free(0, device_a);
-  if (status == RNS8_SUCCESS && free_c != RNS8_SUCCESS) status = free_c;
-  if (status == RNS8_SUCCESS && free_b != RNS8_SUCCESS) status = free_b;
-  if (status == RNS8_SUCCESS && free_a != RNS8_SUCCESS) status = free_a;
+  if (status == RNS8_SUCCESS && free_c != RNS8_SUCCESS)
+    status = free_c;
+  if (status == RNS8_SUCCESS && free_b != RNS8_SUCCESS)
+    status = free_b;
+  if (status == RNS8_SUCCESS && free_a != RNS8_SUCCESS)
+    status = free_a;
   return status;
 }
 
@@ -80,7 +66,8 @@ rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   return desc;
 }
 
-rns8_gemm_desc signed_desc_for_backend(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc signed_desc_for_backend(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                       rns8_backend_kind backend) {
   auto desc = signed_desc(m, n, k, bound);
   desc.requested_backend = backend;
   return desc;
@@ -100,12 +87,8 @@ rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound) {
   return desc;
 }
 
-rns8_gemm_desc unsigned_desc_for_backend(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    uint64_t bound,
-    rns8_backend_kind backend) {
+rns8_gemm_desc unsigned_desc_for_backend(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                                         rns8_backend_kind backend) {
   auto desc = unsigned_desc(m, n, k, bound);
   desc.requested_backend = backend;
   return desc;
@@ -124,12 +107,8 @@ rns8_gemm_desc wrap_desc_for_backend(int64_t m, int64_t n, int64_t k, rns8_backe
   return desc;
 }
 
-rns8_gemm_desc finite_desc_for_backend(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    rns8_semantics semantics,
-    rns8_backend_kind backend) {
+rns8_gemm_desc finite_desc_for_backend(int64_t m, int64_t n, int64_t k, rns8_semantics semantics,
+                                       rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -144,7 +123,8 @@ rns8_gemm_desc finite_desc_for_backend(
   return desc;
 }
 
-rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                             rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -172,4 +152,3 @@ cpp_int abs_cpp(cpp_int value) {
 cpp_int i64_min_cpp() {
   return -cpp_int(std::numeric_limits<int64_t>::max()) - 1;
 }
-

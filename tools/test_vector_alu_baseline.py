@@ -44,7 +44,9 @@ def validate(schema: Path, capture: Path) -> None:
 def assert_same_checksum(cpu: dict, vector: dict, semantics: str) -> None:
     for key in ["semantics", "m", "n", "k", "seed", "input_distribution"]:
         if cpu.get(key) != vector.get(key):
-            raise SystemExit(f"{semantics}: contract key {key} differs: {cpu.get(key)!r} != {vector.get(key)!r}")
+            raise SystemExit(
+                f"{semantics}: contract key {key} differs: {cpu.get(key)!r} != {vector.get(key)!r}"
+            )
     if vector.get("backend_selected") != "hip-vector-alu-int64":
         raise SystemExit(f"{semantics}: vector capture selected {vector.get('backend_selected')!r}")
     if cpu.get("checksum_u64") != vector.get("checksum_u64"):

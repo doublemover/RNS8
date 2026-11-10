@@ -8,9 +8,9 @@ from pathlib import Path
 
 from isa_common import (
     FORBIDDEN_DIVIDE_RE,
-    disassemble_code_object,
     extracted_device_code_object,
     forbidden_mnemonic_lines,
+    matrix_symbol_reports,
     parse_isa_tool_config,
     symbols_matching_markers,
 )
@@ -38,14 +38,29 @@ def required_matrix_mnemonics(amdgpu_target: str) -> list[str]:
 
 
 def wmma_symbols(objdump: str, code_object: Path) -> list[str]:
-    return symbols_matching_markers(objdump, code_object, WMMA_SYMBOL_MARKERS, "rocWMMA kernel symbols")
+    return symbols_matching_markers(
+        objdump, code_object, WMMA_SYMBOL_MARKERS, "rocWMMA kernel symbols"
+    )
 
 
-def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str) -> tuple[int, list[str]]:
-    disassembly = disassemble_code_object(objdump, code_object, amdgpu_target)
+def scan_disassembly(
+    objdump: str, code_object: Path, amdgpu_target: str, symbols: list[str]
+) -> tuple[int, list[str]]:
     required = required_matrix_mnemonics(amdgpu_target)
-    matrix_count = sum(disassembly.count(mnemonic) for mnemonic in required)
-    forbidden_divides = forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
+    matrix_count, forbidden_divides = 0, []
+    for report in matrix_symbol_reports(objdump, code_object, amdgpu_target, symbols, required):
+        symbol = report["symbol"]
+        if report["attribution_failures"]:
+            raise RuntimeError(symbol + ": " + ", ".join(report["attribution_failures"]))
+        print(
+            f"- {symbol}: {report['matrix_count']} attributed matrix instructions; {len(report['functions'])} function bodies"
+        )
+        matrix_count += report["matrix_count"]
+        for function in report["functions"]:
+            forbidden_divides.extend(
+                f"{symbol} -> {function['symbol']}: {line}"
+                for line in forbidden_mnemonic_lines(function["disassembly"], FORBIDDEN_DIVIDE_RE)
+            )
     return matrix_count, forbidden_divides
 
 
@@ -55,9 +70,13 @@ def main() -> int:
         "Compiled rocWMMA HIP host object containing .hip_fatbin",
         "rocWMMA HIP object",
     )
-    with extracted_device_code_object(config, "rns8-rocwmma-isa-", "rocwmma_backend_kernels.fatbin") as code_object:
+    with extracted_device_code_object(
+        config, "rns8-rocwmma-isa-", "rocwmma_backend_kernels.fatbin"
+    ) as code_object:
         symbols = wmma_symbols(config.objdump, code_object)
-        matrix_count, forbidden_divides = scan_disassembly(config.objdump, code_object, config.target)
+        matrix_count, forbidden_divides = scan_disassembly(
+            config.objdump, code_object, config.target, symbols
+        )
         required = required_matrix_mnemonics(config.target)
         if matrix_count <= 0:
             raise RuntimeError(
@@ -83,6 +102,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001 - command-line tool should print concise failure cause.
+    except Exception as exc:
         print(f"rocWMMA ISA check: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from timing_diagnostics import is_censored_gpu_event_capture
 
 
 def run_capture(bench: Path, output: Path) -> dict:
@@ -63,9 +64,29 @@ def validate(schema: Path, capture: Path) -> None:
         )
 
 
+def validate_gpu_timing(capture: dict) -> None:
+    timing = (
+        capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
+    )
+    if timing.get("gpu_event_timing") is not True and not is_censored_gpu_event_capture(capture):
+        raise ValueError(
+            "AUTO-selected hip-direct fallback must report GPU events or valid censored diagnostics"
+        )
+    if (
+        timing.get("gpu_event_timing") is True
+        and timing.get("gpu_event_timing_reason") != "captured_by_direct_hip_backend_hooks"
+    ):
+        raise ValueError(
+            "AUTO-selected hip-direct fallback reported unexpected GPU event timing reason "
+            f"{timing.get('gpu_event_timing_reason')!r}"
+        )
+
+
 def main() -> int:
     if len(sys.argv) != 4:
-        raise SystemExit("usage: test_benchmark_auto_backend.py RNS8_BENCH BENCHMARK_SCHEMA OUT_DIR")
+        raise SystemExit(
+            "usage: test_benchmark_auto_backend.py RNS8_BENCH BENCHMARK_SCHEMA OUT_DIR"
+        )
     bench = Path(sys.argv[1])
     schema = Path(sys.argv[2])
     out_dir = Path(sys.argv[3])
@@ -74,20 +95,19 @@ def main() -> int:
     capture = run_capture(bench, capture_path)
     validate(schema, capture_path)
     if capture.get("backend_requested") != "auto":
-        raise SystemExit(f"expected backend_requested=auto, got {capture.get('backend_requested')!r}")
+        raise SystemExit(
+            f"expected backend_requested=auto, got {capture.get('backend_requested')!r}"
+        )
     if capture.get("backend_selected") != "hip-direct":
-        raise SystemExit(f"expected AUTO fallback to select hip-direct, got {capture.get('backend_selected')!r}")
-    metadata = capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+        raise SystemExit(
+            f"expected AUTO fallback to select hip-direct, got {capture.get('backend_selected')!r}"
+        )
+    metadata = (
+        capture.get("backend_metadata") if isinstance(capture.get("backend_metadata"), dict) else {}
+    )
     if metadata.get("performance_validated") is not False:
         raise SystemExit("empty-cache AUTO fallback must not report performance_validated=true")
-    timing = capture.get("timing_metadata") if isinstance(capture.get("timing_metadata"), dict) else {}
-    if timing.get("gpu_event_timing") is not True:
-        raise SystemExit("AUTO-selected hip-direct fallback must report selected-backend GPU event timing")
-    if timing.get("gpu_event_timing_reason") != "captured_by_direct_hip_backend_hooks":
-        raise SystemExit(
-            "AUTO-selected hip-direct fallback reported unexpected GPU event timing reason "
-            f"{timing.get('gpu_event_timing_reason')!r}"
-        )
+    validate_gpu_timing(capture)
     print("benchmark AUTO backend smoke: PASS")
     return 0
 

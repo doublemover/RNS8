@@ -3,12 +3,23 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import tempfile
 from pathlib import Path
+import json
 
 from benchmark_schema import load_capture
 import layout_search_report
+from test_capture_identity_support import synthetic_independent_runs, write_production_fixture_pair
+from test_benchmark_sweep_support import bounded_capture
+from test_benchmark_schema_support_metadata import (
+    add_output_padding_fields,
+    add_output_policy_fields,
+)
+from report_capture_inputs import load_report_captures
+from report_comparison import ReportCohorts
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -62,16 +73,20 @@ def with_common_layout(capture: dict, *, name: str, role: str, baseline: str | N
     capture["gpu_event_timing_summary_us"] = {
         "crt_export_d2h": {"median": 5.0},
     }
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
-def make_candidate(base: dict, *, name: str, baseline: str, median: float, actual_delta: bool = True) -> dict:
+def make_candidate(
+    base: dict, *, name: str, baseline: str, median: float, actual_delta: bool = True
+) -> dict:
     capture = with_common_layout(base, name=name, role="candidate", baseline=baseline)
     capture["timing_summary_us"]["end_to_end"]["median"] = median
     if actual_delta:
         capture["scenario_metadata"]["residue_channel_fusion"] = True
         capture["timing_metadata"]["pack_layout"] = "native_i8_row_major_residue_channel_width3"
-        capture["timing_metadata"]["residue_group_layout"] = "first_prefix9_moduli_contiguous_width3_groups"
+        capture["timing_metadata"]["residue_group_layout"] = (
+            "first_prefix9_moduli_contiguous_width3_groups"
+        )
     return capture
 
 
@@ -90,20 +105,32 @@ def main() -> int:
         actual_delta=False,
     )
     loser = make_candidate(fixture, name="slow-layout", baseline="default-layout", median=120.0)
-    missing = make_candidate(fixture, name="missing-baseline-layout", baseline="absent-layout", median=75.0)
-    report = layout_search_report.build_report([baseline, winner, metadata_only, loser, missing])
+    missing = make_candidate(
+        fixture, name="missing-baseline-layout", baseline="absent-layout", median=75.0
+    )
+    report = layout_search_report.build_report(
+        synthetic_independent_runs([baseline, winner, metadata_only, loser, missing])
+    )
     rows = {row["layout_variant_name"]: row for row in report["rows"]}
     assert report["schema"] == "rns8_layout_search_report_v1"
-    assert report["baseline_count"] == 1
+    assert report["baseline_count"] == 2
     assert report["candidate_count"] == 4
-    assert rows["packed-layout"]["decision"] == "promote locally"
-    assert rows["packed-layout"]["speedup_vs_default_layout"] == 1.25
-    assert "residue_channel_fusion_enabled" in rows["packed-layout"]["layout_deltas"]
+    assert rows["packed-layout"]["decision"] == "keep experimental"
+    assert rows["packed-layout"]["speedup_vs_default_layout"] is None
+    # Diagnostic-only records cannot supply an admitted production baseline.
+    assert rows["packed-layout"]["layout_deltas"] == []
+    assert "missing_default_layout_baseline" in rows["packed-layout"]["promotion_blockers"]
+    assert "residue_channel_fusion_enabled" in layout_search_report.actual_layout_deltas(
+        winner, baseline
+    )
     assert rows["metadata-only-layout"]["decision"] == "keep experimental"
-    assert "metadata_only_layout_candidate" in rows["metadata-only-layout"]["promotion_blockers"]
-    assert rows["slow-layout"]["decision"] == "drop/deprioritize"
+    assert "missing_default_layout_baseline" in rows["metadata-only-layout"]["promotion_blockers"]
+    assert layout_search_report.actual_layout_deltas(metadata_only, baseline) == []
+    assert rows["slow-layout"]["decision"] == "keep experimental"
     assert rows["missing-baseline-layout"]["decision"] == "keep experimental"
-    assert "missing_default_layout_baseline" in rows["missing-baseline-layout"]["promotion_blockers"]
+    assert (
+        "missing_default_layout_baseline" in rows["missing-baseline-layout"]["promotion_blockers"]
+    )
 
     with tempfile.TemporaryDirectory() as tmp:
         md_path = Path(tmp) / "layout-search-report.md"
@@ -111,6 +138,57 @@ def main() -> int:
         text = md_path.read_text(encoding="utf-8")
         assert "Layout Search Report" in text
         assert "packed-layout" in text
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        bindings = {}
+        for name, role, duration, padding in (
+            ("baseline", "baseline", 100, 8),
+            ("candidate", "candidate", 80, 0),
+        ):
+            capture = bounded_capture("hip-direct", duration)
+            label = with_common_layout(capture, name=name, role=role, baseline="baseline")
+            capture["scenario_metadata"] = label["scenario_metadata"]
+            capture["scenario_metadata"]["output_ld_padding"] = padding
+            add_output_padding_fields(capture, padding)
+            add_output_policy_fields(capture)
+            add_synthetic_full_reference(capture)
+            write_production_fixture_pair(root / (name + ".json"), capture, bindings)
+        captures = load_report_captures([root])
+        bound = layout_search_report.build_report(captures, diagnostic_bindings=bindings)
+        (row,) = bound["rows"]
+        assert row["decision"] == "promote locally", row["promotion_blockers"]
+        assert row["speedup_vs_default_layout"] == 1.25
+        assert row["comparison"]["qualified"] is True
+        assert len(row["candidate_diagnostic_phase_observations"]) == 2
+        assert row["candidate_phase_medians_us"]["d2h_us"] is None
+        assert row["diagnostic_d2h_median_us"] is not None
+        assert row["layout_deltas"]
+
+        # Replay the actual lookup after its production admission was cached.
+        cohorts = ReportCohorts(captures, bindings)
+        candidate = next(
+            c
+            for c in cohorts.observations
+            if layout_search_report.layout_metadata(c)["layout_variant_role"] == "candidate"
+        )
+        assert cohorts.production.blockers(candidate) == []
+        assert len(cohorts.diagnostic_observations(candidate)) == 2
+        path = Path(
+            cohorts.production.receipts(candidate)[0]["diagnostic_companion"]["diagnostic_capture"]
+        )
+        original = path.read_text(encoding="utf-8")
+        json.loads(original)
+        path.write_text(original + "\n", encoding="utf-8")
+        try:
+            cohorts.diagnostic_observations(candidate)
+        except ValueError as error:
+            assert "changed after production admission" in str(error)
+        else:
+            raise AssertionError("changed diagnostic bytes retained cached lookup authority")
+        blocked = layout_search_report.build_report(captures, diagnostic_bindings=bindings)
+        assert blocked["rows"][0]["promotion_eligible"] is False
+        assert blocked["rows"][0]["speedup_vs_default_layout"] is None
 
     print("layout search report self-test: PASS")
     return 0

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from test_review_reference_support import add_synthetic_full_reference
+
 import copy
 import tempfile
 from pathlib import Path
@@ -10,14 +12,20 @@ from pathlib import Path
 from benchmark_schema import load_capture, validate_capture
 
 import adaptive_grouped_scheduler_report
+from test_capture_identity_support import write_production_fixture_pair, independent_fixture_paths
 
 
 FIXTURE = Path("tests") / "fixtures" / "benchmark_schema" / "v4_bounded_i64_adaptive_hip.json"
+BINDINGS = {}
 
 
 def _summary(values: list[float]) -> dict[str, float]:
     ordered = sorted(values)
-    return {"avg": sum(ordered) / len(ordered), "median": ordered[len(ordered) // 2], "p95": ordered[-1]}
+    return {
+        "avg": sum(ordered) / len(ordered),
+        "median": ordered[len(ordered) // 2],
+        "p95": ordered[-1],
+    }
 
 
 def _resize_timings(capture: dict, end_to_end_us: int, repeats: int = 9) -> None:
@@ -26,7 +34,11 @@ def _resize_timings(capture: dict, end_to_end_us: int, repeats: int = 9) -> None
     phases = list(capture["raw_timings_us"])
     one_time_phases = {"planning", "scheduling", "tile_bound_scan", "matrix_alloc"}
     for phase in phases:
-        value = end_to_end_us if phase == "end_to_end" else int(capture["timing_summary_us"][phase]["median"])
+        value = (
+            end_to_end_us
+            if phase == "end_to_end"
+            else int(capture["timing_summary_us"][phase]["median"])
+        )
         count = 1 if phase in one_time_phases else repeats
         capture["raw_timings_us"][phase] = [value] * count
         capture["timing_summary_us"][phase] = _summary([float(value)] * count)
@@ -55,10 +67,16 @@ def _add_adaptive_grouped_metadata(capture: dict, executed: bool = True) -> None
         "independent_launch_count_model": active_entries,
         "aggregate_launch_count_model": 1,
         "launch_reduction_ratio": float(active_entries),
-        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat" if executed else "not_available",
+        "event_scope": "aggregate_rns_gemm_kernel_group_per_measured_repeat"
+        if executed
+        else "not_available",
         "selected_prefix_histogram": "min=1;max=4",
-        "capture_status": "executed" if executed else "metadata_only_unsupported_for_execution_path",
-        "unsupported_reason": None if executed else "adaptive_grouped_scheduler_not_executed_by_current_path",
+        "capture_status": "executed"
+        if executed
+        else "metadata_only_unsupported_for_execution_path",
+        "unsupported_reason": None
+        if executed
+        else "adaptive_grouped_scheduler_not_executed_by_current_path",
         "promotion_eligible": False,
     }
 
@@ -94,8 +112,12 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
         metadata["workspace_mode"] = "host_reference_workspace"
         metadata["workspace_required_bytes"] = 0
         metadata["isa_evidence"] = "not_applicable_cpu"
-        metadata["autotune_key"] = metadata["autotune_key"].replace("backend=hip-direct", "backend=cpu-reference")
-        metadata["autotune_key"] = metadata["autotune_key"].replace("target_id=gfx1100", "target_id=cpu")
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "backend=hip-direct", "backend=cpu-reference"
+        )
+        metadata["autotune_key"] = metadata["autotune_key"].replace(
+            "target_id=gfx1100", "target_id=cpu"
+        )
         metadata["autotune_key"] = metadata["autotune_key"].replace(
             "kernel=direct_hip_grouped_active_prefix_schedule_rns_gemm_v3",
             "kernel=cpu_reference_scalar_rns_gemm_v1",
@@ -136,12 +158,17 @@ def _capture(backend: str, end_to_end_us: int, *, candidate: bool = False) -> di
         }
         capture["command_line"] += " --adaptive-grouped-scheduler"
     validate_capture(capture, Path(f"{backend}.json"))
-    return capture
+    return add_synthetic_full_reference(capture)
+
+
+def build_report(paths):
+    return adaptive_grouped_scheduler_report.build_report(
+        independent_fixture_paths(paths), diagnostic_bindings=BINDINGS
+    )
 
 
 def _write(path: Path, capture: dict) -> Path:
-    path.write_text(__import__("json").dumps(capture, indent=2), encoding="utf-8")
-    return path
+    return write_production_fixture_pair(path, capture, BINDINGS)
 
 
 with tempfile.TemporaryDirectory() as tmp_name:
@@ -149,18 +176,52 @@ with tempfile.TemporaryDirectory() as tmp_name:
     cpu = _write(tmp / "cpu.json", _capture("cpu-reference", 2000))
     direct = _write(tmp / "direct.json", _capture("hip-direct", 1100))
     candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
-    report = adaptive_grouped_scheduler_report.build_report([cpu, direct, candidate])
+    report = build_report([cpu, direct, candidate])
     row = report["rows"][0]
     assert row["decision"] == "promote locally"
     assert row["speedup_vs_direct_hip"] and row["speedup_vs_direct_hip"] > 1.2
     assert row["launch_reduction_ratio"] == 16.0
     assert row["blockers"] == []
+    assert row["comparison"]["qualified"] is True
+    assert row["gpu_event_evidence_scope"] == "matched_diagnostic_companions"
+    assert row["cpu_baseline_median_us"] is None
+    assert row["cpu_anchor_capture_sha256"]
+    unbound = adaptive_grouped_scheduler_report.build_report(
+        independent_fixture_paths([cpu, direct, candidate])
+    )["rows"][0]
+    assert unbound["decision"] == "keep experimental"
+    assert unbound["speedup_vs_direct_hip"] is None
+    assert "matched_diagnostic_companion_missing" in unbound["blockers"]
+
+    # Distinct filenames with one process UUID cannot supply a production cohort.
+    singleton = adaptive_grouped_scheduler_report.build_report(
+        [cpu, direct, candidate, candidate], diagnostic_bindings=BINDINGS
+    )["rows"][0]
+    assert singleton["decision"] == "keep experimental"
+    assert "insufficient_independent_processes" in singleton["blockers"]
 
 with tempfile.TemporaryDirectory() as tmp_name:
     tmp = Path(tmp_name)
     direct = _write(tmp / "direct.json", _capture("hip-direct", 1100))
     candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
-    report = adaptive_grouped_scheduler_report.build_report([direct, candidate])
+    report = build_report([direct, candidate])
     row = report["rows"][0]
     assert row["decision"] == "keep experimental"
     assert "missing_cpu_baseline" in row["blockers"]
+
+# Ordinary independent baselines, not duplicate paths: neither permutation may
+# hide the 700..1100 us process spread or turn it into promotion evidence.
+with tempfile.TemporaryDirectory() as tmp_name:
+    tmp = Path(tmp_name)
+    cpu = _write(tmp / "cpu.json", _capture("cpu-reference", 2000))
+    slow = _write(tmp / "slow.json", _capture("hip-direct", 1100))
+    fast = _write(tmp / "fast.json", _capture("hip-direct", 700))
+    candidate = _write(tmp / "candidate.json", _capture("hip-direct", 900, candidate=True))
+    forward = build_report([cpu, slow, fast, candidate])
+    reverse = build_report([candidate, fast, slow, cpu])
+    assert forward == reverse
+    assert forward["rows"][0]["decision"] == "keep experimental"
+    assert forward["rows"][0]["speedup_vs_direct_hip"] is None
+    direct_cohorts = forward["rows"][0]["baseline_observation_cohorts"]["direct_hip"]
+    assert direct_cohorts[0]["independent_runs"] == 4
+    assert "process_spread_exceeds_ten_percent" in direct_cohorts[0]["blockers"]

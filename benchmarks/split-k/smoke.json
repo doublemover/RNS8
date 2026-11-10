@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_split_k_cases_v1",
+  "cases": [
+    {"device": 0,"mode": "unsplit","m": 2,"n": 3,"k": 17,"domain": "signed","fragments": 1,"window": 0,"reuse": 2},
+    {"device": 0,"mode": "full","m": 2,"n": 3,"k": 17,"domain": "signed","fragments": 3,"window": 3,"reuse": 2},
+    {"device": 0,"mode": "window","m": 2,"n": 3,"k": 17,"domain": "signed","fragments": 3,"window": 2,"reuse": 2},
+    {"device": 0,"mode": "unsplit","m": 2,"n": 3,"k": 17,"domain": "unsigned","fragments": 1,"window": 0,"reuse": 2},
+    {"device": 0,"mode": "full","m": 2,"n": 3,"k": 17,"domain": "unsigned","fragments": 3,"window": 3,"reuse": 2},
+    {"device": 0,"mode": "window","m": 2,"n": 3,"k": 17,"domain": "unsigned","fragments": 3,"window": 2,"reuse": 2}
+  ]
+}

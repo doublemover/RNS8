@@ -1,0 +1,13 @@
+{
+  "schema": "rns8_instruction_roof_cases_v1",
+  "cases": [
+    {"device": 0, "mode": "raw", "chains": 1, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "raw", "chains": 2, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "raw", "chains": 4, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "raw", "chains": 8, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "reduce251", "chains": 1, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "reduce251", "chains": 2, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "reduce251", "chains": 4, "iterations": 17, "waves": 5},
+    {"device": 0, "mode": "reduce251", "chains": 8, "iterations": 17, "waves": 5}
+  ]
+}

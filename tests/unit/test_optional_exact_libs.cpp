@@ -1,26 +1,107 @@
+#include <climits>
+#include <cstring>
 #include <iostream>
+#include <string>
 
-#if defined(RNS8_ENABLE_GMP)
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
 #include <gmp.h>
+static_assert(__GNU_MP_VERSION > 6 ||
+                  (__GNU_MP_VERSION == 6 &&
+                   (__GNU_MP_VERSION_MINOR > 2 ||
+                    (__GNU_MP_VERSION_MINOR == 2 && __GNU_MP_VERSION_PATCHLEVEL >= 1))),
+              "RNS8 exact references require GMP >= 6.2.1");
+static_assert(sizeof(mp_limb_t) * CHAR_BIT == GMP_LIMB_BITS, "GMP header/host limb ABI mismatch");
 #endif
 
 #if defined(RNS8_ENABLE_FLINT)
 #include <flint/flint.h>
+#include <flint/fmpz.h>
+#include <mpfr.h>
+static_assert(__FLINT_VERSION >= 3, "RNS8 exact references require FLINT >= 3");
+static_assert(MPFR_VERSION >= MPFR_VERSION_NUM(4, 1, 0), "FLINT requires MPFR >= 4.1.0");
+#endif
+
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
+namespace {
+bool same_runtime_version(const char* component, const char* headers, const char* runtime) {
+  if (!runtime || std::strcmp(headers, runtime) != 0) {
+    std::cerr << component << " header/runtime mismatch: headers=" << headers
+              << " runtime=" << (runtime ? runtime : "<missing>") << '\n';
+    return false;
+  }
+  return true;
+}
+} // namespace
 #endif
 
 int main() {
-#if defined(RNS8_ENABLE_GMP)
-  if (gmp_version == nullptr || gmp_version[0] == '\0') {
+#if defined(RNS8_ENABLE_GMP) || defined(RNS8_ENABLE_FLINT)
+  // Strict identity is deliberate for this selected-stack qualification smoke;
+  // it does not assert that every newer upstream ABI is incompatible.
+  const auto gmp_headers = std::to_string(__GNU_MP_VERSION) + "." +
+                           std::to_string(__GNU_MP_VERSION_MINOR) + "." +
+                           std::to_string(__GNU_MP_VERSION_PATCHLEVEL);
+  if (!same_runtime_version("GMP", gmp_headers.c_str(), gmp_version))
     return 2;
+  if (mp_bits_per_limb != GMP_LIMB_BITS) {
+    std::cerr << "GMP header/runtime limb width mismatch: headers=" << GMP_LIMB_BITS
+              << " runtime=" << mp_bits_per_limb << '\n';
+    return 6;
   }
+#endif
+#if defined(RNS8_ENABLE_FLINT)
+  if (!same_runtime_version("FLINT", FLINT_VERSION, flint_version) ||
+      !same_runtime_version("MPFR", MPFR_VERSION_STRING, mpfr_get_version()))
+    return 3;
+#endif
+#if defined(RNS8_ENABLE_GMP)
+  mpz_t gmp_a, gmp_b, gmp_product, gmp_expected;
+  mpz_inits(gmp_a, gmp_b, gmp_product, gmp_expected, nullptr);
+  mpz_set_ui(gmp_a, 1);
+  mpz_mul_2exp(gmp_a, gmp_a, 130);
+  mpz_add_ui(gmp_a, gmp_a, 3);
+  mpz_set_si(gmp_b, -7);
+  mpz_mul(gmp_product, gmp_a, gmp_b);
+  mpz_set_si(gmp_expected, -7);
+  mpz_mul_2exp(gmp_expected, gmp_expected, 130);
+  mpz_sub_ui(gmp_expected, gmp_expected, 21);
+  const bool gmp_exact = mpz_cmp(gmp_product, gmp_expected) == 0;
+  mpz_clears(gmp_a, gmp_b, gmp_product, gmp_expected, nullptr);
+  if (!gmp_exact)
+    return 4;
   std::cout << "GMP " << gmp_version << '\n';
 #endif
 
 #if defined(RNS8_ENABLE_FLINT)
-  if (flint_version[0] == '\0') {
-    return 3;
-  }
+  fmpz_t flint_a, flint_product, flint_expected;
+  fmpz_init(flint_a);
+  fmpz_init(flint_product);
+  fmpz_init(flint_expected);
+  fmpz_one(flint_a);
+  fmpz_mul_2exp(flint_a, flint_a, 130);
+  fmpz_add_ui(flint_a, flint_a, 3);
+  fmpz_mul_si(flint_product, flint_a, -7);
+  fmpz_set_si(flint_expected, -7);
+  fmpz_mul_2exp(flint_expected, flint_expected, 130);
+  fmpz_sub_ui(flint_expected, flint_expected, 21);
+  const bool flint_exact = fmpz_equal(flint_product, flint_expected) != 0;
+  // Exercise MPFR's actual link/runtime edge and the selected GMP together.
+  mpz_t integer;
+  mpz_init(integer);
+  fmpz_get_mpz(integer, flint_product);
+  mpfr_t floating;
+  mpfr_init2(floating, 256);
+  const bool transitive_exact =
+      mpfr_set_z(floating, integer, MPFR_RNDN) == 0 && mpfr_cmp_z(floating, integer) == 0;
+  mpfr_clear(floating);
+  mpz_clear(integer);
+  fmpz_clear(flint_a);
+  fmpz_clear(flint_product);
+  fmpz_clear(flint_expected);
+  if (!flint_exact || !transitive_exact)
+    return 5;
   std::cout << "FLINT " << flint_version << '\n';
+  std::cout << "GMP " << gmp_version << " MPFR " << mpfr_get_version() << '\n';
 #endif
 
   return 0;

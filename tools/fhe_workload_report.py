@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from reference_verdict import CPUReferenceIndex
+from review_contract import COMPLETE_COMPARISON_STATUSES, FINAL_COMPARISON_STATUSES
+
 import argparse
 import json
 from collections import Counter, defaultdict
@@ -11,6 +14,16 @@ from typing import Any
 
 from benchmark_sweep_lib.capture_metadata import backend_id, median_phase
 from report_capture_inputs import load_report_captures
+from observation_cohorts import (
+    row_identity,
+    partition_rows,
+    evidence,
+    best_row,
+    cohort_noise_margin,
+)
+from diagnostic_companion import load_bindings
+from report_comparison import ReportCohorts
+from timing_eligibility import capture_identity
 
 
 DEFAULT_OUT_DIR = Path("temp") / "fhe-workload-reports"
@@ -25,12 +38,6 @@ REQUIRED_PROXY_OPERATIONS = {
     "bootstrapping_stage",
     "tower_reuse",
     "dense_linear_transform",
-}
-FINAL_COMPARISON_STATUSES = {
-    "checksum_recorded_reference_required",
-    "reference_required",
-    "exact_cpu_reference_compared",
-    "passed",
 }
 
 
@@ -83,13 +90,12 @@ def _group_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
-def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
+def _proxy_blockers(capture: dict) -> list[str]:
     proxy = _proxy(capture)
     scenario = _scenario(capture)
     extra = _scenario_extra(capture)
     verification = _verification(capture)
-    backend = backend_id(capture)
-    blockers: list[str] = []
+    blockers = []
     family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
     if family != "fhe_lattice_proxy":
         blockers.append("not_fhe_lattice_proxy")
@@ -105,23 +111,59 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         blockers.append("final_exact_comparison_not_required")
     if verification.get("final_exact_comparison_status") not in FINAL_COMPARISON_STATUSES:
         blockers.append("final_exact_comparison_status_missing")
+    if verification.get("final_exact_comparison_status") not in COMPLETE_COMPARISON_STATUSES:
+        blockers.append("final_exact_comparison_pending")
     if verification.get("promotion_eligible") is not False:
         blockers.append("verification_amortization_promotable")
-    release_gate = capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
+    release_gate = (
+        capture.get("release_gate") if isinstance(capture.get("release_gate"), dict) else {}
+    )
     if release_gate.get("cache_eligible") is True:
         blockers.append("release_gate_cache_eligible_for_proxy")
+    return blockers
+
+
+def row_for_capture(
+    capture: dict[str, Any],
+    references: CPUReferenceIndex | None = None,
+    cohorts: ReportCohorts | None = None,
+) -> dict[str, Any]:
+    proxy = _proxy(capture)
+    scenario = _scenario(capture)
+    extra = _scenario_extra(capture)
+    family = proxy.get("family") or extra.get("algebra_family") or scenario.get("family")
+    verification = _verification(capture)
+    backend = backend_id(capture)
+    numerical = (references or CPUReferenceIndex([capture])).verdict(capture)
+    blockers: list[str] = list(evidence(capture)["blockers"]) + list(numerical.blockers)
+    blockers.extend(
+        cohorts.admission(capture) if cohorts is not None else ["production_cohort_not_reviewed"]
+    )
+    observations = [
+        dict(capture_sha256=capture_identity(raw), blockers=_proxy_blockers(raw))
+        for raw in (cohorts.raw_observations(capture) if cohorts is not None else [capture])
+    ]
+    blockers.extend(reason for item in observations for reason in item["blockers"])
     operation = _operation(capture)
     row = {
         "path": _path(capture),
+        # CPU and GPU export selectors name different implementations of the
+        # same public output contract. Keep semantic/layout/completion fields
+        # in the work key; implementation cohorts retain their selector keys.
+        **row_identity(capture, exclude=("export_variant.selector_key",)),
         "proxy_operation": operation,
         "family": family,
-        "tower_basis": extra.get("tower_basis") or extra.get("tower_role") or proxy.get("tower_role") or "unspecified",
+        "tower_basis": extra.get("tower_basis")
+        or extra.get("tower_role")
+        or proxy.get("tower_role")
+        or "unspecified",
         "reuse_mode": extra.get("reuse_mode") or proxy.get("reuse_profile") or "none",
         "output_domain_requirement": proxy.get("output_domain_requirement")
         or scenario.get("output_domain")
         or "unknown",
         "verification_policy": verification.get("policy"),
         "verification_status": verification.get("final_exact_comparison_status"),
+        "numerical_reference": numerical.to_json(),
         "compatibility_claim": proxy.get("compatibility_claim"),
         "scenario_promotion_eligibility": scenario.get("promotion_eligibility"),
         "backend": backend,
@@ -130,18 +172,26 @@ def row_for_capture(capture: dict[str, Any]) -> dict[str, Any]:
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
         "median_end_to_end_us": median_phase(capture, "end_to_end"),
         "blockers": sorted(set(blockers)),
+        "proxy_process_observations": observations,
     }
     row["status"] = "blocked" if row["blockers"] else "proxy-ready"
     return row
 
 
-def build_report(paths: list[Path]) -> dict[str, Any]:
-    captures = load_report_captures(paths)
-    rows = [row_for_capture(capture) for capture in captures]
+def build_report(paths: list[Path], *, diagnostic_bindings: dict | None = None) -> dict[str, Any]:
+    raw = load_report_captures(paths)
+    cohorts = ReportCohorts(raw, diagnostic_bindings)
+    captures = cohorts.observations
+    rows = [row_for_capture(capture, cohorts.references, cohorts) for capture in captures]
     groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         groups[_group_key(row)].append(row)
 
+    groups = {
+        (*key, *partition): members
+        for key, items in groups.items()
+        for partition, members in partition_rows(items)
+    }
     group_rows: list[dict[str, Any]] = []
     for key, grouped_rows in sorted(groups.items(), key=lambda item: str(item[0])):
         backends = sorted({str(row["backend"]) for row in grouped_rows})
@@ -150,38 +200,53 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             blockers.append("cpu_reference_baseline_missing")
         cpu_rows = [row for row in grouped_rows if row["backend"] in {"cpu-reference", "cpu"}]
         gpu_rows = [row for row in grouped_rows if row["backend"] not in {"cpu-reference", "cpu"}]
-        cpu_median = min(
-            (
-                float(row["median_end_to_end_us"])
-                for row in cpu_rows
-                if isinstance(row["median_end_to_end_us"], (int, float))
-            ),
-            default=None,
-        )
-        fastest_gpu = min(
-            (row for row in gpu_rows if isinstance(row["median_end_to_end_us"], (int, float))),
-            key=lambda row: float(row["median_end_to_end_us"]),
-            default=None,
-        )
+        cpu_best = best_row(cpu_rows)
+        cpu_median = cpu_best["median_end_to_end_us"] if cpu_best else None
+        fastest_gpu = best_row(gpu_rows)
+        if not cpu_best:
+            blockers.append("qualified_cpu_process_cohort_missing")
+        if not fastest_gpu:
+            blockers.append("qualified_gpu_process_cohort_missing")
         fastest_gpu_median = (
             float(fastest_gpu["median_end_to_end_us"])
             if fastest_gpu and isinstance(fastest_gpu.get("median_end_to_end_us"), (int, float))
             else None
         )
+        noise_margin = (
+            cohort_noise_margin(cpu_best["measurement_cohort"], fastest_gpu["measurement_cohort"])
+            if cpu_best and fastest_gpu
+            else None
+        )
+        required_margin = max(PROMOTION_MARGIN, noise_margin) if noise_margin is not None else None
+        if required_margin is None:
+            blockers.append("comparison_variance_evidence_missing")
         speedup_vs_cpu = (
             cpu_median / fastest_gpu_median
-            if cpu_median is not None and fastest_gpu_median is not None and fastest_gpu_median > 0
+            if not blockers
+            and cpu_median is not None
+            and fastest_gpu_median is not None
+            and fastest_gpu_median > 0
             else None
         )
         if blockers:
             promotion_decision = "blocked"
-        elif speedup_vs_cpu is not None and speedup_vs_cpu >= PROMOTION_MARGIN:
+        elif (
+            speedup_vs_cpu is not None
+            and required_margin is not None
+            and speedup_vs_cpu > required_margin
+        ):
             promotion_decision = "promote_local_dense_rns_workload_profile"
         else:
             promotion_decision = "keep_experimental_no_gpu_speedup"
         group_rows.append(
             {
                 "proxy_operation": key[0],
+                "work_contract": grouped_rows[0]["work_contract"],
+                "comparison_environment": key[-1],
+                "selected_gpu_cohort": fastest_gpu.get("measurement_cohort")
+                if fastest_gpu
+                else None,
+                "selected_cpu_cohort": cpu_best.get("measurement_cohort") if cpu_best else None,
                 "tower_basis": key[1],
                 "reuse_mode": key[2],
                 "output_domain_requirement": key[3],
@@ -192,7 +257,7 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
                 "cpu_median_end_to_end_us": cpu_median,
                 "speedup_vs_cpu": speedup_vs_cpu,
                 "promotion_decision": promotion_decision,
-                "promotion_margin_required": PROMOTION_MARGIN,
+                "promotion_margin_required": required_margin,
                 "promotion_scope": "local_dense_rns_workload_profile_not_fhe_compatibility",
                 "status": "blocked" if blockers else "proxy-ready",
                 "blockers": sorted(set(blockers)),
@@ -208,10 +273,17 @@ def build_report(paths: list[Path]) -> dict[str, Any]:
             blocker_counts[blocker] += 1
     for operation in missing_operations:
         blocker_counts[f"missing_proxy_operation:{operation}"] += 1
-    complete = bool(group_rows) and not missing_operations and not any(group["blockers"] for group in group_rows)
+    complete = (
+        bool(group_rows)
+        and not missing_operations
+        and not any(group["blockers"] for group in group_rows)
+    )
     promotable_profiles = [
         {
             "proxy_operation": group["proxy_operation"],
+            "work_contract": group["work_contract"],
+            "comparison_environment": group["comparison_environment"],
+            "selected_gpu_cohort": group["selected_gpu_cohort"],
             "tower_basis": group["tower_basis"],
             "reuse_mode": group["reuse_mode"],
             "output_domain_requirement": group["output_domain_requirement"],
@@ -277,8 +349,9 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--diagnostic-binding", action="append", type=Path, default=[])
     args = parser.parse_args()
-    report = build_report(args.captures)
+    report = build_report(args.captures, diagnostic_bindings=load_bindings(args.diagnostic_binding))
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:

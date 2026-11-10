@@ -8,7 +8,11 @@ import tempfile
 from pathlib import Path
 
 import error_detection_policy_report
-from test_starfoundry_reports import starfoundry_capture
+from test_benchmark_sweep_support import finite_capture
+from test_review_reference_support import (
+    add_synthetic_full_reference,
+    write_policy_review as write_review_report,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -17,7 +21,7 @@ def write_json(path: Path, payload: dict) -> None:
 
 
 def error_detecting_capture() -> dict:
-    capture = starfoundry_capture()
+    capture = finite_capture("ck", 190)
     capture["scenario_metadata"] = {
         "family": "error-detecting-fast-path",
         "name": "freivalds-product-check-research",
@@ -43,69 +47,7 @@ def error_detecting_capture() -> dict:
         "cache_eligible": False,
         "promotion_eligible": False,
     }
-    return capture
-
-
-def write_review_report(
-    path: Path,
-    capture_path: Path,
-    *,
-    include_cpu: bool = True,
-    candidate_promotable: bool = False,
-    cache_status: str = "not_eligible",
-) -> None:
-    candidates = []
-    if include_cpu:
-        candidates.append(
-            {
-                "backend": "cpu-reference",
-                "capture": str(path.parent / "cpu-reference.json"),
-                "release_review_capture": True,
-                "promotable": False,
-                "promotion_blockers": ["not_accelerator_backend"],
-                "cache_write_status": "not_eligible",
-                "scenario_promotion_scope": "proxy_evidence_only",
-            }
-        )
-    candidates.extend(
-        [
-            {
-                "backend": "hip-direct",
-                "capture": str(path.parent / "hip-direct.json"),
-                "release_review_capture": True,
-                "promotable": False,
-                "promotion_blockers": ["not_accelerator_backend"],
-                "cache_write_status": "not_eligible",
-                "scenario_promotion_scope": "proxy_evidence_only",
-            },
-            {
-                "backend": "ck",
-                "capture": str(capture_path),
-                "release_review_capture": True,
-                "promotable": candidate_promotable,
-                "promotion_blockers": [] if candidate_promotable else ["scenario_scope_not_autotune_promotable"],
-                "cache_write_status": cache_status,
-                "scenario_promotion_scope": "proxy_evidence_only",
-            },
-        ]
-    )
-    write_json(
-        path,
-        {
-            "schema_version": 1,
-            "review_mode": "release",
-            "groups": [
-                {
-                    "review_mode": "release",
-                    "release_review_satisfied": True,
-                    "required_baselines": ["cpu-reference", "hip-direct"],
-                    "missing_required_baselines": [] if include_cpu else ["cpu-reference"],
-                    "duplicate_backends": [],
-                    "candidates": candidates,
-                }
-            ],
-        },
-    )
+    return add_synthetic_full_reference(capture)
 
 
 def main() -> int:
@@ -116,7 +58,9 @@ def main() -> int:
         write_review_report(tmp / "review_report.json", capture_path)
         report = error_detection_policy_report.build_report([tmp])
         assert report["schema"] == "rns8_error_detection_policy_report_v1"
-        assert report["rank39_gate_complete"] is True, json.dumps(report["blocker_counts"], indent=2)
+        assert report["rank39_gate_complete"] is True, json.dumps(
+            report["blocker_counts"], indent=2
+        )
         row = report["rows"][0]
         assert row["ready"] is True
         assert row["mode"] == "probabilistic_product_check"
@@ -130,7 +74,7 @@ def main() -> int:
         no_cpu_report = error_detection_policy_report.build_report([no_cpu])
         assert no_cpu_report["rank39_gate_complete"] is False
         assert "cpu_reference_baseline_missing" in no_cpu_report["rows"][0]["blockers"]
-        assert "cpu_reference_marked_missing_required_baseline" in no_cpu_report["rows"][0]["blockers"]
+        assert "review_cpu_reference_binding_missing" in no_cpu_report["rows"][0]["blockers"]
 
         cache_eligible = tmp / "cache-eligible"
         cache_eligible.mkdir()
@@ -151,7 +95,9 @@ def main() -> int:
         public_scope.mkdir()
         public_capture = error_detecting_capture()
         public_capture["scenario_metadata"]["promotion_eligibility"] = "release_review_candidate"
-        public_capture["scenario_metadata"]["metadata"]["promotion_scope"] = "release_review_candidate"
+        public_capture["scenario_metadata"]["metadata"]["promotion_scope"] = (
+            "release_review_candidate"
+        )
         public_capture_path = public_scope / "error-detecting.json"
         write_json(public_capture_path, public_capture)
         write_review_report(public_scope / "review_report.json", public_capture_path)

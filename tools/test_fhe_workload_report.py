@@ -3,19 +3,32 @@
 
 from __future__ import annotations
 
-import copy
+from test_review_reference_support import add_synthetic_full_reference
+
 import json
 import tempfile
 from pathlib import Path
 
 import fhe_workload_report
+from test_capture_identity_support import (
+    write_independent_fixture_pair,
+    write_production_fixture_pair,
+)
 from benchmark_schema import validate_capture
 from test_benchmark_schema_support_metadata import add_target_variant_fields
 from test_benchmark_sweep_support import bounded_capture
 
+BINDINGS = {}
+
+
+def build_report(paths):
+    return fhe_workload_report.build_report(paths, diagnostic_bindings=BINDINGS)
+
 
 def proxy_capture(backend: str, operation: str, median_us: int = 1000) -> dict:
-    capture = bounded_capture("cpu-reference" if backend == "cpu-reference" else "hip-direct", median_us)
+    capture = bounded_capture(
+        "cpu-reference" if backend == "cpu-reference" else "hip-direct", median_us
+    )
     capture["backend_requested"] = backend
     capture["backend_selected"] = backend
     if backend == "cpu-reference":
@@ -55,10 +68,14 @@ def proxy_capture(backend: str, operation: str, median_us: int = 1000) -> dict:
         "promotion_eligible": False,
     }
     if backend == "hip-direct":
-        capture["timing_metadata"]["gpu_event_timing_source_scope"] = "direct_hip_default_stream_backend_operation_groups"
-        capture["timing_metadata"]["gpu_event_timing_reason"] = "captured_by_direct_hip_backend_hooks"
+        capture["timing_metadata"]["gpu_event_timing_source_scope"] = (
+            "direct_hip_default_stream_backend_operation_groups"
+        )
+        capture["timing_metadata"]["gpu_event_timing_reason"] = (
+            "captured_by_direct_hip_backend_hooks"
+        )
         add_target_variant_fields(capture)
-    return capture
+    return add_synthetic_full_reference(capture)
 
 
 def write(path: Path, capture: dict) -> Path:
@@ -66,9 +83,11 @@ def write(path: Path, capture: dict) -> Path:
     if capture.get("per_modulus_gemm_estimate_applicable") is False:
         capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"])
     else:
-        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(prefix)
+        capture["avg_per_modulus_gemm_estimate_us"] = float(capture["avg_rns_gemm_us"]) / float(
+            prefix
+        )
     validate_capture(capture, path)
-    path.write_text(json.dumps(capture, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_production_fixture_pair(path, capture, BINDINGS)
     return path
 
 
@@ -78,11 +97,19 @@ def main() -> int:
         tmp = Path(tmp_name)
         paths = []
         for operation in operations:
-            paths.append(write(tmp / f"{operation}-cpu.json", proxy_capture("cpu-reference", operation, 1000)))
-            paths.append(write(tmp / f"{operation}-hip.json", proxy_capture("hip-direct", operation, 400)))
-        report = fhe_workload_report.build_report([tmp])
+            paths.append(
+                write(
+                    tmp / f"{operation}-cpu.json", proxy_capture("cpu-reference", operation, 1000)
+                )
+            )
+            paths.append(
+                write(tmp / f"{operation}-hip.json", proxy_capture("hip-direct", operation, 400))
+            )
+        report = build_report([tmp])
         assert report["schema"] == "rns8_fhe_lattice_workload_report_v2"
-        assert report["rank63_gate_complete"] is True, json.dumps(report["blocker_counts"], indent=2)
+        assert report["rank63_gate_complete"] is True, json.dumps(
+            report["blocker_counts"], indent=2
+        )
         assert report["missing_required_proxy_operations"] == []
         assert report["promotable_workload_profile_count"] == len(operations)
         assert all(
@@ -90,10 +117,47 @@ def main() -> int:
             for group in report["groups"]
         )
 
+        unbound = fhe_workload_report.build_report([tmp])
+        assert unbound["promotable_workload_profile_count"] == 0
+        assert all(group["speedup_vs_cpu"] is None for group in unbound["groups"])
+        assert any(
+            "matched_diagnostic_companion_missing" in group["blockers"]
+            for group in unbound["groups"]
+        )
+
+        legacy_dir = tmp / "instrumented-only"
+        legacy_dir.mkdir()
+        for backend, duration in (("cpu-reference", 1000), ("hip-direct", 400)):
+            write_independent_fixture_pair(
+                legacy_dir / (backend + ".json"), proxy_capture(backend, operations[0], duration)
+            )
+        legacy = build_report([legacy_dir])
+        assert legacy["promotable_workload_profile_count"] == 0
+        assert all(group["speedup_vs_cpu"] is None for group in legacy["groups"])
+        assert any(
+            "diagnostic_instrumented_host_time_not_production_evidence" in group["blockers"]
+            for group in legacy["groups"]
+        )
+
+        noise_dir = tmp / "observed-noise"
+        noise_dir.mkdir()
+        write(noise_dir / "cpu.json", proxy_capture("cpu-reference", operations[0], 1000))
+        noisy = proxy_capture("hip-direct", operations[0], 900)
+        values = noisy["raw_timings_us"]["end_to_end"]
+        values[-1] = 1030
+        average = sum(values) / len(values)
+        noisy["timing_summary_us"]["end_to_end"] = dict(avg=average, median=900, p95=1030)
+        noisy["avg_end_to_end_us"] = average
+        write(noise_dir / "hip.json", noisy)
+        noise = build_report([noise_dir])["groups"][0]
+        assert noise["blockers"] == [], noise["blockers"]
+        assert noise["promotion_margin_required"] > noise["speedup_vs_cpu"] > 1.10
+        assert noise["promotion_decision"] == "keep_experimental_no_gpu_speedup"
+
         no_cpu_dir = tmp / "no-cpu"
         no_cpu_dir.mkdir()
         write(no_cpu_dir / "hip.json", proxy_capture("hip-direct", operations[0]))
-        no_cpu_report = fhe_workload_report.build_report([no_cpu_dir])
+        no_cpu_report = build_report([no_cpu_dir])
         assert no_cpu_report["rank63_gate_complete"] is False
         assert "cpu_reference_baseline_missing" in no_cpu_report["groups"][0]["blockers"]
 
@@ -107,11 +171,14 @@ def main() -> int:
             bad["workload_proxy"]["compatibility_claim"] = False
             bad["scenario_metadata"]["metadata"]["compatibility_claim"] = True
             write(compat_dir / "bad.json", bad)
-        compat_report = fhe_workload_report.build_report([compat_dir])
+        compat_report = build_report([compat_dir])
         assert compat_report["rank63_gate_complete"] is False
         assert any(
             blocker in compat_report["groups"][0]["blockers"]
-            for blocker in ["fhe_compatibility_claim_forbidden", "scenario_metadata_compatibility_claim_forbidden"]
+            for blocker in [
+                "fhe_compatibility_claim_forbidden",
+                "scenario_metadata_compatibility_claim_forbidden",
+            ]
         )
 
         promotable_dir = tmp / "promotable"
@@ -123,9 +190,11 @@ def main() -> int:
         except Exception:
             promotable["verification_amortization"]["promotion_eligible"] = False
             promotable["scenario_metadata"]["promotion_eligibility"] = "release_review_candidate"
-            promotable["scenario_metadata"]["metadata"]["promotion_scope"] = "release_review_candidate"
+            promotable["scenario_metadata"]["metadata"]["promotion_scope"] = (
+                "release_review_candidate"
+            )
             write(promotable_dir / "promotable.json", promotable)
-        promotable_report = fhe_workload_report.build_report([promotable_dir])
+        promotable_report = build_report([promotable_dir])
         assert promotable_report["rank63_gate_complete"] is False
         assert promotable_report["groups"][0]["blockers"]
 
@@ -133,10 +202,13 @@ def main() -> int:
         no_speedup_dir.mkdir()
         write(no_speedup_dir / "cpu.json", proxy_capture("cpu-reference", operations[0], 500))
         write(no_speedup_dir / "hip.json", proxy_capture("hip-direct", operations[0], 700))
-        no_speedup_report = fhe_workload_report.build_report([no_speedup_dir])
+        no_speedup_report = build_report([no_speedup_dir])
         assert no_speedup_report["rank63_gate_complete"] is False
         assert no_speedup_report["promotable_workload_profile_count"] == 0
-        assert no_speedup_report["groups"][0]["promotion_decision"] == "keep_experimental_no_gpu_speedup"
+        assert (
+            no_speedup_report["groups"][0]["promotion_decision"]
+            == "keep_experimental_no_gpu_speedup"
+        )
 
         missing_exact_dir = tmp / "missing-exact"
         missing_exact_dir.mkdir()
@@ -145,14 +217,16 @@ def main() -> int:
         try:
             write(missing_exact_dir / "missing-exact.json", missing_exact)
         except Exception:
-            missing_exact["verification_amortization"]["final_exact_comparison_status"] = "reference_required"
+            missing_exact["verification_amortization"]["final_exact_comparison_status"] = (
+                "reference_required"
+            )
             del missing_exact["verification_amortization"]["final_exact_comparison_required"]
             missing_exact_dir.joinpath("missing-exact.json").write_text(
                 json.dumps(missing_exact, indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
         try:
-            missing_exact_report = fhe_workload_report.build_report([missing_exact_dir])
+            missing_exact_report = build_report([missing_exact_dir])
         except Exception:
             missing_exact_report = {"rank63_gate_complete": False}
         assert missing_exact_report["rank63_gate_complete"] is False

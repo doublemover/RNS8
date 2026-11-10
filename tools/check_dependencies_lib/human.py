@@ -1,21 +1,12 @@
 from __future__ import annotations
 
-import argparse
-import glob
-import importlib.metadata
-import json
-import os
-import platform
-import re
-import shutil
-import subprocess
-import sys
-from pathlib import Path
 
-from msvc_env import command_in_msvc_environment, find_visual_studio_installation
-
-from .config import *
+from check_dependencies_lib.config import (
+    OPTIONAL_CPP_PACKAGES,
+    PYTHON_PACKAGES,
+)
 from .readiness import vcpkg_package_role
+
 
 def print_human(report: dict[str, object]) -> None:
     print("RNS8 dependency check")
@@ -24,7 +15,40 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(system, dict)
     print(f"platform: {system['platform']}")
     print(f"python:   {system['python']}")
+    environment = system.get("environment")
+    if isinstance(environment, dict):
+        print(f"environment: {environment.get('kind', 'unknown')} (qualification: not_run)")
     print()
+    policy = report.get("dependency_version_policy")
+    if isinstance(policy, dict):
+        print("Reviewed dependency candidate (version matches do not establish compatibility)")
+        print("  policy: " + str(policy["policy_sha256"]))
+        for item in policy["components"]:
+            if item["selected"]:
+                print(
+                    f"  {item['name']}: selected {item['selected']['version']}; observed {item['observed_version'] or 'unknown'}"
+                )
+        for error in policy["consistency_errors"]:
+            print("  ERROR: " + error)
+        for name in policy.get("required_version_failures", []):
+            print("  VERSION GATE: " + name)
+        print()
+    resolution = report.get("dependency_resolution")
+    if isinstance(resolution, dict):
+        print("Shared filesystem selection (compatibility/runtime probes remain separate)")
+        for name in ("hip", "vcpkg"):
+            item = resolution[name]
+            selected = item.get("selected")
+            print(
+                f"[{item['status']}] {name}: {selected['canonical_root'] if selected else item['selection_reason']}"
+            )
+            if selected:
+                print(
+                    f"  source: {selected['origin']}; version: {selected['version'] or 'unknown'}"
+                )
+        for error in resolution["errors"]:
+            print("  ERROR: " + error)
+        print()
 
     print("Commands")
     commands = report["commands"]
@@ -78,7 +102,9 @@ def print_human(report: dict[str, object]) -> None:
     print(f"    active targets:   {linux.get('amdgpu_targets')}")
     coverage_targets = linux.get("coverage_targets") or []
     assert isinstance(coverage_targets, list)
-    print(f"    coverage targets: {', '.join(coverage_targets) if coverage_targets else 'not represented'}")
+    print(
+        f"    coverage targets: {', '.join(coverage_targets) if coverage_targets else 'not represented'}"
+    )
     missing_coverage = linux.get("missing_coverage_targets") or []
     assert isinstance(missing_coverage, list)
     print(f"    missing coverage: {', '.join(missing_coverage) if missing_coverage else 'none'}")
@@ -106,7 +132,20 @@ def print_human(report: dict[str, object]) -> None:
     for name in OPTIONAL_CPP_PACKAGES:
         item = optional_refs[name]
         assert isinstance(item, dict)
-        print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item.get('version') or 'not installed'}")
+        print(
+            f"[{item.get('status', 'not_probed')}] {name}: compatibility {item.get('compatibility', 'not_run')}"
+        )
+        if item.get("package_inventory_version"):
+            print(f"  inventory version only: {item['package_inventory_version']}")
+        if item.get("selected"):
+            print(f"  selected root: {item['selected']['canonical_root']}")
+        if item.get("compile_link_probe"):
+            probe = item["compile_link_probe"]
+            print(f"  compile/link: {probe['status']}; runtime: not_run")
+            if probe.get("directory"):
+                print(f"  logs: {probe['directory']}")
+            if probe.get("detail"):
+                print(f"  {probe['detail']}")
     print()
 
     print("RCCL / rccl-tests readiness")
@@ -135,7 +174,9 @@ def print_human(report: dict[str, object]) -> None:
         print(f"  enable flag: {item['enable_flag']} ({item['enable_policy']})")
         print(f"  backend enablement: {item['backend_enablement']}")
         print(f"  evidence class: {item['evidence_class']}")
-        print(f"  candidate evidence is correctness validation: {item['candidate_evidence_is_correctness_validation']}")
+        print(
+            f"  candidate evidence is correctness validation: {item['candidate_evidence_is_correctness_validation']}"
+        )
         print(f"  validated correctness backend: {item['validated_correctness_backend']}")
         print(f"  cmake module: {item.get('cmake_module') or 'not found'}")
         if item.get("cmake_config"):
@@ -177,7 +218,9 @@ def print_human(report: dict[str, object]) -> None:
     print(f"probe root: {accelerator_probes['probe_root']}")
     print(f"policy: {accelerator_probes['policy']}")
     print(f"evidence class: {accelerator_probes['evidence_class']}")
-    print(f"candidate evidence is correctness validation: {accelerator_probes['candidate_evidence_is_correctness_validation']}")
+    print(
+        f"candidate evidence is correctness validation: {accelerator_probes['candidate_evidence_is_correctness_validation']}"
+    )
     probe_items = accelerator_probes["items"]
     assert isinstance(probe_items, dict)
     for name in sorted(probe_items):
@@ -186,11 +229,19 @@ def print_human(report: dict[str, object]) -> None:
         print(f"[{item['status']}] {name}")
         print(f"  compiled: {item.get('compiled_probe_ok', False)}")
         print(f"  runtime:  {item.get('runtime_probe_ok', False)}")
-        print(f"  primitive: {item.get('primitive_probe_status')} ok={item.get('primitive_probe_ok')}")
+        print(
+            f"  primitive: {item.get('primitive_probe_status')} ok={item.get('primitive_probe_ok')}"
+        )
+        for target in item.get("primitive_target_probes", []):
+            print(f"    {target['target']}: {target['primitive_probe_status']}")
+            if target.get("primitive_process_receipt"):
+                print(f"      process log: {target['primitive_process_receipt']['path']}")
         print(f"  backend enablement: {item.get('backend_enablement')}")
         print(f"  enable flag: {item.get('enable_flag')} ({item.get('enable_policy')})")
         print(f"  evidence class: {item.get('evidence_class')}")
-        print(f"  candidate evidence is correctness validation: {item.get('candidate_evidence_is_correctness_validation')}")
+        print(
+            f"  candidate evidence is correctness validation: {item.get('candidate_evidence_is_correctness_validation')}"
+        )
         print(f"  validated correctness backend: {item.get('validated_correctness_backend')}")
         print(f"  source: {item.get('source')}")
         print(f"  binary: {item.get('binary')}")
@@ -210,7 +261,9 @@ def print_human(report: dict[str, object]) -> None:
 
     cmake_hip = report["cmake_hip_language"]
     assert isinstance(cmake_hip, dict)
-    print(f"CMake HIP language: {'OK' if cmake_hip['ok'] else 'NOT REQUIRED'} - {cmake_hip['detail']}")
+    print(
+        f"CMake HIP language: {'OK' if cmake_hip['ok'] else 'NOT REQUIRED'} - {cmake_hip['detail']}"
+    )
     print()
 
     hip_info = report["hip_info"]
@@ -233,14 +286,18 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(accelerator_enablement, dict)
     print(f"backend enablement: {accelerator_enablement['backend_enablement']}")
     print(f"correctness backends enabled: {accelerator_enablement['correctness_backends_enabled']}")
-    print(f"validated correctness backend count: {accelerator_enablement['validated_correctness_backend_count']}")
+    print(
+        f"validated correctness backend count: {accelerator_enablement['validated_correctness_backend_count']}"
+    )
     print(f"enable flags fail fast: {accelerator_enablement['enable_flags_fail_fast']}")
     print(
         "runtime unsupported until compiled: "
         f"{accelerator_enablement.get('runtime_unsupported_until_compiled', 'none')}"
     )
     print(f"evidence class: {accelerator_enablement['evidence_class']}")
-    print(f"candidate evidence is correctness validation: {accelerator_enablement['candidate_evidence_is_correctness_validation']}")
+    print(
+        f"candidate evidence is correctness validation: {accelerator_enablement['candidate_evidence_is_correctness_validation']}"
+    )
     print(f"policy: {accelerator_enablement['policy']}")
     accelerator_flags = accelerator_enablement["flags"]
     assert isinstance(accelerator_flags, dict)
@@ -259,7 +316,9 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(correctness_validation, dict)
     print(f"scope: {correctness_validation['checker_scope']}")
     print(f"validated by this report: {len(correctness_validation['validated_by_this_report'])}")
-    print(f"validated correctness backend count: {correctness_validation['validated_correctness_backend_count']}")
+    print(
+        f"validated correctness backend count: {correctness_validation['validated_correctness_backend_count']}"
+    )
     print(
         "candidate accelerator evidence is correctness validation: "
         f"{correctness_validation['candidate_accelerator_evidence_is_correctness_validation']}"
@@ -302,13 +361,25 @@ def print_human(report: dict[str, object]) -> None:
     assert isinstance(exact_wide_platform, dict)
     print(f"host: {exact_wide_platform['host']}")
     print(f"current host target: {exact_wide_platform['current_host_target']}")
-    print(f"Windows gfx1100 evidence by this host: {exact_wide_platform['windows_gfx1100_evidence_by_this_host']}")
+    print(
+        f"Windows gfx1100 evidence by this host: {exact_wide_platform['windows_gfx1100_evidence_by_this_host']}"
+    )
     print(f"Windows gfx1100 scope: {exact_wide_platform['windows_gfx1100_scope']}")
-    print(f"Linux ROCm validated by this host: {exact_wide_platform['linux_rocm_validated_by_this_host']}")
-    print(f"Instinct validated by this host: {exact_wide_platform['instinct_validated_by_this_host']}")
-    print(f"Windows evidence validates Linux ROCm: {exact_wide_platform['windows_evidence_validates_linux_rocm']}")
-    print(f"Windows evidence validates Instinct: {exact_wide_platform['windows_evidence_validates_instinct']}")
-    print(f"Linux ROCm validation evidence: {exact_wide_platform['linux_rocm_validation_evidence']}")
+    print(
+        f"Linux ROCm validated by this host: {exact_wide_platform['linux_rocm_validated_by_this_host']}"
+    )
+    print(
+        f"Instinct validated by this host: {exact_wide_platform['instinct_validated_by_this_host']}"
+    )
+    print(
+        f"Windows evidence validates Linux ROCm: {exact_wide_platform['windows_evidence_validates_linux_rocm']}"
+    )
+    print(
+        f"Windows evidence validates Instinct: {exact_wide_platform['windows_evidence_validates_instinct']}"
+    )
+    print(
+        f"Linux ROCm validation evidence: {exact_wide_platform['linux_rocm_validation_evidence']}"
+    )
     print(f"Instinct validation evidence: {exact_wide_platform['instinct_validation_evidence']}")
     print(f"validation boundary: {exact_wide_platform['validation_boundary']}")
     print(f"policy: {exact_wide_platform['policy']}")
@@ -335,5 +406,3 @@ def print_human(report: dict[str, object]) -> None:
         item = tools[name]
         assert isinstance(item, dict)
         print(f"[{'OK' if item['ok'] else 'MISSING'}] {name}: {item['detail']}")
-
-

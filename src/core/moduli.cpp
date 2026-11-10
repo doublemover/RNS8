@@ -1,4 +1,5 @@
 #include "core/internal.hpp"
+#include "reconstruct/reconstruction.hpp"
 
 #include <algorithm>
 #include <boost/multiprecision/integer.hpp>
@@ -35,10 +36,6 @@ rns8_status rns8_validate_default_moduli(void) {
 
 namespace rns8::detail {
 
-bool valid_abi(uint64_t struct_size, uint32_t abi_version, std::size_t expected_size) {
-  return abi_version == RNS8_ABI_VERSION && struct_size >= expected_size;
-}
-
 void copy_c_string(char* dst, std::size_t dst_size, const std::string& src) {
   if (dst_size == 0) {
     return;
@@ -69,7 +66,8 @@ void fill_wrap64_device_info(rns8_device_info& info) {
   info.global_mem_bytes = 0;
   copy_c_string(info.name, sizeof(info.name), "CPU wrap64 byte-limb reference");
   copy_c_string(info.gcn_arch, sizeof(info.gcn_arch), "none");
-  copy_c_string(info.detail, sizeof(info.detail), "strict mod 2^64 byte-limb CPU reference backend");
+  copy_c_string(info.detail, sizeof(info.detail),
+                "strict mod 2^64 byte-limb CPU reference backend");
 }
 
 bool valid_tile_size(uint32_t value) {
@@ -88,38 +86,55 @@ bool valid_zero_mask(const uint8_t* mask, uint64_t count, int64_t expected_count
   return true;
 }
 
+bool known_backend_kind(rns8_backend_kind backend) {
+  switch (backend) {
+  case RNS8_BACKEND_AUTO:
+  case RNS8_BACKEND_CPU_AMX:
+  case RNS8_BACKEND_CPU_REFERENCE:
+  case RNS8_BACKEND_HIP_DIRECT:
+  case RNS8_BACKEND_HIPBLASLT:
+  case RNS8_BACKEND_CK:
+  case RNS8_BACKEND_ROCWMMA:
+  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return true;
+  }
+  return false;
+}
+
 bool known_semantics(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-    case RNS8_BOUNDED_U64:
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-    case RNS8_WRAP_U64_MOD_2_64:
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
-      return true;
+  case RNS8_BOUNDED_I64:
+  case RNS8_BOUNDED_U64:
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+  case RNS8_WRAP_U64_MOD_2_64:
+  case RNS8_FINITE_RING_U8:
+  case RNS8_FINITE_FIELD_U8:
+    return true;
   }
   return false;
 }
 
 bool known_bound_kind(rns8_bound_kind bound_kind) {
   switch (bound_kind) {
-    case RNS8_BOUND_NONE:
-    case RNS8_BOUND_GLOBAL_MAX_ABS:
-    case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
-    case RNS8_BOUND_PER_TILE_MAX_ABS:
-    case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
-    case RNS8_BOUND_INPUT_RANGE_AND_K:
-      return true;
+  case RNS8_BOUND_NONE:
+  case RNS8_BOUND_GLOBAL_MAX_ABS:
+  case RNS8_BOUND_GLOBAL_MAX_UNSIGNED:
+  case RNS8_BOUND_PER_TILE_MAX_ABS:
+  case RNS8_BOUND_PER_TILE_MAX_UNSIGNED:
+  case RNS8_BOUND_INPUT_RANGE_AND_K:
+    return true;
   }
   return false;
 }
 
 bool known_layout(rns8_layout layout) {
   switch (layout) {
-    case RNS8_LAYOUT_ROW_MAJOR:
-    case RNS8_LAYOUT_COLUMN_MAJOR:
-      return true;
+  case RNS8_LAYOUT_ROW_MAJOR:
+  case RNS8_LAYOUT_COLUMN_MAJOR:
+    return true;
   }
   return false;
 }
@@ -162,11 +177,7 @@ bool default_moduli_pairwise_coprime() {
 }
 
 cpp_int modulus_product(uint32_t prefix) {
-  cpp_int product = 1;
-  for (uint32_t i = 0; i < prefix; ++i) {
-    product *= kDefaultModuli[i];
-  }
-  return product;
+  return reconstruction_product(prefix);
 }
 
 uint32_t bit_length(const cpp_int& value) {
@@ -191,16 +202,16 @@ uint32_t required_prefix_for_range(const cpp_int& range) {
 
 uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-    case RNS8_BOUNDED_U64:
-      return RNS8_DEFAULT_BOUNDED_PREFIX;
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return RNS8_MAX_SUPPORTED_PREFIX;
-    case RNS8_WRAP_U64_MOD_2_64:
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
-      return 0;
+  case RNS8_BOUNDED_I64:
+  case RNS8_BOUNDED_U64:
+    return RNS8_DEFAULT_BOUNDED_PREFIX;
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return RNS8_MAX_SUPPORTED_PREFIX;
+  case RNS8_WRAP_U64_MOD_2_64:
+  case RNS8_FINITE_RING_U8:
+  case RNS8_FINITE_FIELD_U8:
+    return 0;
   }
   return 0;
 }
@@ -208,8 +219,7 @@ uint32_t default_prefix_for_semantics(rns8_semantics semantics) {
 bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound) {
   output_bound = 0;
   if (desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K ||
-      (desc.semantics != RNS8_BOUNDED_I64 && desc.semantics != RNS8_BOUNDED_U64) ||
-      desc.k <= 0) {
+      (desc.semantics != RNS8_BOUNDED_I64 && desc.semantics != RNS8_BOUNDED_U64) || desc.k <= 0) {
     return false;
   }
   if (desc.semantics == RNS8_BOUNDED_I64) {
@@ -218,12 +228,10 @@ bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound
       return false;
     }
   }
-  const cpp_int product =
-      cpp_int(desc.k) * cpp_int(desc.lhs_bound) * cpp_int(desc.rhs_bound);
-  const cpp_int max_output =
-      desc.semantics == RNS8_BOUNDED_I64
-          ? cpp_int(uint64_t{1} << 63u)
-          : cpp_int(std::numeric_limits<uint64_t>::max());
+  const cpp_int product = cpp_int(desc.k) * cpp_int(desc.lhs_bound) * cpp_int(desc.rhs_bound);
+  const cpp_int max_output = desc.semantics == RNS8_BOUNDED_I64
+                                 ? cpp_int(uint64_t{1} << 63u)
+                                 : cpp_int(std::numeric_limits<uint64_t>::max());
   if (product < 0 || product > max_output) {
     return false;
   }
@@ -231,11 +239,8 @@ bool input_range_output_bound(const rns8_gemm_desc& desc, uint64_t& output_bound
   return true;
 }
 
-rns8_status validate_bound_contract(
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint64_t bound,
-    uint32_t prefix) {
+rns8_status validate_bound_contract(rns8_semantics semantics, rns8_bound_kind bound_kind,
+                                    uint64_t bound, uint32_t prefix) {
   if (!known_semantics(semantics) || !known_bound_kind(bound_kind)) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -245,67 +250,86 @@ rns8_status validate_bound_contract(
 
   const cpp_int product = modulus_product(prefix);
   switch (semantics) {
-    case RNS8_BOUNDED_I64: {
-      if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
-        return RNS8_UNSUPPORTED_BACKEND;
-      }
-      if (bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
-        return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
-      }
-      if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
-          bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      if (bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) {
-        return RNS8_UNSUPPORTED_BACKEND;
-      }
-      constexpr uint64_t max_signed_magnitude = uint64_t{1} << 63u;
-      if (bound > max_signed_magnitude) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      const cpp_int required = cpp_int(2) * cpp_int(bound);
-      return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
-    }
-    case RNS8_BOUNDED_U64: {
-      if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
-        return RNS8_UNSUPPORTED_BACKEND;
-      }
-      if (bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
-        return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
-      }
-      if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
-          bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      if (bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) {
-        return RNS8_UNSUPPORTED_BACKEND;
-      }
-      return product > cpp_int(bound) ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
-    }
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-    case RNS8_WRAP_U64_MOD_2_64:
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
+  case RNS8_BOUNDED_I64: {
+    if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
       return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
+      return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+    }
+    if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_UNSIGNED ||
+        bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    constexpr uint64_t max_signed_magnitude = uint64_t{1} << 63u;
+    if (bound > max_signed_magnitude) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    const cpp_int required = cpp_int(2) * cpp_int(bound);
+    return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
+  }
+  case RNS8_BOUNDED_U64: {
+    if (bound_kind == RNS8_BOUND_INPUT_RANGE_AND_K) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    if (bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+      return bound == 0 ? RNS8_SUCCESS : RNS8_INVALID_ARGUMENT;
+    }
+    if (bound_kind == RNS8_BOUND_NONE || bound_kind == RNS8_BOUND_GLOBAL_MAX_ABS ||
+        bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED) {
+      return RNS8_UNSUPPORTED_BACKEND;
+    }
+    return product > cpp_int(bound) ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
+  }
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+  case RNS8_WRAP_U64_MOD_2_64:
+  case RNS8_FINITE_RING_U8:
+  case RNS8_FINITE_FIELD_U8:
+    return RNS8_UNSUPPORTED_BACKEND;
   }
   return RNS8_INVALID_ARGUMENT;
 }
 
 rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
-  if (!valid_abi(desc.struct_size, desc.abi_version, sizeof(desc))) {
+  if (!minimum_abi_header(&desc) || !known_backend_kind(desc.requested_backend) ||
+      !known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.m <= 0 || desc.n <= 0 || desc.k <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  constexpr uint32_t allowed_flags = RNS8_PLAN_FORCE_FIXED_PREFIX | RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS |
-                                     RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS;
+  constexpr uint32_t allowed_flags = kSupportedPlanFlags;
   if ((desc.flags & ~allowed_flags) != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
+  if ((desc.flags & RNS8_PLAN_EXACT_SCALAR_FIRST) != 0 &&
+      desc.semantics != RNS8_EXACT_WIDE_SIGNED && desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)
+    return RNS8_INVALID_ARGUMENT;
+  if ((desc.flags & RNS8_PLAN_DIRECT_RNS_PARALLEL) &&
+      (desc.requested_backend != RNS8_BACKEND_HIP_DIRECT || desc.n > 8 ||
+       (desc.semantics != RNS8_BOUNDED_I64 && desc.semantics != RNS8_BOUNDED_U64 &&
+        desc.semantics != RNS8_EXACT_WIDE_SIGNED && desc.semantics != RNS8_EXACT_WIDE_UNSIGNED) ||
+       desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS ||
+       desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED))
+    return RNS8_UNSUPPORTED_BACKEND;
+  if ((desc.flags & RNS8_PLAN_VECTOR_SMALL_N_EXACT_WIDTH) &&
+      (desc.requested_backend != RNS8_BACKEND_HIP_VECTOR_ALU_INT64 || desc.n < 2 || desc.n > 8 ||
+       desc.k < 512))
+    return RNS8_UNSUPPORTED_BACKEND;
   const bool fixed_prefix_requested = (desc.flags & RNS8_PLAN_FORCE_FIXED_PREFIX) != 0;
-  const bool proven_zero_tile_skips_requested = (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
+  if ((desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND) &&
+      (!fixed_prefix_requested ||
+       (desc.semantics != RNS8_EXACT_WIDE_SIGNED && desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)))
+    return RNS8_INVALID_ARGUMENT;
+  const bool proven_zero_tile_skips_requested =
+      (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_TILE_SKIPS) != 0;
   const bool proven_zero_row_col_skips_requested =
       (desc.flags & RNS8_PLAN_ALLOW_PROVEN_ZERO_ROW_COL_SKIPS) != 0;
   if (!valid_tile_size(desc.tile_m)) {
@@ -314,33 +338,30 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
   if (!valid_tile_size(desc.tile_n)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const bool per_tile_bounds =
-      desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS || desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
+  const bool per_tile_bounds = desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_ABS ||
+                               desc.bound_kind == RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
   if (!per_tile_bounds && (desc.tile_bounds || desc.tile_bounds_count != 0)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!proven_zero_row_col_skips_requested &&
-      (desc.zero_a_rows || desc.zero_a_rows_count != 0 || desc.zero_b_cols || desc.zero_b_cols_count != 0)) {
+  if (!proven_zero_row_col_skips_requested && (desc.zero_a_rows || desc.zero_a_rows_count != 0 ||
+                                               desc.zero_b_cols || desc.zero_b_cols_count != 0)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (proven_zero_tile_skips_requested && !per_tile_bounds) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (proven_zero_row_col_skips_requested) {
-    if (!per_tile_bounds ||
-        !valid_zero_mask(desc.zero_a_rows, desc.zero_a_rows_count, desc.m) ||
+    if (!per_tile_bounds || !valid_zero_mask(desc.zero_a_rows, desc.zero_a_rows_count, desc.m) ||
         !valid_zero_mask(desc.zero_b_cols, desc.zero_b_cols_count, desc.n)) {
       return RNS8_INVALID_ARGUMENT;
     }
-  }
-  if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind)) {
-    return RNS8_INVALID_ARGUMENT;
   }
   if (desc.semantics != RNS8_FINITE_RING_U8 && desc.semantics != RNS8_FINITE_FIELD_U8 &&
       desc.finite_modulus != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K && (desc.lhs_bound != 0 || desc.rhs_bound != 0)) {
+  if (desc.bound_kind != RNS8_BOUND_INPUT_RANGE_AND_K &&
+      (desc.lhs_bound != 0 || desc.rhs_bound != 0)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.semantics == RNS8_EXACT_WIDE_SIGNED || desc.semantics == RNS8_EXACT_WIDE_UNSIGNED) {
@@ -350,20 +371,24 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
     if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
       return RNS8_INVALID_ARGUMENT;
     }
+    if (desc.flags & RNS8_PLAN_EXACT_VALUE_BOUND)
+      return RNS8_SUCCESS;
     const cpp_int product = modulus_product(prefix);
     const cpp_int required =
         cpp_int(desc.k) * (cpp_int(1) << (desc.semantics == RNS8_EXACT_WIDE_SIGNED ? 127 : 128));
     return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
   }
   if (desc.semantics == RNS8_WRAP_U64_MOD_2_64) {
-    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0 || fixed_prefix_requested) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || prefix != 0 ||
+        fixed_prefix_requested) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;
   }
   if (desc.semantics == RNS8_FINITE_RING_U8 || desc.semantics == RNS8_FINITE_FIELD_U8) {
-    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 || prefix != 0 ||
-        fixed_prefix_requested || !valid_finite_modulus_for_semantics(desc.semantics, desc.finite_modulus)) {
+    if (desc.bound_kind != RNS8_BOUND_NONE || desc.bound != 0 || desc.max_prefix != 0 ||
+        prefix != 0 || fixed_prefix_requested ||
+        !valid_finite_modulus_for_semantics(desc.semantics, desc.finite_modulus)) {
       return RNS8_INVALID_ARGUMENT;
     }
     return RNS8_SUCCESS;
@@ -378,25 +403,27 @@ rns8_status validate_gemm_desc(const rns8_gemm_desc& desc, uint32_t prefix) {
       return RNS8_RANGE_ERROR;
     }
     const cpp_int product = modulus_product(prefix);
-    const cpp_int required = desc.semantics == RNS8_BOUNDED_I64
-                                 ? cpp_int(2) * cpp_int(output_bound)
-                                 : cpp_int(output_bound);
+    const cpp_int required = desc.semantics == RNS8_BOUNDED_I64 ? cpp_int(2) * cpp_int(output_bound)
+                                                                : cpp_int(output_bound);
     return product > required ? RNS8_SUCCESS : RNS8_RANGE_ERROR;
   }
   return validate_bound_contract(desc.semantics, desc.bound_kind, desc.bound, prefix);
 }
 
 rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) {
-  if (!valid_abi(desc.struct_size, desc.abi_version, sizeof(desc))) {
+  if (!minimum_abi_header(&desc)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.rows <= 0 || desc.cols <= 0) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (desc.flags != 0) {
+  if ((desc.flags & ~RNS8_MATRIX_RETAIN_NATIVE_INPUT) != 0 ||
+      (desc.flags && desc.semantics != RNS8_EXACT_WIDE_SIGNED &&
+       desc.semantics != RNS8_EXACT_WIDE_UNSIGNED)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind) || !known_layout(desc.logical_layout)) {
+  if (!known_semantics(desc.semantics) || !known_bound_kind(desc.bound_kind) ||
+      !known_layout(desc.logical_layout)) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (desc.logical_ld != 0 && desc.logical_ld < desc.cols) {
@@ -407,44 +434,46 @@ rns8_status validate_matrix_desc(const rns8_matrix_desc& desc, uint32_t prefix) 
   }
   const bool column_major = desc.logical_layout == RNS8_LAYOUT_COLUMN_MAJOR;
   switch (desc.semantics) {
-    case RNS8_BOUNDED_I64:
-      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      if (desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS && desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_ABS) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
-    case RNS8_BOUNDED_U64:
-      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      if (desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED && desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
-    case RNS8_EXACT_WIDE_SIGNED:
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      if (desc.bound_kind != RNS8_BOUND_NONE) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
-    case RNS8_WRAP_U64_MOD_2_64:
-      if (desc.bound_kind != RNS8_BOUND_NONE || prefix != 0) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
-    case RNS8_FINITE_RING_U8:
-    case RNS8_FINITE_FIELD_U8:
-      if (prefix != 0 || desc.max_prefix != 0 || desc.bound_kind != RNS8_BOUND_NONE) {
-        return RNS8_INVALID_ARGUMENT;
-      }
-      return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
+  case RNS8_BOUNDED_I64:
+    if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_ABS &&
+        desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_ABS) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
+  case RNS8_BOUNDED_U64:
+    if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (desc.bound_kind != RNS8_BOUND_GLOBAL_MAX_UNSIGNED &&
+        desc.bound_kind != RNS8_BOUND_PER_TILE_MAX_UNSIGNED) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
+  case RNS8_EXACT_WIDE_SIGNED:
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    if (prefix == 0 || prefix > RNS8_MAX_SUPPORTED_PREFIX) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    if (desc.bound_kind != RNS8_BOUND_NONE) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
+  case RNS8_WRAP_U64_MOD_2_64:
+    if (desc.bound_kind != RNS8_BOUND_NONE || prefix != 0) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
+  case RNS8_FINITE_RING_U8:
+  case RNS8_FINITE_FIELD_U8:
+    if (prefix != 0 || desc.max_prefix != 0 || desc.bound_kind != RNS8_BOUND_NONE) {
+      return RNS8_INVALID_ARGUMENT;
+    }
+    return column_major ? RNS8_UNSUPPORTED_BACKEND : RNS8_SUCCESS;
   }
   return RNS8_INVALID_ARGUMENT;
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

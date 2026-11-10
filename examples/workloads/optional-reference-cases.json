@@ -1,0 +1,377 @@
+{
+  "schema": "rns8_optional_reference_cases_v1",
+  "cases": [
+    {
+      "id": "cross-tiny",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1"
+      ]
+    },
+    {
+      "id": "cross-tail",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--m",
+        "3",
+        "--n",
+        "5",
+        "--k",
+        "17"
+      ]
+    },
+    {
+      "id": "cross-zero",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--pattern",
+        "zero"
+      ]
+    },
+    {
+      "id": "cross-sparse",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--pattern",
+        "sparse"
+      ]
+    },
+    {
+      "id": "cross-wide40",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--wide",
+        "--bits",
+        "40"
+      ]
+    },
+    {
+      "id": "cross-full64-wide",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--wide",
+        "--bits",
+        "63",
+        "--m",
+        "3",
+        "--n",
+        "5",
+        "--k",
+        "17"
+      ]
+    },
+    {
+      "id": "cross-large",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "large",
+        "--repeats",
+        "5",
+        "--warmups",
+        "2",
+        "--sustained-ms",
+        "250",
+        "--m",
+        "128",
+        "--n",
+        "128",
+        "--k",
+        "129",
+        "--bits",
+        "12",
+        "--memory-mib",
+        "512",
+        "--baseline-max-products",
+        "1"
+      ]
+    },
+    {
+      "id": "gram-tiny",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--gram"
+      ]
+    },
+    {
+      "id": "gram-wide",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--gram",
+        "--wide",
+        "--bits",
+        "40"
+      ]
+    },
+    {
+      "id": "gram-reuse-once",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--gram",
+        "--gram-reuse",
+        "3",
+        "--gram-export",
+        "once"
+      ]
+    },
+    {
+      "id": "gram-reuse-each",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--gram",
+        "--gram-reuse",
+        "3",
+        "--gram-export",
+        "each"
+      ]
+    },
+    {
+      "id": "chain-tiny",
+      "program": "resident-chain",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1"
+      ]
+    },
+    {
+      "id": "chain-tail",
+      "program": "resident-chain",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--m",
+        "3",
+        "--n",
+        "5",
+        "--k",
+        "17"
+      ]
+    },
+    {
+      "id": "chain-wide-final",
+      "program": "resident-chain",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--bits",
+        "20",
+        "--m",
+        "3",
+        "--n",
+        "5",
+        "--k",
+        "17"
+      ]
+    },
+    {
+      "id": "chain-zero",
+      "program": "resident-chain",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "tiny",
+        "--repeats",
+        "2",
+        "--warmups",
+        "1",
+        "--sustained-ms",
+        "1",
+        "--pattern",
+        "zero"
+      ]
+    },
+    {
+      "id": "chain-large",
+      "program": "resident-chain",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "large",
+        "--repeats",
+        "5",
+        "--warmups",
+        "2",
+        "--sustained-ms",
+        "250",
+        "--m",
+        "128",
+        "--n",
+        "128",
+        "--k",
+        "129",
+        "--bits",
+        "8",
+        "--memory-mib",
+        "1024",
+        "--baseline-max-products",
+        "1"
+      ]
+    },
+    {
+      "id": "cross-512",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "large",
+        "--m",
+        "512",
+        "--n",
+        "512",
+        "--k",
+        "512",
+        "--bits",
+        "8",
+        "--repeats",
+        "5",
+        "--warmups",
+        "2",
+        "--sustained-ms",
+        "250",
+        "--memory-mib",
+        "4096",
+        "--baseline-max-products",
+        "1"
+      ]
+    },
+    {
+      "id": "gram-512",
+      "program": "integer-cross-product",
+      "arguments": [
+        "--reference-only",
+        "--size",
+        "large",
+        "--m",
+        "512",
+        "--n",
+        "512",
+        "--k",
+        "512",
+        "--bits",
+        "8",
+        "--repeats",
+        "5",
+        "--warmups",
+        "2",
+        "--sustained-ms",
+        "250",
+        "--memory-mib",
+        "4096",
+        "--baseline-max-products",
+        "1",
+        "--gram"
+      ]
+    }
+  ]
+}

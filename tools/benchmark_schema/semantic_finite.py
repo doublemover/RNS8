@@ -1,31 +1,55 @@
 from __future__ import annotations
 
-from typing import Any
+from evidence_scalars import text_choice
 
-from .core_shared import *
+from .semantic_context import SemanticContext
+from ck_kernel_contract import ck_kernel_family, ck_selected_kernel
 
-def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
-    semantics = ctx['semantics']
-    prefix = ctx['prefix']
-    packed_layout = ctx['packed_layout']
-    schedule = ctx['schedule']
-    backend_metadata = ctx['backend_metadata']
-    k_value = ctx['k_value']
-    bound_mode = ctx['bound_mode']
-    residue_chain_length = ctx['residue_chain_length']
-    residue_output_mode = ctx['residue_output_mode']
-    status_check = ctx['status_check']
-    prefix_policy = ctx['prefix_policy']
-    metadata = ctx['metadata']
+from .core_shared import (
+    CK_FINITE_GENERIC_KERNEL,
+    CK_FINITE_SPECIALIZED_KERNELS,
+    CK_FINITE_STATIC_MODULI,
+    DIRECT_HIP_FINITE_GENERIC_KERNEL,
+    DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE,
+    DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_GENERIC_KERNEL,
+    DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_SPECIALIZED_KERNELS,
+    DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE,
+    DIRECT_HIP_FINITE_ONESHOT_EPILOGUE,
+    DIRECT_HIP_FINITE_ONESHOT_GENERIC_KERNEL,
+    DIRECT_HIP_FINITE_ONESHOT_SPECIALIZED_KERNELS,
+    DIRECT_HIP_FINITE_ONESHOT_WORKSPACE,
+    DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE,
+    DIRECT_HIP_FINITE_SPECIALIZED_KERNELS,
+    DIRECT_HIP_RECIPROCAL_ISA_EVIDENCE,
+    ROCWMMA_FINITE_GENERIC_KERNEL,
+    ROCWMMA_FINITE_SPECIALIZED_KERNELS,
+    ROCWMMA_FINITE_STATIC_MODULI,
+    _is_int,
+    _is_prime_modulus,
+)
+
+
+def validate_finite_u8_contract(self, ctx: SemanticContext) -> None:
+    semantics = ctx.semantics
+    prefix = ctx.prefix
+    packed_layout = ctx.packed_layout
+    schedule = ctx.schedule
+    backend_metadata = ctx.backend_metadata
+    bound_mode = ctx.bound_mode
+    metadata = ctx.metadata
     finite_oneshot_capture = self._is_finite_oneshot_capture()
     if finite_oneshot_capture:
         if self.data.get("benchmark") != "rns8_finite_u8_public_oneshot":
             self._error("finite one-shot captures must use benchmark=rns8_finite_u8_public_oneshot")
         if self._benchmark_execution_mode() != "public_oneshot_transient_native_inputs":
-            self._error("finite one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs")
-        if self.data.get("backend_selected") not in {"cpu-reference", "hip-direct"}:
+            self._error(
+                "finite one-shot captures must use benchmark_execution_mode=public_oneshot_transient_native_inputs"
+            )
+        if not text_choice(self.data.get("backend_selected"), {"cpu-reference", "hip-direct"}):
             self._error("finite one-shot captures must select cpu-reference or hip-direct")
-        if self.data.get("backend_requested") not in {"cpu-reference", "cpu", "hip-direct"}:
+        if not text_choice(
+            self.data.get("backend_requested"), {"cpu-reference", "cpu", "hip-direct"}
+        ):
             self._error("finite one-shot captures must request cpu or hip-direct")
         if self.data.get("reuse_packed_inputs") is True:
             self._error("finite one-shot captures must not use packed-input reuse")
@@ -33,14 +57,17 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
             self._error("finite one-shot captures must use pack_mode=per_repeat_repack")
         if self.data.get("prepack_reuse_strategy") not in {None, "none"}:
             self._error("finite one-shot captures must use prepack_reuse_strategy=none")
-    if self.data.get("backend_selected") not in {
-        "cpu-reference",
-        "hip-direct",
-        "hipblaslt",
-        "ck",
-        "rocwmma",
-        "amdgpu-builtins",
-    }:
+    if not text_choice(
+        self.data.get("backend_selected"),
+        {
+            "cpu-reference",
+            "hip-direct",
+            "hipblaslt",
+            "ck",
+            "rocwmma",
+            "amdgpu-builtins",
+        },
+    ):
         self._error(
             "finite-u8 captures must select cpu-reference, hip-direct, hipblaslt, ck, rocwmma, or amdgpu-builtins backend"
         )
@@ -138,33 +165,46 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                     "direct-HIP finite native-A reuse-B captures must use "
                     f"backend_metadata.epilogue_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE}"
                 )
-            if backend_metadata.get("workspace_mode") != DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE:
+            if (
+                backend_metadata.get("workspace_mode")
+                != DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE
+            ):
                 self._error(
                     "direct-HIP finite native-A reuse-B captures must use "
                     f"backend_metadata.workspace_mode={DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE}"
                 )
     if self.data.get("backend_selected") == "ck" and _is_int(modulus):
-        if modulus not in CK_FINITE_STATIC_MODULI:
+        if not _is_int(modulus) or modulus not in CK_FINITE_STATIC_MODULI:
             self._error(
                 f"CK finite-u8 modulus {modulus} captures are unsupported by the static CK reducer set"
             )
         expected_kernel = CK_FINITE_SPECIALIZED_KERNELS.get(modulus, CK_FINITE_GENERIC_KERNEL)
+        family = ck_kernel_family(self.data.get("selected_kernel"))
+        if family and 2 <= modulus <= 256:
+            expected_kernel = ck_selected_kernel(family, modulus)
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(
                 f"CK finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
             )
     if self.data.get("backend_selected") == "rocwmma" and _is_int(modulus):
-        if modulus not in ROCWMMA_FINITE_STATIC_MODULI:
+        if not _is_int(modulus) or modulus not in ROCWMMA_FINITE_STATIC_MODULI:
             self._error(
                 f"rocWMMA finite-u8 modulus {modulus} captures are unsupported by the static rocWMMA reducer set"
             )
-        expected_kernel = ROCWMMA_FINITE_SPECIALIZED_KERNELS.get(modulus, ROCWMMA_FINITE_GENERIC_KERNEL)
+        expected_kernel = ROCWMMA_FINITE_SPECIALIZED_KERNELS.get(
+            modulus, ROCWMMA_FINITE_GENERIC_KERNEL
+        )
         if self.data.get("selected_kernel") != expected_kernel:
             self._error(
                 f"rocWMMA finite-u8 modulus {modulus} captures must use selected_kernel={expected_kernel}"
             )
     if isinstance(schedule, dict):
-        for key in ["min_required_prefix", "max_required_prefix", "min_selected_prefix", "max_selected_prefix"]:
+        for key in [
+            "min_required_prefix",
+            "max_required_prefix",
+            "min_selected_prefix",
+            "max_selected_prefix",
+        ]:
             if schedule.get(key) != 0:
                 self._error(f"finite-u8 captures must use schedule_metadata.{key}=0")
         if schedule.get("prefix_group_count") != 0:
@@ -180,8 +220,12 @@ def validate_finite_u8_contract(self, ctx: dict[str, Any]) -> None:
                 else "direct_hip_default_stream_backend_operation_groups"
             )
             if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                self._error(
+                    f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                )
         if self.data.get("backend_selected") == "hipblaslt":
             expected_scope = "hipblaslt_baseline_default_stream_backend_operation_groups"
             if metadata.get("gpu_event_timing_source_scope") != expected_scope:
-                self._error(f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}")
+                self._error(
+                    f"timing_metadata.gpu_event_timing_source_scope must be {expected_scope}"
+                )

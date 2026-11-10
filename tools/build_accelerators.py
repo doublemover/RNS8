@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build RNS8 accelerator backends (CK, rocWMMA, hipBLASLt, AMDGPU builtins).
 
-This wrapper loads the Visual Studio 2022 developer environment and builds each
+This wrapper loads the Visual Studio 2026 developer environment and builds each
 accelerator preset (debug or release). Use it after the base HIP preset is built.
 
 Usage:
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 from pathlib import Path
 
 from msvc_env import command_in_msvc_environment
@@ -52,19 +51,30 @@ BUILD_PRESETS = {
 }
 
 
-def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> bool:
-    """Configure and build one accelerator preset."""
-    print(f"\n{'='*60}")
+def build_preset(
+    configure_preset: str,
+    build_preset: str,
+    repo_root: Path,
+    *,
+    configure_only: bool = False,
+    stages: dict[str, int] | None = None,
+) -> bool:
+    """Configure one preset, optionally stopping before its build stage."""
+    print(f"\n{'=' * 60}")
     print(f"Building: {configure_preset}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Configure
     print(f"Configuring {configure_preset}...")
     config_args = ["cmake", "-S", str(repo_root), "--preset", configure_preset]
     cmd, _wrapped = command_in_msvc_environment(config_args)
-    config_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
-                                      capture_output=True, text=True)
+    config_result = subprocess.run(
+        cmd, check=False, cwd=str(repo_root), capture_output=True, text=True
+    )
     if config_result.returncode != 0:
+        if stages is not None:
+            stages["failed"] += 1
+            stages["build_skipped"] += 1
         print(f"ERROR: configure failed for {configure_preset}")
         if config_result.stdout:
             print(f"  STDOUT: {config_result.stdout[-500:]}")
@@ -72,13 +82,24 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
             print(f"  STDERR: {config_result.stderr[-500:]}")
         return False
 
+    if stages is not None:
+        stages["configured"] += 1
+    if configure_only:
+        if stages is not None:
+            stages["build_skipped"] += 1
+        print(f"SUCCESS: configured {configure_preset} (build not requested)")
+        return True
+
     # Build
     print(f"Building {build_preset}...")
     build_args = ["cmake", "--build", "--preset", build_preset]
     cmd, _wrapped = command_in_msvc_environment(build_args)
-    build_result = subprocess.run(cmd, check=False, cwd=str(repo_root),
-                                    capture_output=True, text=True)
+    build_result = subprocess.run(
+        cmd, check=False, cwd=str(repo_root), capture_output=True, text=True
+    )
     if build_result.returncode != 0:
+        if stages is not None:
+            stages["failed"] += 1
         print(f"ERROR: build failed for {build_preset}")
         # Print the last relevant lines from the build output
         error_lines = []
@@ -91,6 +112,8 @@ def build_preset(configure_preset: str, build_preset: str, repo_root: Path) -> b
                 print(f"    {line}")
         return False
 
+    if stages is not None:
+        stages["built"] += 1
     print(f"SUCCESS: {configure_preset}")
     return True
 
@@ -99,7 +122,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--debug", action="store_true", help="build debug accelerator presets")
     parser.add_argument("--release", action="store_true", help="build release accelerator presets")
-    parser.add_argument("--backend", choices=list(ACCELERATOR_PRESETS), help="build only this backend")
+    parser.add_argument(
+        "--backend", choices=list(ACCELERATOR_PRESETS), help="build only this backend"
+    )
     parser.add_argument("--list", action="store_true", help="list available accelerator presets")
     parser.add_argument("--configure-only", action="store_true", help="only configure, don't build")
     args = parser.parse_args()
@@ -130,19 +155,22 @@ def main() -> int:
     print(f"Building {len(configs)} accelerator preset(s)...")
 
     failures = 0
+    stages = dict(configured=0, built=0, failed=0, build_skipped=0)
     for config in configs:
         build = BUILD_PRESETS[config]
-        result = build_preset(config, build, repo_root)
+        result = build_preset(
+            config, build, repo_root, configure_only=args.configure_only, stages=stages
+        )
         if not result:
             failures += 1
-        if args.configure_only:
-            break  # Only configure first one for --configure-only
 
+    print("Stage totals: " + ", ".join(f"{name}={count}" for name, count in stages.items()))
     if failures:
         print(f"\n{failures}/{len(configs)} preset(s) failed")
         return 1
 
-    print(f"\nAll {len(configs)} accelerator preset(s) built successfully")
+    action = "configured" if args.configure_only else "configured and built"
+    print(f"\nAll {len(configs)} accelerator preset(s) {action} successfully")
     return 0
 
 

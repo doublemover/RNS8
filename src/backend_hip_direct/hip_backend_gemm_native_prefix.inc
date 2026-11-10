@@ -1,19 +1,19 @@
-rns8_status hip_direct_gemm_i64_native_prefix9_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_native,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+rns8_status hip_direct_gemm_i64_native_prefix9_device(int device_id, const void* device_a_native,
+                                                      const void* device_b_native,
+                                                      void* device_c_residues, int64_t m, int64_t n,
+                                                      int64_t k, int64_t lda, int64_t ldb,
+                                                      int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
-      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
-      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -22,15 +22,9 @@ rns8_status hip_direct_gemm_i64_native_prefix9_device(
   }
   const int code = rns8::detail::run_timed_device_code("rns_gemm_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemm_i64_native_prefix9_device(
-        static_cast<const int64_t*>(device_a_native),
-        static_cast<const int64_t*>(device_b_native),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
+        static_cast<const int64_t*>(device_a_native), static_cast<const int64_t*>(device_b_native),
+        static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+        static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
@@ -54,22 +48,23 @@ rns8_status hip_direct_gemm_i64_native_prefix9_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_i64_native_prefix9_colpair_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_native,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+rns8_status hip_direct_gemm_i64_native_prefix9_colpair_device(int device_id,
+                                                              const void* device_a_native,
+                                                              const void* device_b_native,
+                                                              void* device_c_residues, int64_t m,
+                                                              int64_t n, int64_t k, int64_t lda,
+                                                              int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
-      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
-      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -78,15 +73,9 @@ rns8_status hip_direct_gemm_i64_native_prefix9_colpair_device(
   }
   const int code = rns8::detail::run_timed_device_code("rns_gemm_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemm_i64_native_prefix9_colpair_device(
-        static_cast<const int64_t*>(device_a_native),
-        static_cast<const int64_t*>(device_b_native),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
+        static_cast<const int64_t*>(device_a_native), static_cast<const int64_t*>(device_b_native),
+        static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+        static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
@@ -110,22 +99,22 @@ rns8_status hip_direct_gemm_i64_native_prefix9_colpair_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_u64_native_prefix9_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_native,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+rns8_status hip_direct_gemm_u64_native_prefix9_device(int device_id, const void* device_a_native,
+                                                      const void* device_b_native,
+                                                      void* device_c_residues, int64_t m, int64_t n,
+                                                      int64_t k, int64_t lda, int64_t ldb,
+                                                      int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
-      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
-      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -135,15 +124,9 @@ rns8_status hip_direct_gemm_u64_native_prefix9_device(
   const int code = rns8::detail::run_timed_device_code("rns_gemm_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemm_u64_native_prefix9_device(
         static_cast<const uint64_t*>(device_a_native),
-        static_cast<const uint64_t*>(device_b_native),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+        static_cast<const uint64_t*>(device_b_native), static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda),
+        static_cast<int>(ldb), static_cast<int>(ldc), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
     }
@@ -166,22 +149,23 @@ rns8_status hip_direct_gemm_u64_native_prefix9_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_u64_native_prefix9_colpair_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_native,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc) {
+rns8_status hip_direct_gemm_u64_native_prefix9_colpair_device(int device_id,
+                                                              const void* device_a_native,
+                                                              const void* device_b_native,
+                                                              void* device_c_residues, int64_t m,
+                                                              int64_t n, int64_t k, int64_t lda,
+                                                              int64_t ldb, int64_t ldc) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, 9)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 || lda < k ||
-      ldb < n || ldc < n || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
-      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
-      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
+  if (!device_a_native || !device_b_native || !device_c_residues || m <= 0 || n <= 0 || k <= 0 ||
+      lda < k || ldb < n || ldc < n || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -191,15 +175,9 @@ rns8_status hip_direct_gemm_u64_native_prefix9_colpair_device(
   const int code = rns8::detail::run_timed_device_code("rns_gemm_kernel_group", [&]() {
     const int launch_status = rns8_hip_direct_ring_gemm_u64_native_prefix9_colpair_device(
         static_cast<const uint64_t*>(device_a_native),
-        static_cast<const uint64_t*>(device_b_native),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+        static_cast<const uint64_t*>(device_b_native), static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda),
+        static_cast<int>(ldb), static_cast<int>(ldc), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (launch_status != static_cast<int>(hipSuccess)) {
       return launch_status;
     }
@@ -221,4 +199,3 @@ rns8_status hip_direct_gemm_u64_native_prefix9_colpair_device(
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }
-

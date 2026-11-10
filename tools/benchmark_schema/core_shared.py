@@ -1,39 +1,16 @@
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 import math
+from evidence_scalars import finite_number
 import re
 from typing import Any
 
 from metadata_registry_constants import (
-    ACCELERATOR_GPU_EVENT_SCOPES,
-    BACKEND_REQUESTED_VALUES,
-    BACKEND_SELECTED_VALUES,
-    BENCHMARK_EXECUTION_MODES,
-    BOUNDED_EXPORT_KERNELS,
-    BOUNDED_I64_EXPORT_KERNELS,
-    BOUNDED_U64_EXPORT_KERNELS,
-    BOUND_DISCOVERY_SOURCES,
-    BOUND_KINDS,
-    BOUND_SOURCES,
-    CK_SELECTED_KERNELS,
-    COMPARISON_BASELINE_STATUSES,
-    CONTRACT_PREFIX_POLICIES,
-    DIRECT_HIP_GPU_EVENT_SCOPES,
-    EXACT_WIDE_EXPORT_KERNELS,
-    EXACT_WIDE_SIGNED_EXPORT_KERNELS,
-    EXACT_WIDE_UNSIGNED_EXPORT_KERNELS,
     GENERATED_REDUCER_IDENTITIES,
     GENERATED_REDUCER_IDENTITY_PATTERNS,
-    HIPBLASLT_GPU_EVENT_SCOPES,
-    HIP_RESIDENT_BACKENDS,
-    NON_RNS_PREFIX_SEMANTICS,
-    PACK_MODES,
     PLACEHOLDER_GPU_TARGET_IDS,
-    PREPACK_REUSE_STRATEGIES,
-    ROCWMMA_SELECTED_KERNELS,
-    RNS_PREFIX_SEMANTICS,
-    VECTOR_ALU_GPU_EVENT_SCOPES,
-    VECTOR_ALU_SELECTED_KERNELS,
 )
 
 SCHEMA_VERSION = 4
@@ -48,7 +25,15 @@ BASELINE_STATUS_REVIEWED = "reviewed_same_contract_baseline"
 BASELINE_STATUS_RELEASE_REVIEWED = "reviewed_release_same_contract_baseline"
 BASELINE_STATUS_MISSING_REVIEWED = "missing_reviewed_same_contract_baseline"
 REVIEWED_BASELINE_STATUSES = {BASELINE_STATUS_REVIEWED, BASELINE_STATUS_RELEASE_REVIEWED}
-TIMING_PHASES = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+TIMING_PHASES = [
+    "planning",
+    "scheduling",
+    "matrix_alloc",
+    "pack",
+    "rns_gemm",
+    "crt_export",
+    "end_to_end",
+]
 GLOBAL_BOUND_TIMING_PHASE = "global_bound_scan"
 PER_TILE_TIMING_PHASE = "tile_bound_scan"
 REPEATED_TIMING_PHASES = {"pack", "rns_gemm", "crt_export", "end_to_end"}
@@ -113,7 +98,9 @@ PREFIX_POLICY_FIELDS = {
     "residue_planes_skipped",
     "residue_plane_skip_fraction",
 }
-OLD_ACCELERATOR_GPU_EVENT_SCOPE = "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+OLD_ACCELERATOR_GPU_EVENT_SCOPE = (
+    "accelerator_backend_default_stream_operation_groups_with_direct_hip_pack_export"
+)
 DEEP_ACCELERATOR_GPU_EVENT_SCOPE = (
     "accelerator_backend_default_stream_deep_kernel_events_with_direct_hip_pack_export"
 )
@@ -189,7 +176,9 @@ DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2 = (
 DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_U64_LARGE_V2 = DIRECT_HIP_BOUNDED_ONESHOT_KERNEL_LARGE_COLPAIR_V2
 DIRECT_HIP_BOUNDED_ONESHOT_EPILOGUE = "native_input_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_WORKSPACE = "transient_native_inputs_to_resident_rns_output"
-DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
+DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_KERNEL = (
+    "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
+)
 DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_EPILOGUE = "fused_centered_residue_then_crt_export"
 DIRECT_HIP_BOUNDED_ONESHOT_RESIDENT_FALLBACK_WORKSPACE = "resident_device_buffers"
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_KERNELS = {
@@ -228,38 +217,52 @@ DIRECT_HIP_BOUNDED_SKINNY_GEMV_SMALL_N_KERNELS = {
     "bounded_i64": "direct_hip_prefix9_rns_gemv_small_n_i64_v1",
     "bounded_u64": "direct_hip_prefix9_rns_gemv_small_n_u64_v1",
 }
-DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_EPILOGUE = (
+    "native_a_centered_resident_b_residue_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_NATIVE_A_REUSE_B_EPILOGUE = (
     "uniform_small_i8_ab_resident_b_residue_then_crt_export"
 )
-DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_EPILOGUE = "uniform_small_i8_ab_resident_a_residue_then_crt_export"
-DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_EPILOGUE = "uniform_small_i8_ab_transient_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_EPILOGUE = (
+    "uniform_small_i8_ab_resident_a_residue_then_crt_export"
+)
+DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_EPILOGUE = (
+    "uniform_small_i8_ab_transient_residue_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_EPILOGUE = (
     "width3_residue_fusion_transient_then_crt_export"
 )
-DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE = "resident_a_native_b_centered_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_EPILOGUE = (
+    "resident_a_native_b_centered_residue_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_EPILOGUE = "resident_rns_gemv_n1_centered_residue_then_crt_export"
-DIRECT_HIP_BOUNDED_SKINNY_GEMV_SMALL_N_EPILOGUE = "resident_rns_gemv_small_n_centered_residue_then_crt_export"
+DIRECT_HIP_BOUNDED_SKINNY_GEMV_SMALL_N_EPILOGUE = (
+    "resident_rns_gemv_small_n_centered_residue_then_crt_export"
+)
 DIRECT_HIP_BOUNDED_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_a_resident_rns_b_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_REUSE_A_WORKSPACE = "transient_i8_b_resident_i8_a_rns_output"
 DIRECT_HIP_BOUNDED_UNIFORM_SMALL_TRANSIENT_WORKSPACE = "transient_i8_a_transient_i8_b_rns_output"
-DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE = (
-    "width3_residue_fusion_transient_i8_inputs"
-)
+DIRECT_HIP_BOUNDED_RESIDUE_CHANNEL_FUSION_WORKSPACE = "width3_residue_fusion_transient_i8_inputs"
 DIRECT_HIP_BOUNDED_NATIVE_B_REUSE_A_WORKSPACE = "transient_native_b_resident_rns_a_output"
 DIRECT_HIP_BOUNDED_SKINNY_GEMV_N1_WORKSPACE = "resident_rns_inputs_skinny_n1_output"
 DIRECT_HIP_BOUNDED_SKINNY_GEMV_SMALL_N_WORKSPACE = "resident_rns_inputs_skinny_n_le8_output"
 DIRECT_HIP_FINITE_ONESHOT_EPILOGUE = "native_u8_centered_residue_then_canonical_u8_export"
 DIRECT_HIP_FINITE_ONESHOT_WORKSPACE = "transient_native_u8_inputs_to_resident_finite_output"
-DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE = "native_a_centered_resident_b_residue_then_canonical_u8_export"
+DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_EPILOGUE = (
+    "native_a_centered_resident_b_residue_then_canonical_u8_export"
+)
 DIRECT_HIP_FINITE_NATIVE_A_REUSE_B_WORKSPACE = "transient_native_u8_a_resident_finite_b_output"
 DIRECT_HIP_FINITE_SPECIALIZED_ISA_EVIDENCE = (
     "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
 )
 DIRECT_HIP_ADAPTIVE_KERNEL_V2 = "direct_hip_tiled_active_prefix_rns_gemm_v2"
-DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3 = "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
+DIRECT_HIP_ADAPTIVE_GROUPED_SCHEDULE_KERNEL_V3 = (
+    "direct_hip_grouped_active_prefix_schedule_rns_gemm_v3"
+)
 DIRECT_HIP_ADAPTIVE_ZERO_SKIP_KERNEL_V3 = "direct_hip_tiled_active_prefix_zero_skip_rns_gemm_v3"
-DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1 = "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
+DIRECT_HIP_ADAPTIVE_ZERO_ROW_COL_SKIP_KERNEL_V1 = (
+    "direct_hip_tiled_active_prefix_zero_row_col_skip_rns_gemm_v1"
+)
 DIRECT_HIP_ADAPTIVE_ZERO_TILE_ROW_COL_SKIP_KERNEL_V1 = (
     "direct_hip_tiled_active_prefix_zero_tile_row_col_skip_rns_gemm_v1"
 )
@@ -301,19 +304,18 @@ DIRECT_HIP_FINITE_ONESHOT_GPU_EVENT_PHASES = [
 ]
 
 
-
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+    return finite_number(value)
 
 
 def _has_concrete_gpu_target_id(value: Any) -> bool:
     if not isinstance(value, str):
         return False
-    return value.strip().lower() not in PLACEHOLDER_GPU_TARGET_IDS
+    return not text_choice(value.strip().lower(), PLACEHOLDER_GPU_TARGET_IDS)
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -341,7 +343,3 @@ def _is_prime_modulus(value: int) -> bool:
             return False
         divisor += 1
     return True
-
-
-
-__all__ = [name for name in globals() if not name.startswith("__")]

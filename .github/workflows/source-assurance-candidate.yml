@@ -1,0 +1,125 @@
+name: CPU Source Assurance Candidate
+
+# Enable automatic checks only after reviewing actual native baselines,
+# mandatory mutant detection, source denominators and execution/storage cost.
+on:
+  pull_request:
+  schedule:
+    - cron: "31 4 * * 4"
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: Separate CPU source coverage or mandatory mutation lane
+        type: choice
+        default: native-coverage
+        required: true
+        options:
+          - native-coverage
+          - native-mutations
+          - python-coverage
+          - python-mutations
+      llvm_root:
+        description: Absolute operator-prepared matching LLVM toolchain prefix
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rns8-native-host-instrumentation
+  cancel-in-progress: false
+
+jobs:
+  change-scope:
+    name: CPU assurance source scope
+    uses: ./.github/workflows/native-check-scope.yml
+    with:
+      event: ${{ github.event_name }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+  source-assurance:
+    needs: change-scope
+    if: >-
+      needs.change-scope.outputs.source_required == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (vars.RNS8_SOURCE_ASSURANCE_CI == 'enabled' &&
+       (github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository)))
+    runs-on: [self-hosted, linux, x64, rns8-host-checks, node24]
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        lane: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.lane) || '["native-coverage","native-mutations","python-coverage","python-mutations"]') }}
+    env:
+      RNS8_SOURCE_LLVM_ROOT: ${{ inputs.llvm_root || vars.RNS8_NATIVE_LLVM_ROOT }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Select shared hash-locked build and Python tools
+        run: |
+          python tools/init_build_tools.py --github-path
+          python tools/init_quality.py --out temp/source-assurance-tools
+      - name: Require the explicitly prepared native LLVM prefix
+        if: ${{ startsWith(matrix.lane, 'native-') }}
+        run: |
+          test "${RNS8_SOURCE_LLVM_ROOT#/}" != "$RNS8_SOURCE_LLVM_ROOT"
+          for tool in clang++ llvm-nm llvm-cov llvm-profdata; do
+            test -x "$RNS8_SOURCE_LLVM_ROOT/bin/$tool"
+          done
+      - name: Check owned source-assurance protocols
+        run: |
+          temp/source-assurance-tools/bin/python tools/test_ci_change_scope.py
+          temp/source-assurance-tools/bin/python tools/test_host_coverage.py
+          temp/source-assurance-tools/bin/python tools/test_python_coverage.py
+          temp/source-assurance-tools/bin/python tools/test_native_mutations.py
+          temp/source-assurance-tools/bin/python tools/test_seeded_mutations.py
+          temp/source-assurance-tools/bin/python tools/test_mull_pilot.py
+      - name: Collect native CPU coverage and source invariant inventory
+        if: ${{ matrix.lane == 'native-coverage' }}
+        run: >-
+          temp/source-assurance-tools/bin/python tools/host_coverage_session.py
+          --out temp/source-assurance-result
+          --cmake "$(command -v cmake)" --ctest "$(command -v ctest)"
+          --compiler "$RNS8_SOURCE_LLVM_ROOT/bin/clang++"
+          --nm "$RNS8_SOURCE_LLVM_ROOT/bin/llvm-nm"
+          --llvm-cov "$RNS8_SOURCE_LLVM_ROOT/bin/llvm-cov"
+          --llvm-profdata "$RNS8_SOURCE_LLVM_ROOT/bin/llvm-profdata"
+          --jobs 2 --timeout-seconds 1800 --total-seconds 6000 --execute
+      - name: Require actual production native mutation assertion kills
+        if: ${{ matrix.lane == 'native-mutations' }}
+        run: >-
+          temp/source-assurance-tools/bin/python tools/native_mutation_session.py
+          --out temp/source-assurance-result
+          --cmake "$(command -v cmake)" --ctest "$(command -v ctest)"
+          --ninja "$(command -v ninja)" --compiler "$RNS8_SOURCE_LLVM_ROOT/bin/clang++"
+          --python "${{ github.workspace }}/temp/source-assurance-tools/bin/python"
+          --jobs 2 --timeout-seconds 1800 --total-seconds 6000 --execute
+      - name: Collect selected Python production branches and subprocess contexts
+        if: ${{ matrix.lane == 'python-coverage' }}
+        run: >-
+          temp/source-assurance-tools/bin/python tools/python_coverage_session.py
+          --python "${{ github.workspace }}/temp/source-assurance-tools/bin/python"
+          --out temp/source-assurance-result
+          --timeout-seconds 1800 --total-seconds 6000 --execute
+      - name: Require actual production Python mutation assertion kills
+        if: ${{ matrix.lane == 'python-mutations' }}
+        run: >-
+          temp/source-assurance-tools/bin/python tools/seeded_mutation_session.py
+          --python "${{ github.workspace }}/temp/source-assurance-tools/bin/python"
+          --out temp/source-assurance-result
+          --timeout-seconds 180 --total-seconds 3600 --execute
+      - name: Preserve first failure, native profiles and mutation classifications
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: source-assurance-${{ matrix.lane }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          include-hidden-files: true
+          path: temp/source-assurance-result/

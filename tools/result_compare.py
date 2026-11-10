@@ -5,11 +5,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 from benchmark_schema import BenchmarkSchemaError, schema_version, validate_capture
+from timing_eligibility import pair_blockers
+from measurement_contract import (
+    exact_proof_policy,
+    host_batch_contract,
+    host_instrumentation,
+    output_completion_boundary,
+    host_observation_contract,
+)
 
 
 TIMING_PHASES = [
@@ -26,7 +33,18 @@ TIMING_PHASES = [
     "end_to_end",
 ]
 CONTRACT_KEYS = [
+    "exact_proof_policy",
+    "host_instrumentation_state",
+    "host_observation_contract",
+    "output_completion_boundary",
+    "host_api_batch.work_contract",
     "semantics",
+    "finite_modulus",
+    "residue_chain_length",
+    "exact_wide_limb_count",
+    "requested_next_op.resolved",
+    "output_logical_ld",
+    "output_ld_padding",
     "bound_kind",
     "bound_mode",
     "bound",
@@ -100,6 +118,7 @@ CONTRACT_KEYS = [
     "tile_shape_variant.tile_k",
     "tile_shape_variant.k_block_policy",
     "grouped_dispatch.task_count",
+    "grouped_dispatch.task_descriptor_contract",
     "adaptive_grouped_scheduler.requested",
     "adaptive_grouped_scheduler.strategy",
     "resident_lifetime.enabled",
@@ -116,6 +135,7 @@ CONTRACT_KEYS = [
     "prepack_reuse_strategy",
     "seed",
     "input_distribution",
+    "input_profile",
 ]
 EXPORT_SELECTOR_REVIEW_DIFF_KEYS = {
     "export_variant.name",
@@ -206,6 +226,14 @@ BACKEND_EVIDENCE_KEYS = [
     "workspace_arena.measured_repeat_allocation_delta.allocated_bytes",
     "streaming_overlap.capture_status",
     "hip_graph_replay.requested",
+    "hip_graph_replay.caller_transaction.schema",
+    "hip_graph_replay.caller_transaction.completion_boundary",
+    "hip_graph_replay.caller_transaction.input_staging",
+    "hip_graph_replay.caller_transaction.caller_output_delivery",
+    "hip_graph_replay.caller_transaction.input_a_bytes_per_call",
+    "hip_graph_replay.caller_transaction.input_b_bytes_per_call",
+    "hip_graph_replay.caller_transaction.output_bytes_per_call",
+    "hip_graph_replay.caller_transaction.common_setup_excluded",
     "hip_graph_replay.capture_status",
     "release_gate.review_status",
     "timing_metadata.pack_layout",
@@ -276,6 +304,33 @@ def capture_bound_source(data: dict[str, Any]) -> str:
 
 
 def contract_value(data: dict[str, Any], key: str) -> Any:
+    if key == "host_observation_contract":
+        return host_observation_contract(data)
+    if key == "output_completion_boundary":
+        return output_completion_boundary(data)
+    if key == "host_instrumentation_state":
+        return host_instrumentation(data)
+    if key == "input_profile":
+        return data.get(key, "uniform-small")
+    if key == "exact_proof_policy":
+        return exact_proof_policy(data)
+    if key == "host_api_batch.work_contract":
+        return host_batch_contract(data)
+    if key == "finite_modulus":
+        if data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}:
+            modulus = data.get(key)
+            if type(modulus) is not int or not 2 <= modulus <= 256:
+                raise BenchmarkSchemaError(
+                    "finite arithmetic contract requires an integer modulus in [2, 256]"
+                )
+            return modulus
+        return None
+    if key == "residue_chain_length":
+        return data.get(key, 1)
+    if key == "output_logical_ld":
+        return data.get(key, data.get("n"))
+    if key == "output_ld_padding":
+        return data.get(key, 0)
     if key == "reuse_packed_inputs":
         return data.get("reuse_packed_inputs") is True
     if key == "pack_mode":
@@ -292,7 +347,9 @@ def phase_timing(data: dict[str, Any], phase: str, path: Path) -> tuple[float, s
         value = data.get("avg_per_modulus_gemm_estimate_us")
         if isinstance(value, (int, float)):
             return float(value), "avg_per_modulus_gemm_estimate_us"
-        raise SystemExit(f"{path}: missing numeric timing for phase avg_per_modulus_gemm_estimate_us")
+        raise SystemExit(
+            f"{path}: missing numeric timing for phase avg_per_modulus_gemm_estimate_us"
+        )
     if phase == "prepack_setup":
         value = data.get("avg_prepack_setup_us")
         if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -449,13 +506,17 @@ def compare(
     candidate_path: Path,
     *,
     allow_export_selector_diff: bool = False,
+    allow_proof_policy_diff: bool = False,
 ) -> dict[str, Any]:
     contract = {
         key: {
             "baseline": contract_value(baseline, key),
             "candidate": contract_value(candidate, key),
             "match": contract_value(baseline, key) == contract_value(candidate, key),
-            "ignored_for_contract": allow_export_selector_diff and key in EXPORT_SELECTOR_REVIEW_DIFF_KEYS,
+            "ignored_for_contract": (
+                allow_export_selector_diff and key in EXPORT_SELECTOR_REVIEW_DIFF_KEYS
+            )
+            or (allow_proof_policy_diff and key == "exact_proof_policy"),
         }
         for key in CONTRACT_KEYS
     }
@@ -478,16 +539,42 @@ def compare(
         for key in GPU_COMPATIBILITY_KEYS
     }
     gpu_compatibility_required = baseline_gpu and candidate_gpu
-    gpu_compatible = (not gpu_compatibility_required) or all(item["match"] for item in gpu_compatibility.values())
+    gpu_compatible = (not gpu_compatibility_required) or all(
+        item["match"] for item in gpu_compatibility.values()
+    )
     timings = {}
     for phase in TIMING_PHASES:
         base_applicable = phase_applicable(baseline, phase)
         cand_applicable = phase_applicable(candidate, phase)
-        base, base_source = phase_timing(baseline, phase, baseline_path) if base_applicable else (None, "not_applicable")
-        cand, cand_source = phase_timing(candidate, phase, candidate_path) if cand_applicable else (None, "not_applicable")
+        base, base_source = (
+            phase_timing(baseline, phase, baseline_path)
+            if base_applicable
+            else (None, "not_applicable")
+        )
+        cand, cand_source = (
+            phase_timing(candidate, phase, candidate_path)
+            if cand_applicable
+            else (None, "not_applicable")
+        )
         delta = cand - base if base is not None and cand is not None else None
         ratio = cand / base if base is not None and base != 0 and cand is not None else None
+        base_state = dotted_get(baseline, f"timing_metadata.phase_states.{phase}")
+        cand_state = dotted_get(candidate, f"timing_metadata.phase_states.{phase}")
+        host_mode_match = dotted_get(baseline, "timing_metadata.host_result_kind") == dotted_get(
+            candidate, "timing_metadata.host_result_kind"
+        )
+        host_ratio_qualified = not pair_blockers(baseline, candidate, phase)
+        if (
+            not host_mode_match
+            or base_state in {"below_resolution", "fused", "elided", "unsupported"}
+            or cand_state in {"below_resolution", "fused", "elided", "unsupported"}
+        ):
+            ratio = None
+
         timings[phase] = {
+            "host_ratio_qualified": host_ratio_qualified,
+            "baseline_measurement_state": base_state or "legacy_integer_microsecond_quantization",
+            "candidate_measurement_state": cand_state or "legacy_integer_microsecond_quantization",
             "baseline": base,
             "candidate": cand,
             "delta": delta,
@@ -505,8 +592,16 @@ def compare(
             "baseline_version": schema_version(baseline),
             "candidate_version": schema_version(candidate),
         },
-        "comparison_mode": "export_selector_review" if allow_export_selector_diff else "strict_contract",
-        "matching_contract": all(item["match"] or item["ignored_for_contract"] for item in contract.values()),
+        "comparison_mode": "proof_policy_review"
+        if allow_proof_policy_diff
+        else "export_selector_review"
+        if allow_export_selector_diff
+        else "strict_contract",
+        "changed_proof_policy": exact_proof_policy(baseline) != exact_proof_policy(candidate),
+        "same_proof_workload": exact_proof_policy(baseline) == exact_proof_policy(candidate),
+        "matching_contract": all(
+            item["match"] or item["ignored_for_contract"] for item in contract.values()
+        ),
         "gpu_compatible": gpu_compatible,
         "gpu_compatibility_required": gpu_compatibility_required,
         "contract": contract,
@@ -529,7 +624,9 @@ def print_human(report: dict[str, Any]) -> None:
     )
     print(f"matching contract: {report['matching_contract']}")
     print(f"comparison mode:   {report['comparison_mode']}")
-    print(f"gpu compatible:   {report['gpu_compatible']} (required={report['gpu_compatibility_required']})")
+    print(
+        f"gpu compatible:   {report['gpu_compatible']} (required={report['gpu_compatibility_required']})"
+    )
     print()
     print("Contract")
     for key, item in report["contract"].items():
@@ -554,7 +651,9 @@ def print_human(report: dict[str, Any]) -> None:
         cand_text = "n/a" if item["candidate"] is None else f"{item['candidate']:.6g}"
         delta_text = "n/a" if item["delta"] is None else f"{item['delta']:.6g}"
         applicability = (
-            "" if item["baseline_applicable"] and item["candidate_applicable"] else " [not applicable to one or both captures]"
+            ""
+            if item["baseline_applicable"] and item["candidate_applicable"]
+            else " [not applicable to one or both captures]"
         )
         print(
             f"{phase}: baseline={base_text} "
@@ -586,6 +685,11 @@ def main() -> int:
             "while still enforcing the same semantic, shape, limb, signedness, layout, target, and backend contract"
         ),
     )
+    parser.add_argument(
+        "--allow-proof-policy-diff",
+        action="store_true",
+        help="explicit eager-versus-scalar-first A/B review; not repeated observations of the same proof workload",
+    )
     args = parser.parse_args()
 
     baseline = load_result(args.baseline)
@@ -596,6 +700,7 @@ def main() -> int:
         args.baseline,
         args.candidate,
         allow_export_selector_diff=args.allow_export_selector_diff,
+        allow_proof_policy_diff=args.allow_proof_policy_diff,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

@@ -1,6 +1,7 @@
 void store_u64_limbs(std::vector<uint8_t>& dst, int64_t cell, uint64_t value) {
   for (uint32_t limb = 0; limb < 8; ++limb) {
-    dst[static_cast<std::size_t>(cell * 8 + limb)] = static_cast<uint8_t>((value >> (8u * limb)) & 0xffu);
+    dst[static_cast<std::size_t>(cell * 8 + limb)] =
+        static_cast<uint8_t>((value >> (8u * limb)) & 0xffu);
   }
 }
 
@@ -12,52 +13,43 @@ uint64_t load_u64_limbs(const std::vector<uint8_t>& src, int64_t cell) {
   return value;
 }
 
-void run_wrap64_resident_device_gemm(
-    const std::vector<uint8_t>& a_limbs,
-    const std::vector<uint8_t>& b_limbs,
-    std::vector<uint8_t>& c_limbs,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+void run_wrap64_resident_device_gemm(const std::vector<uint8_t>& a_limbs,
+                                     const std::vector<uint8_t>& b_limbs,
+                                     std::vector<uint8_t>& c_limbs, int64_t m, int64_t n,
+                                     int64_t k) {
   void* device_a = nullptr;
   void* device_b = nullptr;
   void* device_c = nullptr;
   REQUIRE(rns8::detail::hip_direct_allocate(0, a_limbs.size(), &device_a) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::hip_direct_allocate(0, b_limbs.size(), &device_b) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::hip_direct_allocate(0, c_limbs.size(), &device_c) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_a, a_limbs.data(), a_limbs.size()) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_b, b_limbs.data(), b_limbs.size()) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_c, c_limbs.data(), c_limbs.size()) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_a, a_limbs.data(),
+                                                       a_limbs.size()) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_b, b_limbs.data(),
+                                                       b_limbs.size()) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_c, c_limbs.data(),
+                                                       c_limbs.size()) == RNS8_SUCCESS);
 
-  REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, device_a, device_b, device_c, m, n, k) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, c_limbs.data(), device_c, c_limbs.size()) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::wrap64_hip_gemm_byte_limbs_device_resident(0, device_a, device_b, device_c,
+                                                                   m, n, k) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, c_limbs.data(), device_c,
+                                                       c_limbs.size()) == RNS8_SUCCESS);
 
   CHECK(rns8::detail::hip_direct_free(0, device_c) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_free(0, device_b) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_free(0, device_a) == RNS8_SUCCESS);
 }
 
-void run_resident_ring_gemm(
-    const std::vector<int8_t>& A,
-    const std::vector<int8_t>& B,
-    std::vector<int8_t>& C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus,
-    uint32_t modulus_index,
-    uint32_t selected_prefix) {
-  const std::size_t a_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(lda) * sizeof(int8_t);
-  const std::size_t b_bytes = static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb) * sizeof(int8_t);
-  const std::size_t c_bytes = static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc) * sizeof(int8_t);
+void run_resident_ring_gemm(const std::vector<int8_t>& A, const std::vector<int8_t>& B,
+                            std::vector<int8_t>& C, int64_t m, int64_t n, int64_t k, int64_t lda,
+                            int64_t ldb, int64_t ldc, uint16_t modulus, uint32_t modulus_index,
+                            uint32_t selected_prefix) {
+  const std::size_t a_bytes =
+      static_cast<std::size_t>(m) * static_cast<std::size_t>(lda) * sizeof(int8_t);
+  const std::size_t b_bytes =
+      static_cast<std::size_t>(k) * static_cast<std::size_t>(ldb) * sizeof(int8_t);
+  const std::size_t c_bytes =
+      static_cast<std::size_t>(m) * static_cast<std::size_t>(ldc) * sizeof(int8_t);
   REQUIRE(A.size() * sizeof(int8_t) >= a_bytes);
   REQUIRE(B.size() * sizeof(int8_t) >= b_bytes);
   REQUIRE(C.size() * sizeof(int8_t) >= c_bytes);
@@ -68,25 +60,18 @@ void run_resident_ring_gemm(
   REQUIRE(rns8::detail::hip_direct_allocate(0, a_bytes, &device_a) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::hip_direct_allocate(0, b_bytes, &device_b) == RNS8_SUCCESS);
   REQUIRE(rns8::detail::hip_direct_allocate(0, c_bytes, &device_c) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_a, A.data(), a_bytes) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_b, B.data(), b_bytes) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_c, C.data(), c_bytes) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_a, A.data(), a_bytes) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_b, B.data(), b_bytes) ==
+          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(0, device_c, C.data(), c_bytes) ==
+          RNS8_SUCCESS);
 
-  REQUIRE(rns8::detail::hip_direct_ring_gemm_i8_device(
-              0,
-              device_a,
-              device_b,
-              device_c,
-              m,
-              n,
-              k,
-              lda,
-              ldb,
-              ldc,
-              modulus,
-              modulus_index,
-              selected_prefix) == RNS8_SUCCESS);
-  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, C.data(), device_c, c_bytes) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_ring_gemm_i8_device(0, device_a, device_b, device_c, m, n, k,
+                                                       lda, ldb, ldc, modulus, modulus_index,
+                                                       selected_prefix) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_device_to_host(0, C.data(), device_c, c_bytes) ==
+          RNS8_SUCCESS);
 
   CHECK(rns8::detail::hip_direct_free(0, device_c) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_free(0, device_b) == RNS8_SUCCESS);
@@ -101,9 +86,12 @@ std::vector<int8_t> exact_residues_for(boost::multiprecision::cpp_int value, uin
   return residues;
 }
 
-void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::multiprecision::cpp_int>& values) {
+void fill_exact_residue_matrix(rns8_matrix* matrix,
+                               const std::vector<boost::multiprecision::cpp_int>& values) {
   REQUIRE(matrix != nullptr);
   REQUIRE(values.size() == static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols));
+  matrix->residues.resize(static_cast<std::size_t>(matrix->desc.rows * matrix->desc.cols) *
+                          matrix->prefix);
   for (uint32_t p = 0; p < matrix->prefix; ++p) {
     for (int64_t row = 0; row < matrix->desc.rows; ++row) {
       for (int64_t col = 0; col < matrix->desc.cols; ++col) {
@@ -114,15 +102,19 @@ void fill_exact_residue_matrix(rns8_matrix* matrix, const std::vector<boost::mul
       }
     }
   }
+  matrix->materialized_rns_prefix = matrix->prefix;
+  matrix->materialized_rns_schedule.reset();
+  // Raw CRT fixtures deliberately include values outside the represented
+  // interval. Record written planes, without inventing an integer range proof.
   rns8::test::set_host_residues_current(*matrix, true);
   rns8::test::set_device_residues_current(*matrix, false);
 }
 
 void upload_exact_residues_to_hip(rns8_matrix* matrix) {
   REQUIRE(matrix != nullptr);
-  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(
-              matrix->hip_device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_copy_host_to_device(matrix->hip_device_id, matrix->hip_residues,
+                                                       matrix->residues.data(),
+                                                       matrix->hip_residue_bytes) == RNS8_SUCCESS);
   rns8::test::set_host_residues_current(*matrix, false);
   rns8::test::set_device_residues_current(*matrix, true);
 }
@@ -163,11 +155,10 @@ struct BoundedHipResidentSnapshot {
   uint64_t workspace_schedule_fingerprint = 0;
 };
 
-BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+BoundedHipResidentSnapshot capture_bounded_resident_snapshot(const rns8_matrix* A,
+                                                             const rns8_matrix* B,
+                                                             const rns8_matrix* C,
+                                                             const rns8_workspace* workspace) {
   REQUIRE(A != nullptr);
   REQUIRE(B != nullptr);
   REQUIRE(C != nullptr);
@@ -209,12 +200,10 @@ BoundedHipResidentSnapshot capture_bounded_resident_snapshot(
   return snapshot;
 }
 
-void check_bounded_resident_snapshot_unchanged(
-    const BoundedHipResidentSnapshot& snapshot,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+void check_bounded_resident_snapshot_unchanged(const BoundedHipResidentSnapshot& snapshot,
+                                               const rns8_matrix* A, const rns8_matrix* B,
+                                               const rns8_matrix* C,
+                                               const rns8_workspace* workspace) {
   const auto repeated = rns8::detail::hip_direct_allocation_counters_snapshot();
   CHECK(repeated.allocate_calls == snapshot.allocations.allocate_calls);
   CHECK(repeated.free_calls == snapshot.allocations.free_calls);
@@ -247,8 +236,10 @@ void check_bounded_resident_snapshot_unchanged(
   CHECK(workspace->schedule_max_selected_prefix == snapshot.workspace_schedule_max_selected_prefix);
   CHECK(workspace->schedule_prefix_group_count == snapshot.workspace_schedule_prefix_group_count);
   CHECK(workspace->schedule_range_bit_length == snapshot.workspace_schedule_range_bit_length);
-  CHECK(workspace->schedule_adaptive_prefix_active == snapshot.workspace_schedule_adaptive_prefix_active);
-  CHECK(workspace->schedule_adaptive_skip_active == snapshot.workspace_schedule_adaptive_skip_active);
+  CHECK(workspace->schedule_adaptive_prefix_active ==
+        snapshot.workspace_schedule_adaptive_prefix_active);
+  CHECK(workspace->schedule_adaptive_skip_active ==
+        snapshot.workspace_schedule_adaptive_skip_active);
   CHECK(workspace->schedule_flags == snapshot.workspace_schedule_flags);
   CHECK(workspace->schedule_fingerprint == snapshot.workspace_schedule_fingerprint);
 }
@@ -289,11 +280,10 @@ struct Wrap64HipResidentSnapshot {
   uint64_t workspace_schedule_fingerprint = 0;
 };
 
-Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(const rns8_matrix* A,
+                                                           const rns8_matrix* B,
+                                                           const rns8_matrix* C,
+                                                           const rns8_workspace* workspace) {
   REQUIRE(A != nullptr);
   REQUIRE(B != nullptr);
   REQUIRE(C != nullptr);
@@ -335,12 +325,10 @@ Wrap64HipResidentSnapshot capture_wrap64_resident_snapshot(
   return snapshot;
 }
 
-void check_wrap64_resident_snapshot_unchanged(
-    const Wrap64HipResidentSnapshot& snapshot,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+void check_wrap64_resident_snapshot_unchanged(const Wrap64HipResidentSnapshot& snapshot,
+                                              const rns8_matrix* A, const rns8_matrix* B,
+                                              const rns8_matrix* C,
+                                              const rns8_workspace* workspace) {
   const auto repeated = rns8::detail::hip_direct_allocation_counters_snapshot();
   CHECK(repeated.allocate_calls == snapshot.allocations.allocate_calls);
   CHECK(repeated.free_calls == snapshot.allocations.free_calls);
@@ -382,8 +370,10 @@ void check_wrap64_resident_snapshot_unchanged(
   CHECK(workspace->schedule_max_selected_prefix == snapshot.workspace_schedule_max_selected_prefix);
   CHECK(workspace->schedule_prefix_group_count == snapshot.workspace_schedule_prefix_group_count);
   CHECK(workspace->schedule_range_bit_length == snapshot.workspace_schedule_range_bit_length);
-  CHECK(workspace->schedule_adaptive_prefix_active == snapshot.workspace_schedule_adaptive_prefix_active);
-  CHECK(workspace->schedule_adaptive_skip_active == snapshot.workspace_schedule_adaptive_skip_active);
+  CHECK(workspace->schedule_adaptive_prefix_active ==
+        snapshot.workspace_schedule_adaptive_prefix_active);
+  CHECK(workspace->schedule_adaptive_skip_active ==
+        snapshot.workspace_schedule_adaptive_skip_active);
   CHECK(workspace->schedule_flags == snapshot.workspace_schedule_flags);
   CHECK(workspace->schedule_fingerprint == snapshot.workspace_schedule_fingerprint);
 }
@@ -418,11 +408,10 @@ struct FiniteHipResidentSnapshot {
   uint32_t workspace_schedule_prefix_group_count = 0;
 };
 
-FiniteHipResidentSnapshot capture_finite_resident_snapshot(
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+FiniteHipResidentSnapshot capture_finite_resident_snapshot(const rns8_matrix* A,
+                                                           const rns8_matrix* B,
+                                                           const rns8_matrix* C,
+                                                           const rns8_workspace* workspace) {
   REQUIRE(A != nullptr);
   REQUIRE(B != nullptr);
   REQUIRE(C != nullptr);
@@ -458,12 +447,10 @@ FiniteHipResidentSnapshot capture_finite_resident_snapshot(
   return snapshot;
 }
 
-void check_finite_resident_snapshot_unchanged(
-    const FiniteHipResidentSnapshot& snapshot,
-    const rns8_matrix* A,
-    const rns8_matrix* B,
-    const rns8_matrix* C,
-    const rns8_workspace* workspace) {
+void check_finite_resident_snapshot_unchanged(const FiniteHipResidentSnapshot& snapshot,
+                                              const rns8_matrix* A, const rns8_matrix* B,
+                                              const rns8_matrix* C,
+                                              const rns8_workspace* workspace) {
   const auto repeated = rns8::detail::hip_direct_allocation_counters_snapshot();
   CHECK(repeated.allocate_calls == snapshot.allocations.allocate_calls);
   CHECK(repeated.free_calls == snapshot.allocations.free_calls);
@@ -504,4 +491,3 @@ void check_finite_resident_snapshot_unchanged(
   CHECK(workspace->schedule_max_selected_prefix == snapshot.workspace_schedule_max_selected_prefix);
   CHECK(workspace->schedule_prefix_group_count == snapshot.workspace_schedule_prefix_group_count);
 }
-

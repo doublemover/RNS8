@@ -6,7 +6,10 @@ from __future__ import annotations
 import copy
 
 from benchmark_schema import validate_capture
-from test_benchmark_schema import expect_invalid, expect_valid
+from test_benchmark_schema_support_core import (
+    expect_invalid,
+    expect_valid,
+)
 
 
 def main() -> int:
@@ -26,12 +29,17 @@ def main() -> int:
 
     bad_workspace_bytes = copy.deepcopy(ck)
     bad_workspace_bytes["backend_metadata"]["workspace_required_bytes"] = -1
-    expect_invalid(bad_workspace_bytes, "backend_metadata.workspace_required_bytes must be a nonnegative integer")
+    expect_invalid(
+        bad_workspace_bytes,
+        "backend_metadata.workspace_required_bytes must be a nonnegative integer",
+    )
 
     validate_capture(hipblaslt)
 
     bad_hipblaslt_epilogue = copy.deepcopy(hipblaslt)
-    bad_hipblaslt_epilogue["backend_metadata"]["epilogue_mode"] = "fused_centered_residue_then_crt_export"
+    bad_hipblaslt_epilogue["backend_metadata"]["epilogue_mode"] = (
+        "fused_centered_residue_then_crt_export"
+    )
     expect_invalid(
         bad_hipblaslt_epilogue,
         "hipBLASLt captures must report a separate INT32 scratch reduction epilogue",
@@ -41,10 +49,14 @@ def main() -> int:
 
     bad_vector_source = copy.deepcopy(vector)
     bad_vector_source["backend_metadata"]["source"] = "rns8_get_plan_backend_info"
-    expect_invalid(bad_vector_source, "backend_metadata.source must be rns8_bench_vector_alu_baseline")
+    expect_invalid(
+        bad_vector_source, "backend_metadata.source must be rns8_bench_vector_alu_baseline"
+    )
 
     bad_vector_capability = copy.deepcopy(vector)
-    bad_vector_capability["backend_metadata"]["capability_status"] = "implemented_native_bounded_vector_backend"
+    bad_vector_capability["backend_metadata"]["capability_status"] = (
+        "implemented_native_bounded_vector_backend"
+    )
     expect_invalid(
         bad_vector_capability,
         "hip-vector-alu-int64 captures must use backend_metadata.capability_status=benchmark_only_vector_alu_baseline",

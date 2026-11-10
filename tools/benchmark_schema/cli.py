@@ -12,7 +12,9 @@ from .core import BenchmarkSchemaError, load_capture, validate_capture
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate rns8-bench JSON capture files.")
     parser.add_argument("captures", type=Path, nargs="+", help="benchmark JSON capture files")
-    parser.add_argument("--json", action="store_true", help="emit machine-readable validation result")
+    parser.add_argument(
+        "--json", action="store_true", help="emit machine-readable validation result"
+    )
     args = parser.parse_args()
 
     results = []

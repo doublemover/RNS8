@@ -1,4 +1,8 @@
+#include "backend_common/packed_gemm_layout.hpp"
+#include "backend_common/address_domain.hpp"
+#include "backend_common/finite_u8_reducer.hpp"
 #include "backend_ck/ck_backend.hpp"
+#include "backend_ck/implementation_contract.hpp"
 
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/backend_common.hpp"
@@ -11,59 +15,39 @@
 #endif
 
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
-extern "C" int rns8_ck_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    unsigned int prefix);
+extern "C" int rns8_ck_gemm_rns_device(int device_id, const void* device_a_residues,
+                                       const void* device_b_residues, void* device_c_residues,
+                                       void* workspace, unsigned long long workspace_bytes,
+                                       long long m, long long n, long long k, long long lda,
+                                       long long ldb, long long ldc, unsigned int prefix);
 
-extern "C" int rns8_ck_gemm_rns_tiled_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    const rns8_plan_tile_schedule_entry* entries,
-    unsigned long long entry_count);
+extern "C" int rns8_ck_gemm_rns_tiled_device(int device_id, const void* device_a_residues,
+                                             const void* device_b_residues, void* device_c_residues,
+                                             void* workspace, unsigned long long workspace_bytes,
+                                             long long m, long long n, long long k, long long lda,
+                                             long long ldb, long long ldc,
+                                             const rns8_plan_tile_schedule_entry* entries,
+                                             unsigned long long entry_count);
 
-extern "C" int rns8_ck_gemm_finite_u8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    unsigned long long workspace_bytes,
-    long long m,
-    long long n,
-    long long k,
-    long long lda,
-    long long ldb,
-    long long ldc,
-    unsigned int modulus);
+extern "C" int rns8_ck_gemm_finite_u8_device(int device_id, const void* device_a_residues,
+                                             const void* device_b_residues, void* device_c_residues,
+                                             void* workspace, unsigned long long workspace_bytes,
+                                             long long m, long long n, long long k, long long lda,
+                                             long long ldb, long long ldc, unsigned int modulus);
+#endif
+
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+extern "C" int rns8_ck_gemm_rns_device_on_stream(int, const void*, const void*, void*, void*,
+                                                 unsigned long long, long long, long long,
+                                                 long long, long long, long long, long long,
+                                                 unsigned, void*);
+extern "C" int rns8_ck_gemm_finite_u8_device_on_stream(int, const void*, const void*, void*, void*,
+                                                       unsigned long long, long long, long long,
+                                                       long long, long long, long long, long long,
+                                                       unsigned, void*);
 #endif
 
 namespace rns8::detail {
-
-namespace {
-constexpr uint64_t kCkShapeAlignment = RNS8_CK_SHAPE_ALIGNMENT;
-static_assert(kCkShapeAlignment == 64 || kCkShapeAlignment == 128, "unsupported CK shape alignment");
-}  // namespace
 
 bool ck_compiled() {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
@@ -75,12 +59,15 @@ bool ck_compiled() {
 
 rns8_status ck_probe(int device_id, rns8_device_info& out) {
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+  if (!compiled_ck_implementation().valid())
+    return RNS8_UNSUPPORTED_BACKEND;
   rns8_status status = hip_direct_probe(device_id, out);
   if (status != RNS8_SUCCESS) {
     return status;
   }
   out.backend = RNS8_BACKEND_CK;
-  copy_c_string(out.detail, sizeof(out.detail), "CK accelerator backend detected through HIP runtime");
+  copy_c_string(out.detail, sizeof(out.detail),
+                "CK accelerator backend detected through HIP runtime");
   return RNS8_SUCCESS;
 #else
   (void)device_id;
@@ -89,93 +76,39 @@ rns8_status ck_probe(int device_id, rns8_device_info& out) {
 #endif
 }
 
-bool ck_workspace_requirements(
-    int64_t max_m,
-    int64_t max_n,
-    int64_t k,
-    std::size_t& a_pack_bytes,
-    std::size_t& b_pack_bytes,
-    std::size_t& temp_c_bytes,
-    std::size_t& total_bytes) {
-  a_pack_bytes = 0;
-  b_pack_bytes = 0;
+bool ck_workspace_requirements(int64_t max_m, int64_t max_n, int64_t k, std::size_t& a_pack_bytes,
+                               std::size_t& b_pack_bytes, std::size_t& temp_c_bytes,
+                               std::size_t& total_bytes) {
+  a_pack_bytes = b_pack_bytes = total_bytes = 0;
   temp_c_bytes = 0;
-  total_bytes = 0;
-  if (max_m <= 0 || max_n <= 0 || k <= 0) {
+  PackedGemmLayout layout;
+  if (max_m <= 0 || max_n <= 0 || k <= 0 ||
+      !ck_packed_gemm_layout(max_m, max_n, k, compiled_ck_implementation(), layout))
     return false;
-  }
-  constexpr uint64_t kCanonicalSafeKBlock = 32768;
-  uint64_t k_block = static_cast<uint64_t>(k) < kCanonicalSafeKBlock
-                         ? static_cast<uint64_t>(k)
-                         : kCanonicalSafeKBlock;
-  if (k_block < 64) {
-    k_block = 64;
-  }
-  uint64_t padded_m = 0;
-  uint64_t padded_n = 0;
-  if (!round_up_aligned_u64(static_cast<uint64_t>(max_m), kCkShapeAlignment, padded_m) ||
-      !round_up_aligned_u64(static_cast<uint64_t>(max_n), kCkShapeAlignment, padded_n)) {
-    return false;
-  }
-  uint64_t a_bytes = 0;
-  if (!checked_mul_u64(padded_m, k_block, a_bytes)) {
-    return false;
-  }
-  uint64_t b_bytes = 0;
-  if (!checked_mul_u64(k_block, padded_n, b_bytes)) {
-    return false;
-  }
-  uint64_t c_elements = 0;
-  uint64_t c_bytes = 0;
-  if (!checked_mul_u64(padded_m, padded_n, c_elements)) {
-    return false;
-  }
-  c_bytes = c_elements;
-  if (a_bytes > std::numeric_limits<std::size_t>::max() ||
-      b_bytes > std::numeric_limits<std::size_t>::max() ||
-      c_bytes > std::numeric_limits<std::size_t>::max() ||
-      a_bytes > std::numeric_limits<uint64_t>::max() - b_bytes ||
-      a_bytes + b_bytes > std::numeric_limits<uint64_t>::max() - c_bytes ||
-      a_bytes + b_bytes + c_bytes > std::numeric_limits<std::size_t>::max()) {
-    return false;
-  }
-  a_pack_bytes = static_cast<std::size_t>(a_bytes);
-  b_pack_bytes = static_cast<std::size_t>(b_bytes);
-  temp_c_bytes = static_cast<std::size_t>(c_bytes);
-  total_bytes = static_cast<std::size_t>(a_bytes + b_bytes + c_bytes);
+  a_pack_bytes = static_cast<std::size_t>(layout.a_bytes);
+  b_pack_bytes = static_cast<std::size_t>(layout.b_bytes);
+  temp_c_bytes = static_cast<std::size_t>(layout.c_bytes);
+  total_bytes = static_cast<std::size_t>(layout.total_bytes);
   return true;
 }
 
-rns8_status ck_gemm_rns_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint32_t prefix) {
+rns8_status ck_gemm_rns_device(int device_id, const void* device_a_residues,
+                               const void* device_b_residues, void* device_c_residues,
+                               void* workspace, std::size_t workspace_bytes, int64_t m, int64_t n,
+                               int64_t k, int64_t lda, int64_t ldb, int64_t ldc, uint32_t prefix) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(
+          m, n, k, lda, ldb, ldc, prefix > 0 && prefix <= RNS8_MAX_SUPPORTED_PREFIX ? prefix : 1)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_rns_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
-        prefix);
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc), prefix);
   });
   return status_from_device_code(code);
 #else
@@ -196,37 +129,25 @@ rns8_status ck_gemm_rns_device(
 #endif
 }
 
-rns8_status ck_gemm_rns_tiled_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    const rns8_plan_tile_schedule_entry* entries,
-    uint64_t entry_count) {
+rns8_status ck_gemm_rns_tiled_device(int device_id, const void* device_a_residues,
+                                     const void* device_b_residues, void* device_c_residues,
+                                     void* workspace, std::size_t workspace_bytes, int64_t m,
+                                     int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+                                     const rns8_plan_tile_schedule_entry* entries,
+                                     uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc,
+                                                RNS8_MAX_SUPPORTED_PREFIX)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_rns_tiled_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
-        entries,
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc), entries,
         static_cast<unsigned long long>(entry_count));
   });
   return status_from_device_code(code);
@@ -249,35 +170,23 @@ rns8_status ck_gemm_rns_tiled_device(
 #endif
 }
 
-rns8_status ck_gemm_finite_u8_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    void* workspace,
-    std::size_t workspace_bytes,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus) {
+rns8_status ck_gemm_finite_u8_device(int device_id, const void* device_a_residues,
+                                     const void* device_b_residues, void* device_c_residues,
+                                     void* workspace, std::size_t workspace_bytes, int64_t m,
+                                     int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+                                     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
   const int code = run_timed_device_code("rns_gemm_kernel_group", [&]() {
     return rns8_ck_gemm_finite_u8_device(
-        device_id,
-        device_a_residues,
-        device_b_residues,
-        device_c_residues,
-        workspace,
-        static_cast<unsigned long long>(workspace_bytes),
-        static_cast<long long>(m),
-        static_cast<long long>(n),
-        static_cast<long long>(k),
-        static_cast<long long>(lda),
-        static_cast<long long>(ldb),
-        static_cast<long long>(ldc),
+        device_id, device_a_residues, device_b_residues, device_c_residues, workspace,
+        static_cast<unsigned long long>(workspace_bytes), static_cast<long long>(m),
+        static_cast<long long>(n), static_cast<long long>(k), static_cast<long long>(lda),
+        static_cast<long long>(ldb), static_cast<long long>(ldc),
         static_cast<unsigned int>(modulus));
   });
   return status_from_device_code(code);
@@ -299,4 +208,25 @@ rns8_status ck_gemm_finite_u8_device(
 #endif
 }
 
-}  // namespace rns8::detail
+rns8_status ck_enqueue_dense(int device, const void* a, const void* b, void* c, void* workspace,
+                             std::size_t bytes, int64_t m, int64_t n, int64_t k, int64_t lda,
+                             int64_t ldb, int64_t ldc, uint32_t value, bool finite, void* stream) {
+  if (!stream || !a || !b || !c || !workspace || !value || (!finite && value > 20) ||
+      (finite && (value < 2 || value > 256)))
+    return RNS8_INVALID_ARGUMENT;
+  if (!qualified_i32_gemm_address(m, n, k, lda, ldb, ldc, finite ? 1 : value))
+    return RNS8_UNSUPPORTED_BACKEND;
+#if defined(RNS8_ENABLE_CK) && RNS8_ENABLE_CK
+  const auto code =
+      finite ? rns8_ck_gemm_finite_u8_device_on_stream(device, a, b, c, workspace, bytes, m, n, k,
+                                                       lda, ldb, ldc, value, stream)
+             : rns8_ck_gemm_rns_device_on_stream(device, a, b, c, workspace, bytes, m, n, k, lda,
+                                                 ldb, ldc, value, stream);
+  return status_from_device_code(code);
+#else
+  (void)device;
+  (void)bytes;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+} // namespace rns8::detail

@@ -21,11 +21,9 @@ __device__ bool is_zero(UInt192 value) {
 }
 
 __device__ UInt192 product_u64_u64(uint64_t a, uint64_t b) {
-  const unsigned __int128 product = static_cast<unsigned __int128>(a) * static_cast<unsigned __int128>(b);
-  return UInt192{
-      static_cast<uint64_t>(product),
-      static_cast<uint64_t>(product >> 64),
-      0};
+  const unsigned __int128 product =
+      static_cast<unsigned __int128>(a) * static_cast<unsigned __int128>(b);
+  return UInt192{static_cast<uint64_t>(product), static_cast<uint64_t>(product >> 64), 0};
 }
 
 __device__ void add_assign(UInt192& acc, UInt192 value) {
@@ -71,7 +69,8 @@ __device__ uint64_t abs_i64_to_u64(int64_t value) {
   return value < 0 ? (~bits + 1ull) : bits;
 }
 
-__device__ void add_signed_product(bool& negative, UInt192& magnitude, bool product_negative, UInt192 product) {
+__device__ void add_signed_product(bool& negative, UInt192& magnitude, bool product_negative,
+                                   UInt192 product) {
   if (is_zero(product)) {
     return;
   }
@@ -96,14 +95,8 @@ __device__ void add_signed_product(bool& negative, UInt192& magnitude, bool prod
   }
 }
 
-__global__ void gemm_i64_kernel(
-    const int64_t* a,
-    const int64_t* b,
-    int64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__global__ void gemm_i64_kernel(const int64_t* a, const int64_t* b, int64_t* c, uint32_t* status,
+                                int64_t m, int64_t n, int64_t k) {
   const int64_t row = static_cast<int64_t>(blockIdx.y * blockDim.y + threadIdx.y);
   const int64_t col = static_cast<int64_t>(blockIdx.x * blockDim.x + threadIdx.x);
   if (row >= m || col >= n) {
@@ -141,14 +134,8 @@ __global__ void gemm_i64_kernel(
   c[row * n + col] = value;
 }
 
-__global__ void gemm_u64_kernel(
-    const uint64_t* a,
-    const uint64_t* b,
-    uint64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+__global__ void gemm_u64_kernel(const uint64_t* a, const uint64_t* b, uint64_t* c, uint32_t* status,
+                                int64_t m, int64_t n, int64_t k) {
   const int64_t row = static_cast<int64_t>(blockIdx.y * blockDim.y + threadIdx.y);
   const int64_t col = static_cast<int64_t>(blockIdx.x * blockDim.x + threadIdx.x);
   if (row >= m || col >= n) {
@@ -166,23 +153,15 @@ __global__ void gemm_u64_kernel(
 }
 
 template <typename T>
-int launch_vector_gemm(
-    int device_id,
-    const T* a,
-    const T* b,
-    T* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+int launch_vector_gemm(int device_id, const T* a, const T* b, T* c, uint32_t* status, int64_t m,
+                       int64_t n, int64_t k) {
   hipError_t error = hipSetDevice(device_id);
   if (error != hipSuccess) {
     return static_cast<int>(error);
   }
   const dim3 block(16, 16);
-  const dim3 grid(
-      static_cast<unsigned int>((static_cast<uint64_t>(n) + block.x - 1u) / block.x),
-      static_cast<unsigned int>((static_cast<uint64_t>(m) + block.y - 1u) / block.y));
+  const dim3 grid(static_cast<unsigned int>((static_cast<uint64_t>(n) + block.x - 1u) / block.x),
+                  static_cast<unsigned int>((static_cast<uint64_t>(m) + block.y - 1u) / block.y));
   if constexpr (std::is_same<T, int64_t>::value) {
     hipLaunchKernelGGL(gemm_i64_kernel, grid, block, 0, 0, a, b, c, status, m, n, k);
   } else {
@@ -195,28 +174,16 @@ int launch_vector_gemm(
   return static_cast<int>(hipDeviceSynchronize());
 }
 
-}  // namespace
+} // namespace
 
-extern "C" int rns8_bench_vector_i64_gemm_device(
-    int device_id,
-    const int64_t* a,
-    const int64_t* b,
-    int64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+extern "C" int rns8_bench_vector_i64_gemm_device(int device_id, const int64_t* a, const int64_t* b,
+                                                 int64_t* c, uint32_t* status, int64_t m, int64_t n,
+                                                 int64_t k) {
   return launch_vector_gemm(device_id, a, b, c, status, m, n, k);
 }
 
-extern "C" int rns8_bench_vector_u64_gemm_device(
-    int device_id,
-    const uint64_t* a,
-    const uint64_t* b,
-    uint64_t* c,
-    uint32_t* status,
-    int64_t m,
-    int64_t n,
-    int64_t k) {
+extern "C" int rns8_bench_vector_u64_gemm_device(int device_id, const uint64_t* a,
+                                                 const uint64_t* b, uint64_t* c, uint32_t* status,
+                                                 int64_t m, int64_t n, int64_t k) {
   return launch_vector_gemm(device_id, a, b, c, status, m, n, k);
 }

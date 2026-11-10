@@ -1,0 +1,522 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "wrap64",
+  "groups": [
+    {
+      "root": "object",
+      "keys": ["schema", "cases"],
+      "defaults": {
+        "schema": "rns8_wrap64_cases_v1"
+      },
+      "columns": ["cases"],
+      "rows": [
+        [
+          "512-reuse.json",
+          "1945102eedf3c25e354d3145b2f3a66875920240d4905d5d226ddee09fa6ff24",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 512,
+                "n": 512,
+                "k": 512
+              },
+              "rows": [
+                [0, "signed_radix", "resident", "seeded", 1],
+                [0, "native_u8", "resident", "seeded", 1],
+                [0, "direct_v4", "resident", "seeded", 1],
+                [0, "rocwmma_corrected", "resident", "seeded", 1],
+                [0, "signed_radix", "roundtrip", "seeded", 1],
+                [0, "native_u8", "roundtrip", "seeded", 1],
+                [0, "direct_v4", "roundtrip", "seeded", 1],
+                [0, "rocwmma_corrected", "roundtrip", "seeded", 1],
+                [0, "signed_radix", "cold", "seeded", 1],
+                [0, "native_u8", "cold", "seeded", 1],
+                [0, "direct_v4", "cold", "seeded", 1],
+                [0, "rocwmma_corrected", "cold", "seeded", 1],
+                [0, "signed_radix", "resident", "seeded", 8],
+                [0, "native_u8", "resident", "seeded", 8],
+                [0, "direct_v4", "resident", "seeded", 8],
+                [0, "rocwmma_corrected", "resident", "seeded", 8],
+                [0, "signed_radix", "roundtrip", "seeded", 8],
+                [0, "native_u8", "roundtrip", "seeded", 8],
+                [0, "direct_v4", "roundtrip", "seeded", 8],
+                [0, "rocwmma_corrected", "roundtrip", "seeded", 8],
+                [0, "signed_radix", "cold", "seeded", 8],
+                [0, "native_u8", "cold", "seeded", 8],
+                [0, "direct_v4", "cold", "seeded", 8],
+                [0, "rocwmma_corrected", "cold", "seeded", 8],
+                [0, "signed_radix", "resident", "carry", 1],
+                [0, "native_u8", "resident", "carry", 1],
+                [0, "direct_v4", "resident", "carry", 1],
+                [0, "rocwmma_corrected", "resident", "carry", 1],
+                [0, "signed_radix", "roundtrip", "carry", 1],
+                [0, "native_u8", "roundtrip", "carry", 1],
+                [0, "direct_v4", "roundtrip", "carry", 1],
+                [0, "rocwmma_corrected", "roundtrip", "carry", 1],
+                [0, "signed_radix", "cold", "carry", 1],
+                [0, "native_u8", "cold", "carry", 1],
+                [0, "direct_v4", "cold", "carry", 1],
+                [0, "rocwmma_corrected", "cold", "carry", 1],
+                [0, "signed_radix", "resident", "carry", 8],
+                [0, "native_u8", "resident", "carry", 8],
+                [0, "direct_v4", "resident", "carry", 8],
+                [0, "rocwmma_corrected", "resident", "carry", 8],
+                [0, "signed_radix", "roundtrip", "carry", 8],
+                [0, "native_u8", "roundtrip", "carry", 8],
+                [0, "direct_v4", "roundtrip", "carry", 8],
+                [0, "rocwmma_corrected", "roundtrip", "carry", 8],
+                [0, "signed_radix", "cold", "carry", 8],
+                [0, "native_u8", "cold", "carry", 8],
+                [0, "direct_v4", "cold", "carry", 8],
+                [0, "rocwmma_corrected", "cold", "carry", 8]
+              ]
+            }
+          }
+        ],
+        [
+          "cdna-boundaries.json",
+          "97fd2cf98db4f480b55e1e635cd54126bcf536dac86453fc21b3ce8e013ab22b",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 257,
+                "pattern": "seeded"
+              },
+              "rows": [
+                [0, "signed_radix_mfma", "resident", 1],
+                [0, "direct_v4", "resident", 1],
+                [0, "signed_radix_mfma", "resident", 8],
+                [0, "direct_v4", "resident", 8],
+                [0, "signed_radix_mfma", "repeated_b", 1],
+                [0, "direct_v4", "repeated_b", 1],
+                [0, "signed_radix_mfma", "repeated_b", 8],
+                [0, "direct_v4", "repeated_b", 8],
+                [0, "signed_radix_mfma", "roundtrip", 1],
+                [0, "direct_v4", "roundtrip", 1],
+                [0, "signed_radix_mfma", "roundtrip", 8],
+                [0, "direct_v4", "roundtrip", 8],
+                [0, "signed_radix_mfma", "cold", 1],
+                [0, "direct_v4", "cold", 1],
+                [0, "signed_radix_mfma", "cold", 8],
+                [0, "direct_v4", "cold", 8],
+                [0, "native_u64", "resident", 1],
+                [0, "native_u64", "resident", 8],
+                [0, "native_u64", "repeated_b", 1],
+                [0, "native_u64", "repeated_b", 8],
+                [0, "native_u64", "roundtrip", 1],
+                [0, "native_u64", "roundtrip", 8],
+                [0, "native_u64", "cold", 1],
+                [0, "native_u64", "cold", 8]
+              ]
+            }
+          }
+        ],
+        [
+          "cdna-carry-slabs.json",
+          "d8243dedac47d3e515d62f905dcae2603de5b1a8da8334eaae28495122b1c878",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "scope": "resident",
+                "m": 2,
+                "n": 3,
+                "pattern": "carry",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "signed_radix_mfma", 4095],
+                [0, "direct_v4", 4095],
+                [0, "signed_radix_mfma", 4096],
+                [0, "direct_v4", 4096],
+                [0, "signed_radix_mfma", 4097],
+                [0, "direct_v4", 4097],
+                [0, "signed_radix_mfma", 33024],
+                [0, "direct_v4", 33024],
+                [0, "signed_radix_mfma", 33025],
+                [0, "direct_v4", 33025],
+                [0, "signed_radix_mfma", 33026],
+                [0, "direct_v4", 33026],
+                [0, "signed_radix_mfma", 65535],
+                [0, "direct_v4", 65535],
+                [0, "signed_radix_mfma", 65536],
+                [0, "direct_v4", 65536],
+                [0, "signed_radix_mfma", 65537],
+                [0, "direct_v4", 65537],
+                [0, "signed_radix_mfma", 131070],
+                [0, "direct_v4", 131070],
+                [0, "signed_radix_mfma", 131071],
+                [0, "direct_v4", 131071],
+                [0, "native_u64", 4095],
+                [0, "native_u64", 4096],
+                [0, "native_u64", 4097],
+                [0, "native_u64", 33024],
+                [0, "native_u64", 33025],
+                [0, "native_u64", 33026],
+                [0, "native_u64", 65535],
+                [0, "native_u64", 65536],
+                [0, "native_u64", 65537],
+                [0, "native_u64", 131070],
+                [0, "native_u64", 131071]
+              ]
+            }
+          }
+        ],
+        [
+          "cdna-small.json",
+          "125d5f2db0b1460b6c2829d211a6fe238ccefd1323b47b2268064c8b4ff28eed",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "scope": "resident",
+                "m": 2,
+                "n": 3,
+                "pattern": "carry",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "signed_radix_mfma", 15],
+                [0, "direct_v4", 15],
+                [0, "signed_radix_mfma", 16],
+                [0, "direct_v4", 16],
+                [0, "signed_radix_mfma", 17],
+                [0, "direct_v4", 17],
+                [0, "signed_radix_mfma", 31],
+                [0, "direct_v4", 31],
+                [0, "signed_radix_mfma", 32],
+                [0, "direct_v4", 32],
+                [0, "signed_radix_mfma", 33],
+                [0, "direct_v4", 33],
+                [0, "signed_radix_mfma", 63],
+                [0, "direct_v4", 63],
+                [0, "signed_radix_mfma", 64],
+                [0, "direct_v4", 64],
+                [0, "signed_radix_mfma", 65],
+                [0, "direct_v4", 65],
+                [0, "native_u64", 15],
+                [0, "native_u64", 16],
+                [0, "native_u64", 17],
+                [0, "native_u64", 31],
+                [0, "native_u64", 32],
+                [0, "native_u64", 33],
+                [0, "native_u64", 63],
+                [0, "native_u64", 64],
+                [0, "native_u64", 65]
+              ]
+            }
+          }
+        ],
+        [
+          "cdna-sustained.json",
+          "4a78cdad18d73da920b1d7eaed07773eadbf3bd345417677a5f9c5d271a953c0",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "pattern": "seeded"
+              },
+              "rows": [
+                [0, "signed_radix_mfma", "resident", 128, 128, 128, 8],
+                [0, "direct_v4", "resident", 128, 128, 128, 8],
+                [0, "native_u64", "resident", 128, 128, 128, 8],
+                [0, "signed_radix_mfma", "repeated_b", 128, 128, 128, 1],
+                [0, "direct_v4", "repeated_b", 128, 128, 128, 1],
+                [0, "native_u64", "repeated_b", 128, 128, 128, 1],
+                [0, "signed_radix_mfma", "resident", 256, 256, 256, 8],
+                [0, "direct_v4", "resident", 256, 256, 256, 8],
+                [0, "native_u64", "resident", 256, 256, 256, 8],
+                [0, "signed_radix_mfma", "repeated_b", 256, 256, 256, 1],
+                [0, "direct_v4", "repeated_b", 256, 256, 256, 1],
+                [0, "native_u64", "repeated_b", 256, 256, 256, 1],
+                [0, "signed_radix_mfma", "resident", 512, 512, 512, 8],
+                [0, "direct_v4", "resident", 512, 512, 512, 8],
+                [0, "native_u64", "resident", 512, 512, 512, 8],
+                [0, "signed_radix_mfma", "repeated_b", 512, 512, 512, 1],
+                [0, "direct_v4", "repeated_b", 512, 512, 512, 1],
+                [0, "native_u64", "repeated_b", 512, 512, 512, 1],
+                [0, "signed_radix_mfma", "resident", 16, 256, 1024, 8],
+                [0, "direct_v4", "resident", 16, 256, 1024, 8],
+                [0, "native_u64", "resident", 16, 256, 1024, 8],
+                [0, "signed_radix_mfma", "repeated_b", 16, 256, 1024, 1],
+                [0, "direct_v4", "repeated_b", 16, 256, 1024, 1],
+                [0, "native_u64", "repeated_b", 16, 256, 1024, 1]
+              ]
+            }
+          }
+        ],
+        [
+          "long-k.json",
+          "cc4bdc260c63de567f69284874befa574854073b4041e1484a41cc71e0998175",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 2,
+                "n": 3,
+                "pattern": "carry",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "signed_radix", "resident", 33025],
+                [0, "native_u8", "resident", 33025],
+                [0, "direct_v4", "resident", 33025],
+                [0, "signed_radix", "roundtrip", 33025],
+                [0, "native_u8", "roundtrip", 33025],
+                [0, "direct_v4", "roundtrip", 33025],
+                [0, "signed_radix", "cold", 33025],
+                [0, "native_u8", "cold", 33025],
+                [0, "direct_v4", "cold", 33025],
+                [0, "signed_radix", "resident", 65535],
+                [0, "native_u8", "resident", 65535],
+                [0, "direct_v4", "resident", 65535],
+                [0, "signed_radix", "roundtrip", 65535],
+                [0, "native_u8", "roundtrip", 65535],
+                [0, "direct_v4", "roundtrip", 65535],
+                [0, "signed_radix", "cold", 65535],
+                [0, "native_u8", "cold", 65535],
+                [0, "direct_v4", "cold", 65535],
+                [0, "signed_radix", "resident", 65536],
+                [0, "native_u8", "resident", 65536],
+                [0, "direct_v4", "resident", 65536],
+                [0, "signed_radix", "roundtrip", 65536],
+                [0, "native_u8", "roundtrip", 65536],
+                [0, "direct_v4", "roundtrip", 65536],
+                [0, "signed_radix", "cold", 65536],
+                [0, "native_u8", "cold", 65536],
+                [0, "direct_v4", "cold", 65536],
+                [0, "signed_radix", "resident", 65537],
+                [0, "native_u8", "resident", 65537],
+                [0, "direct_v4", "resident", 65537],
+                [0, "signed_radix", "roundtrip", 65537],
+                [0, "native_u8", "roundtrip", 65537],
+                [0, "direct_v4", "roundtrip", 65537],
+                [0, "signed_radix", "cold", 65537],
+                [0, "native_u8", "cold", 65537],
+                [0, "direct_v4", "cold", 65537],
+                [0, "signed_radix", "resident", 131071],
+                [0, "native_u8", "resident", 131071],
+                [0, "direct_v4", "resident", 131071],
+                [0, "signed_radix", "roundtrip", 131071],
+                [0, "native_u8", "roundtrip", 131071],
+                [0, "direct_v4", "roundtrip", 131071],
+                [0, "signed_radix", "cold", 131071],
+                [0, "native_u8", "cold", 131071],
+                [0, "direct_v4", "cold", 131071]
+              ]
+            }
+          }
+        ],
+        [
+          "matched-boundaries.json",
+          "019005bfa9d412fb3b80922d4b35da4b2d74c20d546f65ae924ad95f7b0580fc",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "scope": "resident",
+                "m": 2,
+                "n": 3,
+                "pattern": "carry",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "signed_radix", 4096],
+                [0, "native_u8", 4096],
+                [0, "direct_v4", 4096],
+                [0, "rocwmma_corrected", 4096],
+                [0, "signed_radix", 4097],
+                [0, "native_u8", 4097],
+                [0, "direct_v4", 4097],
+                [0, "rocwmma_corrected", 4097],
+                [0, "signed_radix", 32768],
+                [0, "native_u8", 32768],
+                [0, "direct_v4", 32768],
+                [0, "rocwmma_corrected", 32768]
+              ]
+            }
+          }
+        ],
+        [
+          "rdna-native-u64.json",
+          "1a255fb77ca71859972bfad5e1d70697f683af38ac14286c4fb17d20b2e1020d",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 257,
+                "pattern": "carry"
+              },
+              "rows": [
+                [0, "signed_radix", "resident", 1],
+                [0, "native_u8", "resident", 1],
+                [0, "direct_v4", "resident", 1],
+                [0, "rocwmma_corrected", "resident", 1],
+                [0, "signed_radix", "roundtrip", 1],
+                [0, "native_u8", "roundtrip", 1],
+                [0, "direct_v4", "roundtrip", 1],
+                [0, "rocwmma_corrected", "roundtrip", 1],
+                [0, "signed_radix", "cold", 1],
+                [0, "native_u8", "cold", 1],
+                [0, "direct_v4", "cold", 1],
+                [0, "rocwmma_corrected", "cold", 1],
+                [0, "signed_radix", "resident", 8],
+                [0, "native_u8", "resident", 8],
+                [0, "direct_v4", "resident", 8],
+                [0, "rocwmma_corrected", "resident", 8],
+                [0, "signed_radix", "roundtrip", 8],
+                [0, "native_u8", "roundtrip", 8],
+                [0, "direct_v4", "roundtrip", 8],
+                [0, "rocwmma_corrected", "roundtrip", 8],
+                [0, "signed_radix", "cold", 8],
+                [0, "native_u8", "cold", 8],
+                [0, "direct_v4", "cold", 8],
+                [0, "rocwmma_corrected", "cold", 8],
+                [0, "signed_radix", "resident", 32],
+                [0, "native_u8", "resident", 32],
+                [0, "direct_v4", "resident", 32],
+                [0, "rocwmma_corrected", "resident", 32],
+                [0, "signed_radix", "roundtrip", 32],
+                [0, "native_u8", "roundtrip", 32],
+                [0, "direct_v4", "roundtrip", 32],
+                [0, "rocwmma_corrected", "roundtrip", 32],
+                [0, "signed_radix", "cold", 32],
+                [0, "native_u8", "cold", 32],
+                [0, "direct_v4", "cold", 32],
+                [0, "rocwmma_corrected", "cold", 32],
+                [0, "native_u64", "resident", 1],
+                [0, "native_u64", "roundtrip", 1],
+                [0, "native_u64", "cold", 1],
+                [0, "native_u64", "resident", 8],
+                [0, "native_u64", "roundtrip", 8],
+                [0, "native_u64", "cold", 8],
+                [0, "native_u64", "resident", 32],
+                [0, "native_u64", "roundtrip", 32],
+                [0, "native_u64", "cold", 32]
+              ]
+            }
+          }
+        ],
+        [
+          "smoke.json",
+          "34e97d20731cbe639c1520d8f38ca0a3fb99eaac29f957fad3ef9606554ad689",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 2,
+                "n": 3,
+                "k": 17,
+                "pattern": "carry",
+                "reuse_count": 1
+              },
+              "rows": [
+                [0, "signed_radix", "resident"],
+                [0, "native_u8", "resident"],
+                [0, "direct_v4", "resident"],
+                [0, "rocwmma_corrected", "resident"],
+                [0, "signed_radix", "roundtrip"],
+                [0, "native_u8", "roundtrip"],
+                [0, "direct_v4", "roundtrip"],
+                [0, "rocwmma_corrected", "roundtrip"],
+                [0, "signed_radix", "cold"],
+                [0, "native_u8", "cold"],
+                [0, "direct_v4", "cold"],
+                [0, "rocwmma_corrected", "cold"]
+              ]
+            }
+          }
+        ],
+        [
+          "tail-reuse.json",
+          "42d7085d46681c305a1f9a7d50debbcce21c88b44ec10754231cc7d64d9a3607",
+          {
+            "$rns8_records": {
+              "layouts": [
+                ["device", "candidate", "scope", "m", "n", "k", "pattern", "reuse_count"]
+              ],
+              "defaults": {
+                "device": 0,
+                "m": 17,
+                "n": 19,
+                "k": 257,
+                "pattern": "carry"
+              },
+              "rows": [
+                [0, "signed_radix", "resident", 1],
+                [0, "native_u8", "resident", 1],
+                [0, "direct_v4", "resident", 1],
+                [0, "rocwmma_corrected", "resident", 1],
+                [0, "signed_radix", "roundtrip", 1],
+                [0, "native_u8", "roundtrip", 1],
+                [0, "direct_v4", "roundtrip", 1],
+                [0, "rocwmma_corrected", "roundtrip", 1],
+                [0, "signed_radix", "cold", 1],
+                [0, "native_u8", "cold", 1],
+                [0, "direct_v4", "cold", 1],
+                [0, "rocwmma_corrected", "cold", 1],
+                [0, "signed_radix", "resident", 8],
+                [0, "native_u8", "resident", 8],
+                [0, "direct_v4", "resident", 8],
+                [0, "rocwmma_corrected", "resident", 8],
+                [0, "signed_radix", "roundtrip", 8],
+                [0, "native_u8", "roundtrip", 8],
+                [0, "direct_v4", "roundtrip", 8],
+                [0, "rocwmma_corrected", "roundtrip", 8],
+                [0, "signed_radix", "cold", 8],
+                [0, "native_u8", "cold", 8],
+                [0, "direct_v4", "cold", 8],
+                [0, "rocwmma_corrected", "cold", 8],
+                [0, "signed_radix", "resident", 32],
+                [0, "native_u8", "resident", 32],
+                [0, "direct_v4", "resident", 32],
+                [0, "rocwmma_corrected", "resident", 32],
+                [0, "signed_radix", "roundtrip", 32],
+                [0, "native_u8", "roundtrip", 32],
+                [0, "direct_v4", "roundtrip", 32],
+                [0, "rocwmma_corrected", "roundtrip", 32],
+                [0, "signed_radix", "cold", 32],
+                [0, "native_u8", "cold", 32],
+                [0, "direct_v4", "cold", 32],
+                [0, "rocwmma_corrected", "cold", 32]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

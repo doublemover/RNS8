@@ -102,23 +102,37 @@ def _recommendation_blockers(recommendation: dict[str, Any], cache_keys: set[str
         if "exact_cache_hit_already_owned_by_current_AUTO_cache" not in rec_blockers:
             blockers.append("exact_hit_current_auto_cache_blocker_missing")
     elif recommendation.get("would_recommend") is True:
-        if recommendation.get("recommendation_boundary_status") != "same_boundary_family_shadow_representative":
+        if (
+            recommendation.get("recommendation_boundary_status")
+            != "same_boundary_family_shadow_representative"
+        ):
             blockers.append("family_representative_boundary_status_mismatch")
-        for required in ("exact_query_not_reviewed", "representative_matrix_requires_same_target_layout_contract_review"):
+        for required in (
+            "exact_query_not_reviewed",
+            "representative_matrix_requires_same_target_layout_contract_review",
+        ):
             if required not in rec_blockers:
                 blockers.append(f"family_representative_blocker_missing:{required}")
     else:
-        if recommendation.get("recommendation_boundary_status") != "missing_same_boundary_family_reviewed_entry":
+        if (
+            recommendation.get("recommendation_boundary_status")
+            != "missing_same_boundary_family_reviewed_entry"
+        ):
             blockers.append("missing_family_boundary_status_mismatch")
         if "missing_same_family_reviewed_entry" not in rec_blockers:
             blockers.append("missing_family_blocker_missing")
-        if recommendation.get("rejected_boundary_candidates") and "same_family_entries_rejected_by_boundary" not in rec_blockers:
+        if (
+            recommendation.get("rejected_boundary_candidates")
+            and "same_family_entries_rejected_by_boundary" not in rec_blockers
+        ):
             blockers.append("boundary_rejection_blocker_missing")
     blockers.extend(_basis_key_blockers(recommendation, cache_keys))
     return sorted(set(blockers))
 
 
-def _report_rows(path: Path, report: dict[str, Any], cache_keys: set[str]) -> tuple[list[dict[str, Any]], list[str]]:
+def _report_rows(
+    path: Path, report: dict[str, Any], cache_keys: set[str]
+) -> tuple[list[dict[str, Any]], list[str]]:
     blockers: list[str] = []
     if report.get("schema") != "rns8_shape_family_shadow_report_v2":
         blockers.append("shape_family_report_schema_mismatch")
@@ -141,14 +155,20 @@ def _report_rows(path: Path, report: dict[str, Any], cache_keys: set[str]) -> tu
                 "family_key": recommendation.get("family_key"),
                 "query": query,
                 "would_recommend": recommendation.get("would_recommend"),
-                "recommendation_is_exact_cache_hit": recommendation.get("recommendation_is_exact_cache_hit"),
-                "recommendation_boundary_status": recommendation.get("recommendation_boundary_status"),
+                "recommendation_is_exact_cache_hit": recommendation.get(
+                    "recommendation_is_exact_cache_hit"
+                ),
+                "recommendation_boundary_status": recommendation.get(
+                    "recommendation_boundary_status"
+                ),
                 "runtime_routing_allowed": recommendation.get("runtime_routing_allowed"),
                 "promotion_eligible": recommendation.get("promotion_eligible"),
                 "basis_cache_key": recommendation.get("basis_cache_key"),
                 "recommended_backend": recommendation.get("recommended_backend"),
                 "recommended_kernel": recommendation.get("recommended_kernel"),
-                "rejected_boundary_candidate_count": len(recommendation.get("rejected_boundary_candidates") or []),
+                "rejected_boundary_candidate_count": len(
+                    recommendation.get("rejected_boundary_candidates") or []
+                ),
                 "blockers": row_blockers,
             }
         )

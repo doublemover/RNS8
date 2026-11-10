@@ -9,7 +9,13 @@ import tempfile
 from pathlib import Path
 
 import reconstruction_export_report
+from diagnostic_companion import build_binding
+from test_capture_identity_support import write_production_fixture_pair
 from test_export_selector_report import reviewable_fixed_limb_capture
+from test_review_reference_support import (
+    add_synthetic_full_reference,
+    write_variant_review as write_review_report,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -85,34 +91,6 @@ def as_candidate(capture: dict, name: str, *, reconstruction: str = "default_gar
     return capture
 
 
-def write_review_report(path: Path, capture_paths: list[Path]) -> None:
-    write_json(
-        path,
-        {
-            "review_mode": "release",
-            "groups": [
-                {
-                    "review_mode": "release",
-                    "release_review_satisfied": True,
-                    "missing_required_baselines": [],
-                    "duplicate_backends": [],
-                    "contract_key": "fixture",
-                    "candidates": [
-                        {
-                            "capture": str(capture_path),
-                            "promotable": True,
-                            "promotion_reason": "fixture_release_review",
-                            "promotion_blockers": [],
-                            "cache_write_status": "not_requested",
-                        }
-                        for capture_path in capture_paths
-                    ],
-                }
-            ],
-        },
-    )
-
-
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -126,34 +104,55 @@ def main() -> int:
             ),
             (
                 "status.json",
-                set_medians(as_candidate(base, "status-elided-exact-proof-export-candidate"), 105.0, 42.0),
+                set_medians(
+                    as_candidate(base, "status-elided-exact-proof-export-candidate"), 105.0, 42.0
+                ),
             ),
             (
                 "tree.json",
-                set_medians(as_candidate(base, "tree-crt-export-candidate", reconstruction="tree_crt_candidate"), 90.0, 20.0),
+                set_medians(
+                    as_candidate(
+                        base, "tree-crt-export-candidate", reconstruction="tree_crt_candidate"
+                    ),
+                    90.0,
+                    20.0,
+                ),
             ),
         ]
         prefix_base = as_default(base)
+        prefix_base["exact_wide_limb_count"] = 8
+        prefix_base["exact_output_contract"]["limb_count"] = 8
         prefix_base["export_variant"]["limb_count"] = 8
+        prefix_base["export_variant"]["selector_key"] = prefix_base["export_variant"][
+            "selector_key"
+        ].replace("limb_count=4", "limb_count=8")
         prefix_base["reconstruction_variant"]["prefix_count"] = 20
         captures.extend(
             [
                 ("prefix-baseline.json", set_medians(prefix_base, 100.0, 50.0)),
                 (
                     "prefix-candidate.json",
-                    set_medians(as_candidate(prefix_base, "prefix20-fixed-export-candidate"), 98.0, 45.0),
+                    set_medians(
+                        as_candidate(prefix_base, "prefix20-fixed-export-candidate"), 98.0, 45.0
+                    ),
                 ),
             ]
         )
 
         capture_paths: list[Path] = []
+        bindings = {}
         for name, capture in captures:
             path = tmp / name
-            write_json(path, capture)
-            capture_paths.append(path)
+            write_production_fixture_pair(path, add_synthetic_full_reference(capture), bindings)
+            capture_paths.extend([path, path.with_name(path.stem + ".independent.json")])
+        binding_paths = []
+        for index, binding in enumerate(bindings.values()):
+            path = tmp / f"companion-{index}.binding"
+            write_json(path, binding)
+            binding_paths.append(path)
         write_review_report(tmp / "review_report.json", capture_paths)
 
-        report = reconstruction_export_report.build_report([tmp])
+        report = reconstruction_export_report.build_report([tmp], binding_paths)
         assert report["schema"] == "rns8_reconstruction_export_report_v1"
         assert report["rank33_classification_complete"] is True, json.dumps(
             {
@@ -167,13 +166,59 @@ def main() -> int:
         assert report["variant_class_summary"]["status_elided_exact_proof"]["ready"] is True
         assert report["variant_class_summary"]["prefix20_fixed_export"]["ready"] is True
         assert report["variant_class_summary"]["tree_crt_reconstruction"]["ready"] is True
-        dispositions = {item["variant_class"]: item["disposition"] for item in report["comparisons"]}
+        dispositions = {
+            item["variant_class"]: item["disposition"] for item in report["comparisons"]
+        }
         assert dispositions["compact_d2h_host_scatter"] == "drop/deprioritize"
         assert dispositions["status_elided_exact_proof"] == "drop/deprioritize"
         assert dispositions["prefix20_fixed_export"] == "keep experimental"
         assert dispositions["tree_crt_reconstruction"] == "keep experimental"
+        tree = next(
+            row
+            for row in report["comparisons"]
+            if row["variant_class"] == "tree_crt_reconstruction"
+        )
+        assert tree["candidate"]["measurement_cohort"]["independent_runs"] == 2
+        assert tree["comparison"]["qualified"]
+        assert tree["export_timing_scope"] == "matched_separate_diagnostic_process_medians"
+        assert tree["required_speedup_margin"] >= 1.03
+        singleton = reconstruction_export_report.build_report(
+            [capture_paths[0], capture_paths[6]], binding_paths
+        )
+        assert singleton["comparisons"][0]["speedup_end_to_end"] is None
+        assert singleton["comparisons"][0]["disposition"] == "blocked"
+        assert any(
+            "insufficient_independent_processes" in value
+            for value in singleton["comparisons"][0]["blockers"]
+        )
 
-        no_review_report = reconstruction_export_report.build_report([capture_paths[0], capture_paths[2]])
+        # A fresh, content-bound sidecar must still preserve a numerical failure.
+        mismatch = json.loads(capture_paths[2].read_text(encoding="utf-8"))
+        mismatch["checksum_u64"] ^= 1
+        write_json(capture_paths[2], mismatch)
+        # Keep the companion honest about this changed output so rejection
+        # exercises the CPU oracle, rather than merely a stale binding hash.
+        for binding_path in binding_paths:
+            binding = json.loads(binding_path.read_text(encoding="utf-8"))
+            if Path(binding["production_capture"]).resolve() == capture_paths[2].resolve():
+                diagnostic_path = Path(binding["diagnostic_capture"])
+                diagnostic = json.loads(diagnostic_path.read_text(encoding="utf-8"))
+                diagnostic["checksum_u64"] = mismatch["checksum_u64"]
+                write_json(diagnostic_path, diagnostic)
+                write_json(binding_path, build_binding(capture_paths[2], diagnostic_path))
+        write_review_report(tmp / "review_report.json", capture_paths)
+        rejected = reconstruction_export_report.build_report([tmp], binding_paths)
+        assert rejected["variant_class_summary"]["compact_d2h_host_scatter"]["ready"] is False
+        assert any(
+            "checksum" in reason
+            for item in rejected["comparisons"]
+            if item["variant_class"] == "compact_d2h_host_scatter"
+            for reason in item["blockers"]
+        )
+
+        no_review_report = reconstruction_export_report.build_report(
+            [capture_paths[0], capture_paths[2]]
+        )
         assert no_review_report["rank33_classification_complete"] is False
         blocked = no_review_report["comparisons"][0]
         assert blocked["disposition"] == "blocked"

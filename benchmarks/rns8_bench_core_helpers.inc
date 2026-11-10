@@ -2,100 +2,60 @@ bool benchmark_host_matrix_access_valid(int64_t rows, int64_t cols, int64_t ld) 
   return rows > 0 && cols > 0 && ld >= cols;
 }
 
-rns8_status pack_exact_wide_limbs_as_rns(
-    rns8_context* ctx,
-    rns8_matrix* matrix,
-    const uint64_t* src,
-    int64_t ld,
-    uint32_t limb_count,
-    bool signed_values,
-    uint64_t source_version) {
-  if (!ctx || !matrix || !src || limb_count == 0 || limb_count > 32 ||
-      !benchmark_host_matrix_access_valid(matrix->desc.rows, matrix->desc.cols, ld) ||
-      matrix->prefix == 0 || matrix->prefix > RNS8_MAX_SUPPORTED_PREFIX ||
-      matrix->residues.size() !=
-          static_cast<std::size_t>(matrix->prefix) * static_cast<std::size_t>(matrix->desc.rows) *
-              static_cast<std::size_t>(matrix->desc.cols)) {
+rns8_status pack_exact_wide_limbs_as_rns(rns8_context* ctx, rns8_matrix* matrix,
+                                         const uint64_t* src, int64_t ld, uint32_t limb_count,
+                                         bool signed_values, uint64_t source_version) {
+  if (!ctx || !matrix)
     return RNS8_INVALID_ARGUMENT;
-  }
-  const rns8_semantics expected = signed_values ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED;
-  if (matrix->desc.semantics != expected || ctx->backend != matrix->backend) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-
-  std::vector<boost::multiprecision::cpp_int> values;
-  values.reserve(static_cast<std::size_t>(matrix->desc.rows) * static_cast<std::size_t>(matrix->desc.cols));
-  for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-    for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-      values.push_back(exact_wide_value_from_limbs(
-          src + exact_wide_limb_index(row, col, ld, limb_count), limb_count, signed_values));
-    }
-  }
-
-  for (uint32_t p = 0; p < matrix->prefix; ++p) {
-    const uint16_t modulus = rns8::detail::kDefaultModuli[p];
-    for (int64_t row = 0; row < matrix->desc.rows; ++row) {
-      for (int64_t col = 0; col < matrix->desc.cols; ++col) {
-        const std::size_t value_index =
-            static_cast<std::size_t>(row * matrix->desc.cols + col);
-        matrix->residues[rns8::detail::residue_index(*matrix, p, row, col)] =
-            rns8::detail::centered_residue(values[value_index], modulus);
-      }
-    }
-  }
-
-  matrix->source_version = source_version;
-  rns8::detail::api::clear_byte_limb_current(*matrix);
-  rns8::detail::api::clear_native_current(*matrix);
-
-  if (matrix->hip_residues != nullptr) {
-    if (matrix->hip_device_id != ctx->device_id ||
-        matrix->hip_residue_bytes != matrix->residues.size() * sizeof(int8_t)) {
-      return RNS8_INVALID_ARGUMENT;
-    }
-    const rns8_status status = run_timed_status_operation("pack_h2d", [&]() {
-      return rns8::detail::hip_direct_copy_host_to_device(
-          ctx->device_id, matrix->hip_residues, matrix->residues.data(), matrix->hip_residue_bytes);
-    });
-    if (status != RNS8_SUCCESS) {
-      rns8::detail::api::clear_device_residues_current(*matrix);
-      return status;
-    }
-    rns8::detail::api::mark_device_residues_current(*matrix);
-  } else {
-    rns8::detail::api::mark_host_residues_current(*matrix);
-  }
-  return RNS8_SUCCESS;
+  return rns8::detail::api::import_exact_wide_limbs(*ctx, *matrix, src, ld, limb_count,
+                                                    signed_values, source_version);
 }
 
-
-
-
-
-
-
-
+rns8_status export_exact_wide_benchmark_view(rns8_context* ctx, rns8_plan* plan,
+                                             rns8_matrix* matrix, const Args& args,
+                                             rns8_backend_kind backend, bool signed_values,
+                                             uint64_t* destination, int64_t ld,
+                                             uint32_t limb_count) {
+  if (args.export_variant == "tree-crt-export-candidate" &&
+      args.reconstruction_variant == "tree_crt_candidate" && backend == RNS8_BACKEND_HIP_DIRECT) {
+    return signed_values
+               ? rns8::detail::hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
+                     matrix->hip_device_id, matrix->hip_residues, &matrix->hip_export_buffer,
+                     &matrix->hip_export_bytes, &matrix->hip_status_buffer,
+                     &matrix->hip_status_bytes, args.m, args.n, matrix->prefix, destination, ld,
+                     limb_count)
+               : rns8::detail::hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
+                     matrix->hip_device_id, matrix->hip_residues, &matrix->hip_export_buffer,
+                     &matrix->hip_export_bytes, &matrix->hip_status_buffer,
+                     &matrix->hip_status_bytes, args.m, args.n, matrix->prefix, destination, ld,
+                     limb_count);
+  }
+  return signed_values
+             ? rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, destination, ld, limb_count)
+             : rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, destination, ld,
+                                                     limb_count);
+}
 
 const char* backend_name(rns8_backend_kind backend) {
   switch (backend) {
-    case RNS8_BACKEND_AUTO:
-      return "auto";
-    case RNS8_BACKEND_CPU_REFERENCE:
-      return "cpu-reference";
-    case RNS8_BACKEND_HIP_DIRECT:
-      return "hip-direct";
-    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-      return "hip-vector-alu-int64";
-    case RNS8_BACKEND_HIPBLASLT:
-      return "hipblaslt";
-    case RNS8_BACKEND_CK:
-      return "ck";
-    case RNS8_BACKEND_ROCWMMA:
-      return "rocwmma";
-    case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return "amdgpu-builtins";
-    case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-      return "wrap64-byte-limb";
+  case RNS8_BACKEND_AUTO:
+    return "auto";
+  case RNS8_BACKEND_CPU_REFERENCE:
+    return "cpu-reference";
+  case RNS8_BACKEND_HIP_DIRECT:
+    return "hip-direct";
+  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+    return "hip-vector-alu-int64";
+  case RNS8_BACKEND_HIPBLASLT:
+    return "hipblaslt";
+  case RNS8_BACKEND_CK:
+    return "ck";
+  case RNS8_BACKEND_ROCWMMA:
+    return "rocwmma";
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return "amdgpu-builtins";
+  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+    return "wrap64-byte-limb";
   }
   return "unknown";
 }
@@ -107,7 +67,8 @@ const char* requested_backend_name(const Args& args) {
   return args.vector_alu_baseline ? "hip-vector-alu-int64" : backend_name(args.backend);
 }
 
-const char* selected_backend_name(const Args& args, const rns8_device_info& info, const BenchmarkResult* result = nullptr) {
+const char* selected_backend_name(const Args& args, const rns8_device_info& info,
+                                  const BenchmarkResult* result = nullptr) {
   if (args.vector_alu_baseline) {
     return "hip-vector-alu-int64";
   }
@@ -119,8 +80,8 @@ const char* selected_backend_name(const Args& args, const rns8_device_info& info
 
 bool benchmark_gpu_target_backend(rns8_backend_kind backend) {
   return backend == RNS8_BACKEND_HIP_DIRECT || backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64 ||
-         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK || backend == RNS8_BACKEND_ROCWMMA ||
-         backend == RNS8_BACKEND_AMDGPU_BUILTINS;
+         backend == RNS8_BACKEND_HIPBLASLT || backend == RNS8_BACKEND_CK ||
+         backend == RNS8_BACKEND_ROCWMMA || backend == RNS8_BACKEND_AMDGPU_BUILTINS;
 }
 
 bool concrete_benchmark_target_id(const char* target) {
@@ -138,7 +99,8 @@ std::string benchmark_target_id_for_context(rns8_context* ctx, rns8_backend_kind
   rns8_device_info info{};
   info.struct_size = sizeof(info);
   info.abi_version = RNS8_ABI_VERSION;
-  if (rns8_get_device_info(ctx, &info) == RNS8_SUCCESS && concrete_benchmark_target_id(info.gcn_arch)) {
+  if (rns8_get_device_info(ctx, &info) == RNS8_SUCCESS &&
+      concrete_benchmark_target_id(info.gcn_arch)) {
     return info.gcn_arch;
   }
   return "unknown";
@@ -153,7 +115,8 @@ std::string autotune_key_field(const char* key, const char* field) {
   std::size_t start = 0;
   while (start <= text.size()) {
     const std::size_t end = text.find(';', start);
-    const std::string part = text.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    const std::string part =
+        text.substr(start, end == std::string::npos ? std::string::npos : end - start);
     if (part.rfind(prefix, 0) == 0) {
       return part.substr(prefix.size());
     }
@@ -169,7 +132,8 @@ void update_result_target_id_from_key(BenchmarkResult& result) {
   const std::string target = autotune_key_field(result.backend_info.autotune_key, "target_id");
   if (!target.empty()) {
     result.target_id = target;
-  } else if (result.backend_info_available && !benchmark_gpu_target_backend(result.backend_info.backend)) {
+  } else if (result.backend_info_available &&
+             !benchmark_gpu_target_backend(result.backend_info.backend)) {
     result.target_id = "cpu";
   }
 }
@@ -180,8 +144,9 @@ std::string benchmark_key_target_id(const BenchmarkResult& result) {
 
 bool bounded_native_a_reuse_b_requested(const Args& args) {
   return !args.oneshot && bounded_benchmark_semantics(args.semantics) && args.reuse_packed_b &&
-         !args.reuse_packed_a && !args.streaming_overlap && args.backend == RNS8_BACKEND_HIP_DIRECT &&
-         args.bound_mode == BoundMode::Global && args.residue_chain_length == 1;
+         !args.reuse_packed_a && !args.streaming_overlap &&
+         args.backend == RNS8_BACKEND_HIP_DIRECT && args.bound_mode == BoundMode::Global &&
+         args.residue_chain_length == 1;
 }
 
 bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
@@ -189,8 +154,9 @@ bool bounded_native_a_reuse_b_uniform_small_a(const Args& args) {
 }
 
 bool bounded_native_a_reuse_b_large_colpair(const Args& args) {
-  return bounded_benchmark_semantics(args.semantics) && !bounded_native_a_reuse_b_uniform_small_a(args) &&
-         args.m >= 512 && args.n >= 512 && args.k >= 512;
+  return bounded_benchmark_semantics(args.semantics) &&
+         !bounded_native_a_reuse_b_uniform_small_a(args) && args.m >= 512 && args.n >= 512 &&
+         args.k >= 512;
 }
 
 bool bounded_uniform_small_i8_ab_reuse_a_requested(const Args& args) {
@@ -208,44 +174,53 @@ bool bounded_native_b_reuse_a_large_colpair_requested(const Args& args) {
          args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
          args.input_profile != InputProfile::UniformSmall &&
          args.prefix_policy == PrefixPolicy::FixedRequested &&
-         (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX) &&
+         (args.max_prefix_override == 0 ||
+          args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX) &&
          args.m >= 512 && args.n >= 512 && args.k >= 512;
 }
 
 bool bounded_uniform_small_i8_ab_transient_requested(const Args& args) {
-  return !args.oneshot && args.transient_uniform_small_inputs && bounded_benchmark_semantics(args.semantics) &&
-         !args.reuse_packed_inputs && args.backend == RNS8_BACKEND_HIP_DIRECT &&
-         args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
-         args.input_profile == InputProfile::UniformSmall &&
+  return !args.oneshot && args.transient_uniform_small_inputs &&
+         bounded_benchmark_semantics(args.semantics) && !args.reuse_packed_inputs &&
+         args.backend == RNS8_BACKEND_HIP_DIRECT && args.bound_mode == BoundMode::Global &&
+         args.residue_chain_length == 1 && args.input_profile == InputProfile::UniformSmall &&
          args.prefix_policy == PrefixPolicy::FixedRequested &&
          (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
 }
 
 bool bounded_residue_channel_fusion_requested(const Args& args) {
-  return !args.oneshot && args.residue_channel_fusion && bounded_benchmark_semantics(args.semantics) &&
-         !args.reuse_packed_inputs && args.backend == RNS8_BACKEND_HIP_DIRECT &&
-         args.bound_mode == BoundMode::Global && args.residue_chain_length == 1 &&
-         args.input_profile == InputProfile::UniformSmall &&
+  return !args.oneshot && args.residue_channel_fusion &&
+         bounded_benchmark_semantics(args.semantics) && !args.reuse_packed_inputs &&
+         args.backend == RNS8_BACKEND_HIP_DIRECT && args.bound_mode == BoundMode::Global &&
+         args.residue_chain_length == 1 && args.input_profile == InputProfile::UniformSmall &&
          args.prefix_policy == PrefixPolicy::FixedRequested &&
          (args.max_prefix_override == 0 || args.max_prefix_override == RNS8_DEFAULT_BOUNDED_PREFIX);
 }
 
 const char* input_profile_name(const Args& args) {
   switch (args.input_profile) {
-    case InputProfile::UniformSmall:
-      return "uniform-small";
-    case InputProfile::AdaptiveBands:
-      return "adaptive-bands";
-    case InputProfile::FiniteBinary:
-      return "finite-binary";
-    case InputProfile::FiniteSparse:
-      return "finite-sparse";
-    case InputProfile::FiniteLowHamming:
-      return "finite-low-hamming";
-    case InputProfile::FiniteSmallCentered:
-      return "finite-small-centered";
-    case InputProfile::FiniteFullUniform:
-      return "finite-full-uniform";
+  case InputProfile::UniformSmall:
+    return "uniform-small";
+  case InputProfile::AdaptiveBands:
+    return "adaptive-bands";
+  case InputProfile::FiniteBinary:
+    return "finite-binary";
+  case InputProfile::FiniteSparse:
+    return "finite-sparse";
+  case InputProfile::FiniteLowHamming:
+    return "finite-low-hamming";
+  case InputProfile::FiniteSmallCentered:
+    return "finite-small-centered";
+  case InputProfile::FiniteFullUniform:
+    return "finite-full-uniform";
+  case InputProfile::WideTwoLimbConstant:
+    return "wide-two-limb-constant";
+  case InputProfile::WideThreeLimbConstant:
+    return "wide-three-limb-constant";
+  case InputProfile::WideTwoLimbMixed:
+    return "wide-two-limb-mixed";
+  case InputProfile::WideThreeLimbMixed:
+    return "wide-three-limb-mixed";
   }
   return "unknown";
 }
@@ -345,7 +320,8 @@ bool incremental_result_cache_full_recompute_baseline_requested(const Args& args
          args.incremental_result_cache.find("full-recompute-baseline") != std::string::npos;
 }
 
-bool incremental_result_cache_runtime_candidate_requested(const Args& args, rns8_backend_kind selected_backend) {
+bool incremental_result_cache_runtime_candidate_requested(const Args& args,
+                                                          rns8_backend_kind selected_backend) {
   return public_incremental_result_cache_contract_requested(args) &&
          !incremental_result_cache_full_recompute_baseline_requested(args) &&
          selected_backend == RNS8_BACKEND_HIP_DIRECT && !args.reuse_packed_inputs &&
@@ -356,40 +332,45 @@ bool incremental_result_cache_runtime_candidate_requested(const Args& args, rns8
          !args.residue_chain_final_export && !args.residue_chain_independent_final_export;
 }
 
-std::string incremental_result_cache_candidate_role(
-    const Args& args,
-    const BenchmarkResult& result,
-    const std::string& selected_backend) {
+std::string incremental_result_cache_candidate_role(const Args& args, const BenchmarkResult& result,
+                                                    const std::string& selected_backend) {
   if (!incremental_result_cache_requested(args)) {
     return "not_requested";
   }
   if (selected_backend == "cpu-reference" || selected_backend == "cpu") {
     return "cpu_reference_baseline";
   }
-  if (incremental_result_cache_full_recompute_baseline_requested(args) && selected_backend == "hip-direct") {
+  if (incremental_result_cache_full_recompute_baseline_requested(args) &&
+      selected_backend == "hip-direct") {
     return "same_backend_full_recompute_baseline";
   }
-  if (result.incremental_result_cache_public_contract_available && selected_backend == "hip-direct") {
+  if (result.incremental_result_cache_public_contract_available &&
+      selected_backend == "hip-direct") {
     return "public_result_cache_candidate";
   }
   return "comparison_candidate";
 }
 
-const char* incremental_result_cache_source_identity_policy(const Args& args, bool public_contract_policy) {
+const char* incremental_result_cache_source_identity_policy(const Args& args,
+                                                            bool public_contract_policy) {
   if (!incremental_result_cache_requested(args)) {
     return "none";
   }
-  return public_contract_policy ? "matrix_instance_id_exact_match" : "caller_visible_source_identity_required";
+  return public_contract_policy ? "matrix_instance_id_exact_match"
+                                : "caller_visible_source_identity_required";
 }
 
-const char* incremental_result_cache_source_version_policy(const Args& args, bool public_contract_policy) {
+const char* incremental_result_cache_source_version_policy(const Args& args,
+                                                           bool public_contract_policy) {
   if (!incremental_result_cache_requested(args)) {
     return "none";
   }
-  return public_contract_policy ? "nonzero_monotonic_source_versions_required" : "monotonic_source_versions_required";
+  return public_contract_policy ? "nonzero_monotonic_source_versions_required"
+                                : "monotonic_source_versions_required";
 }
 
-const char* incremental_result_cache_dirty_region_policy(const Args& args, bool public_contract_policy) {
+const char* incremental_result_cache_dirty_region_policy(const Args& args,
+                                                         bool public_contract_policy) {
   if (!incremental_result_cache_requested(args)) {
     return "none";
   }
@@ -397,7 +378,8 @@ const char* incremental_result_cache_dirty_region_policy(const Args& args, bool 
                                 : "explicit_dirty_region_shape_required";
 }
 
-const char* incremental_result_cache_result_lifetime_policy(const Args& args, bool public_contract_policy) {
+const char* incremental_result_cache_result_lifetime_policy(const Args& args,
+                                                            bool public_contract_policy) {
   if (!incremental_result_cache_requested(args)) {
     return "none";
   }
@@ -405,7 +387,8 @@ const char* incremental_result_cache_result_lifetime_policy(const Args& args, bo
                                 : "caller_visible_result_lifetime_required";
 }
 
-const char* incremental_result_cache_partial_recompute_policy(const Args& args, bool public_contract_policy) {
+const char* incremental_result_cache_partial_recompute_policy(const Args& args,
+                                                              bool public_contract_policy) {
   if (!incremental_result_cache_requested(args)) {
     return "none";
   }
@@ -419,8 +402,10 @@ rns8_dirty_region benchmark_incremental_result_cache_dirty_region(const Args& ar
   region.abi_version = RNS8_ABI_VERSION;
   region.row_offset = 0;
   region.col_offset = 0;
-  const int64_t requested_rows = std::max<int64_t>(1, std::min<int64_t>(args.m, static_cast<int64_t>(args.tile_m)));
-  const int64_t requested_cols = std::max<int64_t>(1, std::min<int64_t>(args.n, static_cast<int64_t>(args.tile_n)));
+  const int64_t requested_rows =
+      std::max<int64_t>(1, std::min<int64_t>(args.m, static_cast<int64_t>(args.tile_m)));
+  const int64_t requested_cols =
+      std::max<int64_t>(1, std::min<int64_t>(args.n, static_cast<int64_t>(args.tile_n)));
   region.row_extent = requested_rows;
   region.col_extent = requested_cols;
   return region;
@@ -430,10 +415,9 @@ rns8_result_cache* create_benchmark_result_cache(rns8_context* ctx, const rns8_p
   rns8_result_cache_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
-  desc.flags = RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES |
-               RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
-               RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE |
-               RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
+  desc.flags =
+      RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES | RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
+      RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE | RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
   desc.max_dirty_regions = 64;
   rns8_result_cache* cache = nullptr;
   const rns8_status status = rns8_create_result_cache(ctx, plan, &desc, &cache);
@@ -443,11 +427,9 @@ rns8_result_cache* create_benchmark_result_cache(rns8_context* ctx, const rns8_p
   return cache;
 }
 
-void capture_incremental_result_cache_info(
-    BenchmarkResult& result,
-    const rns8_result_cache* cache,
-    const std::vector<rns8_dirty_region>& dirty_regions,
-    bool public_contract_available) {
+void capture_incremental_result_cache_info(BenchmarkResult& result, const rns8_result_cache* cache,
+                                           const std::vector<rns8_dirty_region>& dirty_regions,
+                                           bool public_contract_available) {
   if (!cache) {
     return;
   }
@@ -494,7 +476,8 @@ void capture_incremental_result_cache_info(
   }
 }
 
-void capture_incremental_result_cache_stale_rejection(BenchmarkResult& result, const rns8_result_cache* cache) {
+void capture_incremental_result_cache_stale_rejection(BenchmarkResult& result,
+                                                      const rns8_result_cache* cache) {
   if (!cache) {
     return;
   }
@@ -512,7 +495,8 @@ void capture_incremental_result_cache_stale_rejection(BenchmarkResult& result, c
 }
 
 bool hip_graph_replay_resident_chain_requested(const Args& args) {
-  return hip_graph_replay_requested(args) && !hip_graph_replay_full_bounded_pack_export_requested(args) &&
+  return hip_graph_replay_requested(args) &&
+         !hip_graph_replay_full_bounded_pack_export_requested(args) &&
          !hip_graph_replay_full_finite_pack_export_requested(args) &&
          !hip_graph_replay_full_exact_wide_pack_export_requested(args) &&
          !hip_graph_replay_full_wrap64_pack_export_requested(args);
@@ -644,14 +628,14 @@ std::string benchmark_env_value(const char* name) {
 
 bool benchmark_env_flag_disabled(const char* name) {
   const std::string value = benchmark_env_value(name);
-  return value == "0" || value == "false" || value == "FALSE" || value == "off" ||
-         value == "OFF" || value == "no" || value == "NO";
+  return value == "0" || value == "false" || value == "FALSE" || value == "off" || value == "OFF" ||
+         value == "no" || value == "NO";
 }
 
 bool benchmark_env_flag_enabled(const char* name) {
   const std::string value = benchmark_env_value(name);
-  return value == "1" || value == "true" || value == "TRUE" || value == "on" ||
-         value == "ON" || value == "yes" || value == "YES";
+  return value == "1" || value == "true" || value == "TRUE" || value == "on" || value == "ON" ||
+         value == "yes" || value == "YES";
 }
 
 const char* direct_hip_export_staging_policy(const Args& args, rns8_backend_kind selected_backend) {
@@ -689,13 +673,12 @@ bool reuses_all_packed_inputs(const Args& args) {
   return args.reuse_packed_a && args.reuse_packed_b;
 }
 
-bool all_zero_direct_hip_input_pack_elided(
-    const Args& args,
-    const BenchmarkResult& result,
-    rns8_backend_kind selected_backend) {
-  return selected_backend == RNS8_BACKEND_HIP_DIRECT && bounded_benchmark_semantics(args.semantics) &&
-         args.bound_mode == BoundMode::PerTile && !args.oneshot && args.residue_chain_length == 1 &&
-         !args.reuse_packed_inputs && result.schedule_info_available && result.schedule_info.tile_count != 0 &&
+bool all_zero_direct_hip_input_pack_elided(const Args& args, const BenchmarkResult& result,
+                                           rns8_backend_kind selected_backend) {
+  return selected_backend == RNS8_BACKEND_HIP_DIRECT &&
+         bounded_benchmark_semantics(args.semantics) && args.bound_mode == BoundMode::PerTile &&
+         !args.oneshot && args.residue_chain_length == 1 && !args.reuse_packed_inputs &&
+         result.schedule_info_available && result.schedule_info.tile_count != 0 &&
          result.zero_output_tile_count == result.schedule_info.tile_count;
 }
 
@@ -703,9 +686,10 @@ void capture_workspace_arena_info(const rns8_workspace* workspace, BenchmarkResu
   if (!workspace) {
     return;
   }
-  result.workspace_arena_info_available =
-      workspace->hip_workspace_arena != nullptr || workspace->hip_workspace_arena_bytes != 0 ||
-      workspace->hip_workspace_arena_suballocation_count != 0 || !workspace->hip_workspace_arena_policy.empty();
+  result.workspace_arena_info_available = workspace->hip_workspace_arena != nullptr ||
+                                          workspace->hip_workspace_arena_bytes != 0 ||
+                                          workspace->hip_workspace_arena_suballocation_count != 0 ||
+                                          !workspace->hip_workspace_arena_policy.empty();
   result.workspace_arena_size_bytes = static_cast<uint64_t>(workspace->hip_workspace_arena_bytes);
   result.workspace_arena_high_water_mark_bytes =
       static_cast<uint64_t>(workspace->hip_workspace_arena_high_water_mark_bytes);
@@ -714,12 +698,9 @@ void capture_workspace_arena_info(const rns8_workspace* workspace, BenchmarkResu
   result.workspace_arena_policy = workspace->hip_workspace_arena_policy;
 }
 
-bool expects_hipblaslt_pack_transpose_event(const Args& args) {
-  return !reuses_all_packed_inputs(args);
-}
-
 template <typename PackA, typename PackB>
-void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA& pack_a, const PackB& pack_b) {
+void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA& pack_a,
+                         const PackB& pack_b) {
   if (args.reuse_packed_a) {
     pack_a(source_version);
   }
@@ -729,16 +710,13 @@ void pack_preused_inputs(const Args& args, uint64_t source_version, const PackA&
 }
 
 struct PackOperandTiming {
-  uint64_t a_us = 0;
-  uint64_t b_us = 0;
+  double a_us = 0;
+  double b_us = 0;
 };
 
 template <typename PackA, typename PackB>
-PackOperandTiming pack_preused_inputs_timed(
-    const Args& args,
-    uint64_t source_version,
-    const PackA& pack_a,
-    const PackB& pack_b) {
+PackOperandTiming pack_preused_inputs_timed(const Args& args, uint64_t source_version,
+                                            const PackA& pack_a, const PackB& pack_b) {
   PackOperandTiming timing{};
   if (args.reuse_packed_a) {
     const auto start = std::chrono::steady_clock::now();
@@ -755,22 +733,20 @@ PackOperandTiming pack_preused_inputs_timed(
   return timing;
 }
 
-void record_prepack_setup_timing(
-    BenchmarkResult& result,
-    uint64_t total_us,
-    const PackOperandTiming& pack_timing,
-    uint64_t runtime_cache_us) {
+void record_prepack_setup_timing(BenchmarkResult& result, double total_us,
+                                 const PackOperandTiming& pack_timing, double runtime_cache_us) {
   result.prepack_setup_us = total_us;
   result.prepack_setup_available = true;
   result.prepack_setup_pack_a_us = pack_timing.a_us;
   result.prepack_setup_pack_b_us = pack_timing.b_us;
   result.prepack_setup_runtime_cache_us = runtime_cache_us;
-  const uint64_t classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
+  const double classified = pack_timing.a_us + pack_timing.b_us + runtime_cache_us;
   result.prepack_setup_unclassified_us = total_us > classified ? total_us - classified : 0;
 }
 
 template <typename PackA, typename PackB>
-void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const PackA& pack_a, const PackB& pack_b) {
+void pack_per_repeat_inputs(const Args& args, uint64_t source_version, const PackA& pack_a,
+                            const PackB& pack_b) {
   if (!args.reuse_packed_a) {
     pack_a(source_version);
   }
@@ -790,11 +766,8 @@ void accumulate_pack_operand_timing(PackOperandTiming& total, const PackOperandT
 }
 
 template <typename PackA, typename PackB>
-PackOperandTiming pack_per_repeat_inputs_timed(
-    const Args& args,
-    uint64_t source_version,
-    const PackA& pack_a,
-    const PackB& pack_b) {
+PackOperandTiming pack_per_repeat_inputs_timed(const Args& args, uint64_t source_version,
+                                               const PackA& pack_a, const PackB& pack_b) {
   PackOperandTiming timing{};
   if (!args.reuse_packed_a) {
     const auto start = std::chrono::steady_clock::now();
@@ -811,7 +784,7 @@ PackOperandTiming pack_per_repeat_inputs_timed(
   return timing;
 }
 
-void record_pack_operand_timing(TimingSamples* samples, uint64_t pack_a_us, uint64_t pack_b_us) {
+void record_pack_operand_timing(TimingSamples* samples, double pack_a_us, double pack_b_us) {
   if (!samples) {
     return;
   }
@@ -864,7 +837,8 @@ std::vector<std::string> prepack_reuse_operands(const Args& args) {
   return operands;
 }
 
-void force_native_to_rns_bridge_after_pack(const Args& args, rns8_matrix* a_matrix, rns8_matrix* b_matrix) {
+void force_native_to_rns_bridge_after_pack(const Args& args, rns8_matrix* a_matrix,
+                                           rns8_matrix* b_matrix) {
   if (!native_to_rns_bridge_requested(args)) {
     return;
   }
@@ -876,12 +850,12 @@ void force_native_to_rns_bridge_after_pack(const Args& args, rns8_matrix* a_matr
 
 const char* prepack_reuse_strategy_name(PrepackReuseStrategy strategy) {
   switch (strategy) {
-    case PrepackReuseStrategy::None:
-      return "none";
-    case PrepackReuseStrategy::PersistentMatrixResidency:
-      return "persistent_matrix_residency";
-    case PrepackReuseStrategy::RocwmmaReusableBCache:
-      return "rocwmma_reusable_b_cache";
+  case PrepackReuseStrategy::None:
+    return "none";
+  case PrepackReuseStrategy::PersistentMatrixResidency:
+    return "persistent_matrix_residency";
+  case PrepackReuseStrategy::RocwmmaReusableBCache:
+    return "rocwmma_reusable_b_cache";
   }
   return "unknown";
 }
@@ -896,19 +870,13 @@ bool should_probe_reusable_b_prepack_cache(const Args& args, rns8_backend_kind s
 }
 
 rns8_status run_rns_gemm_with_optional_b_cache(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const rns8_matrix* a_matrix,
-    const rns8_matrix* b_matrix,
-    const rns8_prepack_cache* b_cache,
-    rns8_matrix* c_matrix,
-    rns8_workspace* workspace,
-    rns8_result_cache* result_cache = nullptr,
-    const rns8_dirty_region* dirty_regions = nullptr,
-    uint32_t dirty_region_count = 0) {
+    rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* a_matrix,
+    const rns8_matrix* b_matrix, const rns8_prepack_cache* b_cache, rns8_matrix* c_matrix,
+    rns8_workspace* workspace, rns8_result_cache* result_cache = nullptr,
+    const rns8_dirty_region* dirty_regions = nullptr, uint32_t dirty_region_count = 0) {
   if (result_cache) {
-    return rns8_gemm_rns_incremental(
-        ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, dirty_regions, dirty_region_count);
+    return rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace,
+                                     result_cache, dirty_regions, dirty_region_count);
   }
   if (b_cache) {
     return rns8_gemm_rns_prepacked_b(ctx, plan, a_matrix, b_cache, c_matrix, workspace);
@@ -916,15 +884,12 @@ rns8_status run_rns_gemm_with_optional_b_cache(
   return rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace);
 }
 
-rns8_status run_direct_hip_resident_rns_chain_no_sync(
-    const rns8_plan* plan,
-    rns8_matrix* a_matrix,
-    rns8_matrix* b_matrix,
-    rns8_matrix* c_matrix,
-    rns8_matrix* scratch_matrix,
-    uint32_t chain_length,
-    rns8_matrix** latest_output_matrix,
-    void* stream = nullptr) {
+rns8_status run_direct_hip_resident_rns_chain_no_sync(const rns8_plan* plan, rns8_matrix* a_matrix,
+                                                      rns8_matrix* b_matrix, rns8_matrix* c_matrix,
+                                                      rns8_matrix* scratch_matrix,
+                                                      uint32_t chain_length,
+                                                      rns8_matrix** latest_output_matrix,
+                                                      void* stream = nullptr) {
   if (!plan || !a_matrix || !b_matrix || !c_matrix || chain_length == 0 || !latest_output_matrix) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -935,8 +900,9 @@ rns8_status run_direct_hip_resident_rns_chain_no_sync(
   rns8_matrix* out_matrix = c_matrix;
   rns8_matrix* final_output_matrix = c_matrix;
   for (uint32_t chain_index = 0; chain_index < chain_length; ++chain_index) {
-    const rns8_status status = rns8::detail::hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
-        plan, lhs_matrix, b_matrix, out_matrix, stream);
+    const rns8_status status =
+        rns8::detail::hip_direct_gemm_rns_matrix_launch_current_device_no_sync(
+            plan, lhs_matrix, b_matrix, out_matrix, stream);
     if (status != RNS8_SUCCESS) {
       return status;
     }
@@ -948,15 +914,11 @@ rns8_status run_direct_hip_resident_rns_chain_no_sync(
   return RNS8_SUCCESS;
 }
 
-void run_hip_graph_replay_resident_chain(
-    const Args& args,
-    BenchmarkResult& result,
-    const rns8_plan* plan,
-    rns8_matrix* a_matrix,
-    rns8_matrix* b_matrix,
-    rns8_matrix* c_matrix,
-    rns8_matrix* scratch_matrix,
-    rns8_matrix*& latest_output_matrix) {
+void run_hip_graph_replay_resident_chain(const Args& args, BenchmarkResult& result,
+                                         const rns8_plan* plan, rns8_matrix* a_matrix,
+                                         rns8_matrix* b_matrix, rns8_matrix* c_matrix,
+                                         rns8_matrix* scratch_matrix,
+                                         rns8_matrix*& latest_output_matrix) {
   result.hip_graph_replay_requested = true;
   result.hip_graph_replay_scope = "direct_hip_reused_inputs_residue_current_rns_chain";
   result.hip_graph_replay_caveat =
@@ -968,20 +930,11 @@ void run_hip_graph_replay_resident_chain(
   rns8_status status = capture_hip_graph_replay(
       args.device_id,
       [&](void* stream) {
-        return run_direct_hip_resident_rns_chain_no_sync(
-            plan,
-            a_matrix,
-            b_matrix,
-            c_matrix,
-            scratch_matrix,
-            args.residue_chain_length,
-            &latest_output_matrix,
-            stream);
+        return run_direct_hip_resident_rns_chain_no_sync(plan, a_matrix, b_matrix, c_matrix,
+                                                         scratch_matrix, args.residue_chain_length,
+                                                         &latest_output_matrix, stream);
       },
-      graph_state,
-      result.hip_graph_capture_us,
-      result.hip_graph_instantiate_us,
-      graph_error);
+      graph_state, result.hip_graph_capture_us, result.hip_graph_instantiate_us, graph_error);
   if (status != RNS8_SUCCESS) {
     result.hip_graph_replay_status = "capture_failed";
     result.hip_graph_replay_caveat = graph_error;
@@ -997,6 +950,8 @@ void run_hip_graph_replay_resident_chain(
   result.hip_graph_replay_status = "available";
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
     if (status != RNS8_SUCCESS) {
       result.hip_graph_replay_status = "warmup_launch_failed";
@@ -1010,6 +965,8 @@ void run_hip_graph_replay_resident_chain(
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     const auto repeat_start = std::chrono::steady_clock::now();
     status = launch_hip_graph_replay(args.device_id, graph_state, graph_error);
     const auto repeat_end = std::chrono::steady_clock::now();
@@ -1022,7 +979,7 @@ void run_hip_graph_replay_resident_chain(
       }
       fail_status("hip graph measured launch", status);
     }
-    const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+    const double elapsed = elapsed_us(repeat_start, repeat_end);
     result.samples.pack_us.push_back(0);
     result.samples.gemm_us.push_back(elapsed);
     result.samples.export_us.push_back(0);
@@ -1033,14 +990,12 @@ void run_hip_graph_replay_resident_chain(
   destroy_hip_graph_replay_state(graph_state);
 }
 
-bool maybe_create_reusable_b_prepack_cache(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    rns8_matrix* b_matrix,
-    rns8_prepack_cache** out,
-    BenchmarkResult& result) {
+bool maybe_create_reusable_b_prepack_cache(rns8_context* ctx, const rns8_plan* plan,
+                                           rns8_matrix* b_matrix, rns8_prepack_cache** out,
+                                           BenchmarkResult& result) {
   *out = nullptr;
-  const rns8_status cache_status = rns8_create_prepack_cache(ctx, plan, b_matrix, RNS8_OPERAND_B, out);
+  const rns8_status cache_status =
+      rns8_create_prepack_cache(ctx, plan, b_matrix, RNS8_OPERAND_B, out);
   if (cache_status == RNS8_UNSUPPORTED_BACKEND) {
     return false;
   }
@@ -1059,14 +1014,9 @@ bool maybe_create_reusable_b_prepack_cache(
 }
 
 template <typename NativeT>
-bool maybe_create_native_b_prepack_cache(
-    rns8_context* ctx,
-    const rns8_plan* plan,
-    const NativeT* values,
-    int64_t ld,
-    uint64_t source_version,
-    rns8_prepack_cache** out,
-    BenchmarkResult& result) {
+bool maybe_create_native_b_prepack_cache(rns8_context* ctx, const rns8_plan* plan,
+                                         const NativeT* values, int64_t ld, uint64_t source_version,
+                                         rns8_prepack_cache** out, BenchmarkResult& result) {
   *out = nullptr;
   rns8_status cache_status = RNS8_UNSUPPORTED_BACKEND;
   if constexpr (std::is_same_v<NativeT, int64_t>) {
@@ -1151,9 +1101,8 @@ int64_t sample_signed_band(std::mt19937_64& rng, uint64_t magnitude) {
   if (magnitude == 0) {
     return 0;
   }
-  std::uniform_int_distribution<int64_t> dist(
-      -static_cast<int64_t>(magnitude),
-      static_cast<int64_t>(magnitude));
+  std::uniform_int_distribution<int64_t> dist(-static_cast<int64_t>(magnitude),
+                                              static_cast<int64_t>(magnitude));
   return dist(rng);
 }
 
@@ -1164,4 +1113,3 @@ uint64_t sample_unsigned_band(std::mt19937_64& rng, uint64_t magnitude) {
   std::uniform_int_distribution<uint64_t> dist(0, magnitude);
   return dist(rng);
 }
-

@@ -1,11 +1,9 @@
-void print_autotune_text(
-    const rns8::detail::AutotuneCacheSnapshot& snapshot,
-    const std::string& autotune_key,
-    const std::string& selected_backend,
-    const rns8::detail::AutotuneRuntimeIdentity& runtime,
-    const rns8_plan_packing_info* plan_packing,
-    const rns8::detail::PlanLoweringDescription* plan_lowering,
-    bool show_entries) {
+void print_autotune_text(const rns8::detail::AutotuneCacheSnapshot& snapshot,
+                         const std::string& autotune_key, const std::string& selected_backend,
+                         const rns8::detail::AutotuneRuntimeIdentity& runtime,
+                         const rns8_plan_packing_info* plan_packing,
+                         const rns8::detail::PlanLoweringDescription* plan_lowering,
+                         bool show_entries) {
   std::cout << "autotune_cache_path:   " << snapshot.path.string() << "\n";
   std::cout << "autotune_cache_loaded: " << (snapshot.loaded ? 1 : 0) << "\n";
   std::cout << "autotune_cache_exists: " << (snapshot.exists ? 1 : 0) << "\n";
@@ -20,7 +18,8 @@ void print_autotune_text(
     std::cout << "autotune_runtime_target:  " << runtime.target_id << "\n";
     std::cout << "autotune_runtime_version: " << runtime.hip_sdk_or_library_version << "\n";
     std::cout << "selection_rationale:   "
-              << rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime)
+              << rns8::detail::autotune_selection_rationale(snapshot, autotune_key,
+                                                            selected_backend, runtime)
               << "\n";
     if (hit) {
       std::cout << "autotune_backend:      " << hit->selected_backend << "\n";
@@ -41,20 +40,18 @@ void print_autotune_text(
   }
   if (show_entries) {
     for (const auto& entry : snapshot.entries) {
-      std::cout << "autotune_entry:        " << entry.selected_backend << " " << entry.selected_kernel
-                << " " << entry.key << "\n";
+      std::cout << "autotune_entry:        " << entry.selected_backend << " "
+                << entry.selected_kernel << " " << entry.key << "\n";
     }
   }
 }
 
-void print_autotune_json(
-    const rns8::detail::AutotuneCacheSnapshot& snapshot,
-    const std::string& autotune_key,
-    const std::string& selected_backend,
-    const rns8::detail::AutotuneRuntimeIdentity& runtime,
-    const rns8_plan_packing_info* plan_packing,
-    const rns8::detail::PlanLoweringDescription* plan_lowering,
-    bool show_entries) {
+void print_autotune_json(const rns8::detail::AutotuneCacheSnapshot& snapshot,
+                         const std::string& autotune_key, const std::string& selected_backend,
+                         const rns8::detail::AutotuneRuntimeIdentity& runtime,
+                         const rns8_plan_packing_info* plan_packing,
+                         const rns8::detail::PlanLoweringDescription* plan_lowering,
+                         bool show_entries) {
   const auto* hit = rns8::detail::find_exact_autotune_entry(snapshot, autotune_key);
   std::cout << "  \"autotune_cache\": {\n";
   std::cout << "    \"path\": \"" << json_escape(snapshot.path.string()) << "\",\n";
@@ -66,20 +63,27 @@ void print_autotune_json(
   std::cout << "    \"queried_key\": \"" << json_escape(autotune_key) << "\",\n";
   std::cout << "    \"exact_hit\": " << (hit ? "true" : "false") << ",\n";
   std::cout << "    \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
-  std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
+  std::cout << "    \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version)
+            << "\",\n";
   std::cout << "    \"selection_rationale\": \""
-            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
+            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key,
+                                                                      selected_backend, runtime))
             << "\",\n";
   std::cout << "    \"selector_report\": {\n";
   std::cout << "      \"source\": \"private_inspect_selector_report\",\n";
   std::cout << "      \"selected_backend\": \"" << json_escape(selected_backend) << "\",\n";
   std::cout << "      \"selected_key\": \"" << json_escape(autotune_key) << "\",\n";
-  std::cout << "      \"cache_load_state\": \"" << (snapshot.loaded ? "loaded" : snapshot.exists ? "failed" : "missing")
+  std::cout << "      \"cache_load_state\": \""
+            << (snapshot.loaded   ? "loaded"
+                : snapshot.exists ? "failed"
+                                  : "missing")
             << "\",\n";
   std::cout << "      \"runtime_target_id\": \"" << json_escape(runtime.target_id) << "\",\n";
-  std::cout << "      \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version) << "\",\n";
+  std::cout << "      \"runtime_version\": \"" << json_escape(runtime.hip_sdk_or_library_version)
+            << "\",\n";
   std::cout << "      \"fallback_reason\": \""
-            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key, selected_backend, runtime))
+            << json_escape(rns8::detail::autotune_selection_rationale(snapshot, autotune_key,
+                                                                      selected_backend, runtime))
             << "\",\n";
   std::cout << "      \"rejection_reason_vocabulary\": ["
             << "\"unsupported semantics\", "
@@ -94,7 +98,8 @@ void print_autotune_json(
   std::cout << "    }";
   if (plan_packing) {
     std::cout << ",\n";
-    print_plan_packing_json(*plan_packing, plan_lowering != nullptr || hit != nullptr || show_entries);
+    print_plan_packing_json(*plan_packing,
+                            plan_lowering != nullptr || hit != nullptr || show_entries);
   }
   if (plan_lowering) {
     if (!plan_packing) {
@@ -110,8 +115,10 @@ void print_autotune_json(
     std::cout << "      \"selected_backend\": \"" << json_escape(hit->selected_backend) << "\",\n";
     std::cout << "      \"selected_kernel\": \"" << json_escape(hit->selected_kernel) << "\",\n";
     std::cout << "      \"target_id\": \"" << json_escape(hit->target_id) << "\",\n";
-    std::cout << "      \"validation_status\": \"" << json_escape(hit->validation_status) << "\",\n";
-    std::cout << "      \"performance_validated\": " << (hit->performance_validated ? "true" : "false") << ",\n";
+    std::cout << "      \"validation_status\": \"" << json_escape(hit->validation_status)
+              << "\",\n";
+    std::cout << "      \"performance_validated\": "
+              << (hit->performance_validated ? "true" : "false") << ",\n";
     std::cout << "      \"measured_medians_us\": {\n";
     std::cout << "        \"pack\": " << hit->measured_median_pack_us << ",\n";
     std::cout << "        \"pack_a\": " << hit->measured_median_pack_a_us << ",\n";
@@ -120,7 +127,8 @@ void print_autotune_json(
     std::cout << "        \"crt_export\": " << hit->measured_median_export_us << ",\n";
     std::cout << "        \"end_to_end\": " << hit->measured_median_end_to_end_us << "\n";
     std::cout << "      },\n";
-    std::cout << "      \"measured_median_end_to_end_us\": " << hit->measured_median_end_to_end_us << "\n";
+    std::cout << "      \"measured_median_end_to_end_us\": " << hit->measured_median_end_to_end_us
+              << "\n";
     std::cout << "    }";
   }
   if (show_entries) {
@@ -144,29 +152,30 @@ void print_autotune_json(
 
 const char* selector_family_for_backend(rns8_backend_kind backend) {
   switch (backend) {
-    case RNS8_BACKEND_HIP_DIRECT:
-      return "direct_hip_correctness_family";
-    case RNS8_BACKEND_HIPBLASLT:
-    case RNS8_BACKEND_CK:
-    case RNS8_BACKEND_ROCWMMA:
-    case RNS8_BACKEND_AMDGPU_BUILTINS:
-      return "matrix_engine_accelerator_family";
-    case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
-      return "native_vector_alu_family";
-    case RNS8_BACKEND_WRAP64_BYTE_LIMB:
-      return "wrap64_byte_limb_family";
-    case RNS8_BACKEND_CPU_REFERENCE:
-      return "cpu_reference_family";
-    case RNS8_BACKEND_AUTO:
-      return "auto_exact_cache_family";
+  case RNS8_BACKEND_HIP_DIRECT:
+    return "direct_hip_correctness_family";
+  case RNS8_BACKEND_HIPBLASLT:
+  case RNS8_BACKEND_CK:
+  case RNS8_BACKEND_ROCWMMA:
+  case RNS8_BACKEND_AMDGPU_BUILTINS:
+    return "matrix_engine_accelerator_family";
+  case RNS8_BACKEND_HIP_VECTOR_ALU_INT64:
+    return "native_vector_alu_family";
+  case RNS8_BACKEND_WRAP64_BYTE_LIMB:
+    return "wrap64_byte_limb_family";
+  case RNS8_BACKEND_CPU_REFERENCE:
+    return "cpu_reference_family";
+  case RNS8_BACKEND_CPU_AMX:
+    return "cpu_amx_explicit_matrix_engine_family";
+  case RNS8_BACKEND_AUTO:
+    return "auto_exact_cache_family";
   }
   return "unknown_family";
 }
 
-std::string selector_shadow_recommendation(
-    rns8_backend_kind backend,
-    const rns8_backend_capability_info& capability,
-    const rns8::detail::AutotuneCacheSnapshot* snapshot) {
+std::string selector_shadow_recommendation(rns8_backend_kind backend,
+                                           const rns8_backend_capability_info& capability,
+                                           const rns8::detail::AutotuneCacheSnapshot* snapshot) {
   if (backend == RNS8_BACKEND_AUTO) {
     return "exact_cache_only";
   }
@@ -181,4 +190,3 @@ std::string selector_shadow_recommendation(
   }
   return "conservative_supported_family";
 }
-

@@ -7,12 +7,14 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
 from benchmark_schema import BenchmarkSchemaError, load_capture, validate_capture
 import result_compare
+from review_receipt import ReviewReceiptReader, digest, read_review_report
+from timing_eligibility import capture_identity
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -242,12 +244,30 @@ def load_review_index(
     repo_root: Path = REPO_ROOT,
 ) -> dict[str, dict[str, Any]]:
     reviewed: dict[str, dict[str, Any]] = {}
-    for report_path in review_reports:
+    fingerprints = {}
+
+    def add_entry(key: str, entry: dict) -> None:
+        fingerprint = digest(
+            {
+                name: value
+                for name, value in entry.items()
+                if name
+                not in {"review_report", "review_report_sha256", "review_report_group_index"}
+            }
+        )
+        if key in reviewed:
+            if fingerprints[key] != fingerprint:
+                reviewed[key]["review_receipt_conflict"] = True
+            return
+        reviewed[key] = dict(entry)
+        fingerprints[key] = fingerprint
+
+    for report_path in sorted(review_reports, key=str):
         try:
-            data = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            data, report_sha256 = read_review_report(report_path)
+        except (OSError, ValueError):
             continue
-        if not isinstance(data, dict):
+        if not isinstance(data.get("groups"), list):
             continue
         for group_index, group in enumerate(data.get("groups", [])):
             if not isinstance(group, dict):
@@ -257,6 +277,9 @@ def load_review_index(
             fastest_kernel = fastest.get("selected_kernel") if isinstance(fastest, dict) else None
             group_review = {
                 "review_report": str(report_path),
+                "review_report_sha256": report_sha256,
+                "review_schema_version": data.get("schema_version"),
+                "isa_input_references": data.get("isa_input_references", []),
                 "review_report_group_index": group_index,
                 "review_mode": group.get("review_mode") or data.get("review_mode"),
                 "release_review_satisfied": group.get("release_review_satisfied"),
@@ -267,7 +290,9 @@ def load_review_index(
                 "fastest_promotable_backend": fastest_backend,
                 "fastest_promotable_kernel": fastest_kernel,
             }
-            for candidate in group.get("candidates", []):
+            if not isinstance(group.get("candidates"), list):
+                continue
+            for candidate in group["candidates"]:
                 if not isinstance(candidate, dict):
                     continue
                 capture_path = candidate.get("capture")
@@ -285,7 +310,18 @@ def load_review_index(
                     "review_median_end_to_end_us": candidate.get("median_end_to_end_us"),
                 }
                 for key in _review_capture_keys(repo_root, capture_path, report_path):
-                    reviewed[key] = entry
+                    add_entry(key, entry)
+                identity = candidate.get("capture_sha256")
+                if (
+                    isinstance(identity, str)
+                    and len(identity) == 64
+                    and all(c in "0123456789abcdef" for c in identity)
+                ):
+                    add_entry("capture_sha256:" + identity, entry)
+    for entry in reviewed.values():
+        identity = (entry.get("candidate") or {}).get("capture_sha256")
+        if (reviewed.get("capture_sha256:" + str(identity)) or {}).get("review_receipt_conflict"):
+            entry["review_receipt_conflict"] = True
     return reviewed
 
 
@@ -307,7 +343,9 @@ def _capture_kind(capture: dict[str, Any]) -> str:
         return "export_selector"
     if isinstance(capture.get("workspace_arena"), dict):
         return "workspace_arena"
-    if isinstance(capture.get("tile_shape_variant"), dict) or isinstance(capture.get("k_block_policy"), str):
+    if isinstance(capture.get("tile_shape_variant"), dict) or isinstance(
+        capture.get("k_block_policy"), str
+    ):
         return "tile_k_block"
     return "baseline"
 
@@ -333,7 +371,9 @@ def _gpu_events_complete(capture: dict[str, Any]) -> bool:
 def _target_matches(config: PendingValidationConfig, capture: dict[str, Any]) -> bool:
     if _is_reference_backend(capture) or not config.target_ids:
         return True
-    target_variant = capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
+    target_variant = (
+        capture.get("target_variant") if isinstance(capture.get("target_variant"), dict) else {}
+    )
     device = capture.get("device") if isinstance(capture.get("device"), dict) else {}
     candidates = {
         target_variant.get("target_id"),
@@ -350,11 +390,17 @@ def _claim_blockers(capture: dict[str, Any]) -> list[str]:
     for object_name in ("export_variant", "reconstruction_variant"):
         item = capture.get(object_name)
         if isinstance(item, dict) and item.get("promotion_eligible") is False:
-            reason = item.get("promotion_blocker") or item.get("stale_entry_reason") or "non_promoting_variant"
+            reason = (
+                item.get("promotion_blocker")
+                or item.get("stale_entry_reason")
+                or "non_promoting_variant"
+            )
             blockers.append(f"{object_name}:{reason}")
     tile_variant = capture.get("tile_shape_variant")
     if isinstance(tile_variant, dict) and tile_variant.get("k_block_policy") not in {None, "auto"}:
-        blockers.append("tile_shape_variant:non_default_k_block_policy_requires_same_target_counter_review")
+        blockers.append(
+            "tile_shape_variant:non_default_k_block_policy_requires_same_target_counter_review"
+        )
     arena = capture.get("workspace_arena")
     if isinstance(arena, dict) and arena.get("enabled"):
         if arena.get("measured_repeat_allocation_free") is not True:
@@ -369,9 +415,20 @@ def _claim_blockers(capture: dict[str, Any]) -> list[str]:
     return sorted(set(blockers))
 
 
-def _review_blockers(config: PendingValidationConfig, review_entry: dict[str, Any] | None) -> list[str]:
+def _review_blockers(
+    config: PendingValidationConfig, review_entry: dict[str, Any] | None
+) -> list[str]:
     if review_entry is None:
         return [f"{config.review_mode}_review_not_found"]
+    if any(
+        not isinstance(review_entry.get(name), list)
+        for name in (
+            "missing_required_baselines",
+            "duplicate_backends",
+            "review_promotion_blockers",
+        )
+    ):
+        return ["review_metadata_lists_invalid"]
     blockers: list[str] = []
     if review_entry.get("review_mode") != config.review_mode:
         blockers.append(f"review_mode_not_{config.review_mode}")
@@ -400,7 +457,9 @@ def _review_blockers(config: PendingValidationConfig, review_entry: dict[str, An
         blockers.extend(f"review_blocker:{item}" for item in candidate_blockers)
     if review_entry.get("review_report_promotable") is not True and not candidate_blockers:
         reason = review_entry.get("review_promotion_reason")
-        blockers.append(f"review_report_not_promotable:{reason}" if reason else "review_report_not_promotable")
+        blockers.append(
+            f"review_report_not_promotable:{reason}" if reason else "review_report_not_promotable"
+        )
     return blockers
 
 
@@ -411,9 +470,8 @@ def _raw_capture_promoted(capture: dict[str, Any]) -> bool:
     metadata = capture.get("backend_metadata")
     if not isinstance(metadata, dict):
         metadata = {}
-    return (
-        comparison.get("status") in RAW_REVIEWED_RELEASE_STATUSES
-        and (metadata.get("performance_validated") is True or comparison.get("speedup_claimed") is True)
+    return comparison.get("status") in RAW_REVIEWED_RELEASE_STATUSES and (
+        metadata.get("performance_validated") is True or comparison.get("speedup_claimed") is True
     )
 
 
@@ -421,27 +479,49 @@ def decision_for_capture(
     config: PendingValidationConfig,
     path: Path,
     review_entry: dict[str, Any] | None = None,
+    *,
+    review_index: dict | None = None,
+    receipt_reader: ReviewReceiptReader | None = None,
 ) -> dict[str, Any]:
+    reader = receipt_reader if receipt_reader is not None else ReviewReceiptReader()
     try:
-        capture = load_capture(path)
-        validate_capture(capture, path)
+        capture = reader.capture(path)
         schema_status = "pass"
         schema_error = None
-    except BenchmarkSchemaError as exc:
+    except (OSError, ValueError) as exc:
         capture = {}
         schema_status = "fail"
         schema_error = str(exc)
+    if capture and review_entry is None and review_index is not None:
+        review_entry = review_index.get(_path_key(config.repo_root, path)) or review_index.get(
+            "capture_sha256:" + capture_identity(capture)
+        )
+    receipt = None
+    if capture and review_entry is not None:
+        receipt = reader.validate(capture, review_entry)
+        if receipt_reader is None:
+            try:
+                reader.finish()
+            except (OSError, ValueError):
+                receipt = replace(
+                    receipt,
+                    bound=False,
+                    qualified=False,
+                    blockers=tuple(
+                        sorted(set(receipt.blockers + ("review_input_changed_during_decision",)))
+                    ),
+                )
     blockers: list[str] = []
     if schema_status != "pass":
         blockers.append("schema_failed")
-    if capture and review_entry is None and not _raw_capture_promoted(capture):
+    if capture and review_entry is None:
         blockers.append(f"{config.review_mode}_review_not_found")
     elif review_entry is not None:
         blockers.extend(_review_blockers(config, review_entry))
+        if receipt is not None:
+            blockers.extend(receipt.blockers)
     if capture.get("correctness") not in {None, "ok"}:
         blockers.append("correctness_not_ok")
-    if capture and not _is_reference_backend(capture) and not _gpu_events_complete(capture):
-        blockers.append("gpu_events_missing_or_incomplete")
     if capture and not _target_matches(config, capture):
         blockers.append(f"not_{config.target}")
     disposition = "promote locally" if not blockers else "keep experimental"
@@ -455,28 +535,77 @@ def decision_for_capture(
         "backend": capture.get("backend_selected"),
         "selected_kernel": capture.get("selected_kernel"),
         "shape": {"m": capture.get("m"), "n": capture.get("n"), "k": capture.get("k")},
-        "median_end_to_end_us": _median_us(capture),
+        "median_end_to_end_us": (receipt.measurement_cohort or {})
+        .get("phase_medians_us", {})
+        .get("end_to_end")
+        if receipt is not None and receipt.qualified
+        else _median_us(capture),
+        "raw_capture_median_end_to_end_us": _median_us(capture),
+        "measurement_estimator": (receipt.measurement_cohort or {}).get("estimator")
+        if receipt is not None
+        else None,
         "schema_status": schema_status,
         "schema_error": schema_error,
         "gpu_events_complete": _gpu_events_complete(capture) if capture else False,
         "disposition": disposition,
         "blockers": sorted(set(blockers)),
+        "review_receipt": receipt.to_json() if receipt is not None else None,
+        "review_report_declared_promotable": review_entry.get("review_report_promotable")
+        if review_entry
+        else None,
+        "review_report_declared_speedup_vs_direct_hip": review_entry.get(
+            "review_speedup_vs_direct_hip"
+        )
+        if review_entry
+        else None,
+        "capture_historical_reviewed_flag": _raw_capture_promoted(capture),
         "review_report": review_entry.get("review_report") if review_entry else None,
-        "review_report_promotable": review_entry.get("review_report_promotable") if review_entry else _raw_capture_promoted(capture),
-        "review_cache_write_status": review_entry.get("review_cache_write_status") if review_entry else None,
-        "review_promotion_reason": review_entry.get("review_promotion_reason") if review_entry else None,
-        "review_promotion_blockers": review_entry.get("review_promotion_blockers") if review_entry else [],
-        "review_release_review_satisfied": review_entry.get("release_review_satisfied") if review_entry else None,
-        "review_missing_required_baselines": review_entry.get("missing_required_baselines") if review_entry else [],
-        "review_speedup_vs_direct_hip": review_entry.get("review_speedup_vs_direct_hip") if review_entry else None,
-        "review_speedup_vs_vector_alu": review_entry.get("review_speedup_vs_vector_alu") if review_entry else None,
-        "fastest_promotable_backend": review_entry.get("fastest_promotable_backend") if review_entry else None,
-        "fastest_promotable_kernel": review_entry.get("fastest_promotable_kernel") if review_entry else None,
+        "review_report_promotable": bool(
+            review_entry
+            and review_entry.get("review_report_promotable") is True
+            and receipt is not None
+            and receipt.qualified
+        ),
+        "review_cache_write_status": review_entry.get("review_cache_write_status")
+        if review_entry
+        else None,
+        "review_promotion_reason": review_entry.get("review_promotion_reason")
+        if review_entry
+        else None,
+        "review_promotion_blockers": review_entry.get("review_promotion_blockers")
+        if review_entry
+        else [],
+        "review_release_review_satisfied": review_entry.get("release_review_satisfied")
+        if review_entry
+        else None,
+        "review_missing_required_baselines": review_entry.get("missing_required_baselines")
+        if review_entry
+        else [],
+        "review_speedup_vs_direct_hip": review_entry.get("review_speedup_vs_direct_hip")
+        if review_entry
+        and receipt is not None
+        and receipt.qualified
+        and review_entry.get("review_report_promotable") is True
+        else None,
+        "review_speedup_vs_vector_alu": review_entry.get("review_speedup_vs_vector_alu")
+        if review_entry
+        and receipt is not None
+        and receipt.qualified
+        and review_entry.get("review_report_promotable") is True
+        else None,
+        "fastest_promotable_backend": review_entry.get("fastest_promotable_backend")
+        if review_entry
+        else None,
+        "fastest_promotable_kernel": review_entry.get("fastest_promotable_kernel")
+        if review_entry
+        else None,
         "claim_blockers": claim_blockers,
     }
 
 
-def _run_report(config: PendingValidationConfig, name: str, command: list[str], out_dir: Path) -> dict[str, Any]:
+def _run_report(
+    config: PendingValidationConfig, name: str, command: list[str], out_dir: Path
+) -> dict[str, Any]:
     log_path = out_dir / "logs" / f"{name}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
@@ -511,8 +640,14 @@ def _result_compare_precheck(baseline_path: Path, candidate_path: Path) -> tuple
 
 
 def _direct_baseline_key(capture: dict[str, Any]) -> tuple[Any, ...]:
-    export = capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
-    reconstruction = capture.get("reconstruction_variant") if isinstance(capture.get("reconstruction_variant"), dict) else {}
+    export = (
+        capture.get("export_variant") if isinstance(capture.get("export_variant"), dict) else {}
+    )
+    reconstruction = (
+        capture.get("reconstruction_variant")
+        if isinstance(capture.get("reconstruction_variant"), dict)
+        else {}
+    )
     return (
         capture.get("semantics"),
         capture.get("m"),
@@ -537,7 +672,14 @@ def run_post_reports(
     if not captures:
         return []
     reports: list[dict[str, Any]] = []
-    reports.append(_run_report(config, "benchmark_schema", [sys.executable, "tools/benchmark_schema.py", *map(str, captures)], out_dir))
+    reports.append(
+        _run_report(
+            config,
+            "benchmark_schema",
+            [sys.executable, "tools/benchmark_schema.py", *map(str, captures)],
+            out_dir,
+        )
+    )
     gpu_captures = [
         path
         for path in captures
@@ -548,17 +690,32 @@ def run_post_reports(
             _run_report(
                 config,
                 "gpu_event_report",
-                [sys.executable, "tools/gpu_event_report.py", "--require-events", *map(str, gpu_captures)],
+                [
+                    sys.executable,
+                    "tools/gpu_event_report.py",
+                    "--require-events",
+                    *map(str, gpu_captures),
+                ],
                 out_dir,
             )
         )
-    exact_export = [path for path in captures if "exact-wide" in str(path).lower() or "export" in str(path).lower()]
+    exact_export = [
+        path
+        for path in captures
+        if "exact-wide" in str(path).lower() or "export" in str(path).lower()
+    ]
     if exact_export:
         reports.append(
             _run_report(
                 config,
                 "export_selector_report",
-                [sys.executable, "tools/export_selector_report.py", "--out-dir", str(out_dir / "export-selector"), *map(str, exact_export)],
+                [
+                    sys.executable,
+                    "tools/export_selector_report.py",
+                    "--out-dir",
+                    str(out_dir / "export-selector"),
+                    *map(str, exact_export),
+                ],
                 out_dir,
             )
         )
@@ -568,7 +725,13 @@ def run_post_reports(
             _run_report(
                 config,
                 "resident_workspace_report",
-                [sys.executable, "tools/resident_workspace_report.py", "--out-dir", str(out_dir / "workspace-arena"), *map(str, workspace)],
+                [
+                    sys.executable,
+                    "tools/resident_workspace_report.py",
+                    "--out-dir",
+                    str(out_dir / "workspace-arena"),
+                    *map(str, workspace),
+                ],
                 out_dir,
             )
         )
@@ -578,7 +741,13 @@ def run_post_reports(
             _run_report(
                 config,
                 "tile_shape_report",
-                [sys.executable, "tools/tile_shape_report.py", "--out-dir", str(out_dir / "tile-k-block"), *map(str, tile)],
+                [
+                    sys.executable,
+                    "tools/tile_shape_report.py",
+                    "--out-dir",
+                    str(out_dir / "tile-k-block"),
+                    *map(str, tile),
+                ],
                 out_dir,
             )
         )
@@ -600,7 +769,13 @@ def run_post_reports(
                 reports.append(
                     {
                         "name": f"result_compare_{path.stem}",
-                        "command": [sys.executable, "tools/result_compare.py", str(baseline), str(path), "--json"],
+                        "command": [
+                            sys.executable,
+                            "tools/result_compare.py",
+                            str(baseline),
+                            str(path),
+                            "--json",
+                        ],
                         "returncode": None,
                         "passed": True,
                         "log_path": None,
@@ -676,10 +851,12 @@ def write_summary(
 ) -> dict[str, str]:
     review_reports = discover_review_reports(out_dir)
     review_index = load_review_index(review_reports, repo_root=config.repo_root)
+    receipt_reader = ReviewReceiptReader()
     rows = [
-        decision_for_capture(config, path, review_index.get(_path_key(config.repo_root, path)))
+        decision_for_capture(config, path, review_index=review_index, receipt_reader=receipt_reader)
         for path in captures
     ]
+    receipt_reader.finish()
     payload = {
         "schema": config.summary_schema,
         "target": config.target,
@@ -712,9 +889,15 @@ def write_summary(
                 semantics=row.get("semantics"),
                 shape=f"{shape.get('m')}x{shape.get('n')}x{shape.get('k')}",
                 backend=row.get("backend"),
-                median=row.get("median_end_to_end_us") if row.get("median_end_to_end_us") is not None else "",
-                review=row.get("review_promotion_reason") or row.get("review_cache_write_status") or row.get("review_report_promotable"),
-                speedup=row.get("review_speedup_vs_direct_hip") if row.get("review_speedup_vs_direct_hip") is not None else "",
+                median=row.get("median_end_to_end_us")
+                if row.get("median_end_to_end_us") is not None
+                else "",
+                review=row.get("review_promotion_reason")
+                or row.get("review_cache_write_status")
+                or row.get("review_report_promotable"),
+                speedup=row.get("review_speedup_vs_direct_hip")
+                if row.get("review_speedup_vs_direct_hip") is not None
+                else "",
                 events=row["gpu_events_complete"],
                 disposition=row["disposition"],
                 blockers=", ".join(row["blockers"]),
@@ -750,7 +933,9 @@ def validation_run_passed(
     )
 
 
-def build_arg_parser(config: PendingValidationConfig, description: str | None = None) -> argparse.ArgumentParser:
+def build_arg_parser(
+    config: PendingValidationConfig, description: str | None = None
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--out-dir", type=Path, default=config.default_out_dir)
     parser.add_argument("--skip-build", action="store_true")

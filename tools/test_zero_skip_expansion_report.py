@@ -100,10 +100,19 @@ def main() -> int:
     assert report["summary"]["rank22_expansion_ready"] is False
 
     assert rows["hip-direct-row-col.json"]["row_col_decision"] == "candidate_row_col_skip"
-    assert rows["hip-direct-scan-derived-row-col.json"]["row_col_decision"] == "experimental_row_col_skip"
-    assert "proof_source_is_scan_derived_or_unknown" in rows["hip-direct-scan-derived-row-col.json"]["row_col_blockers"]
+    assert (
+        rows["hip-direct-scan-derived-row-col.json"]["row_col_decision"]
+        == "experimental_row_col_skip"
+    )
+    assert (
+        "proof_source_is_scan_derived_or_unknown"
+        in rows["hip-direct-scan-derived-row-col.json"]["row_col_blockers"]
+    )
     assert rows["ck-row-col.json"]["row_col_decision"] == "correct_full_tile_fallback"
-    assert "backend_computes_full_tile_for_row_col_products" in rows["ck-row-col.json"]["row_col_blockers"]
+    assert (
+        "backend_computes_full_tile_for_row_col_products"
+        in rows["ck-row-col.json"]["row_col_blockers"]
+    )
     assert rows["rocwmma-row-col.json"]["row_col_decision"] == "correct_full_tile_fallback"
     assert rows["hipblaslt-row-col.json"]["row_col_decision"] == "unsupported"
 

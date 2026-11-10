@@ -18,5 +18,10 @@ void begin(std::size_t fail_at = std::numeric_limits<std::size_t>::max());
 Profile end() noexcept;
 std::size_t live_allocations() noexcept;
 
-}  // namespace rns8::test::allocation_fault
+// Observe complete public calls, including C++ allocations on OpenMP workers.
+// This mode never injects failures and must not overlap another observer.
+void begin_all_threads();
+Profile end_all_threads() noexcept;
+
+} // namespace rns8::test::allocation_fault
 #endif

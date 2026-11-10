@@ -44,7 +44,9 @@ def main() -> int:
         shadow_path = tmp / "shape-family-shadow-report.json"
         write_json(shadow_path, shadow)
 
-        report = auto_shape_family_gate.build_report(cache, [shadow_path], require_recommendations=True)
+        report = auto_shape_family_gate.build_report(
+            cache, [shadow_path], require_recommendations=True
+        )
         assert report["schema"] == "rns8_auto_shape_family_gate_v1"
         assert report["rank36_gate_complete"] is True, json.dumps(report["blockers"], indent=2)
         assert report["runtime_exact_cache_guard"]["ready"] is True
@@ -61,13 +63,20 @@ def main() -> int:
         routed_shadow["recommendations"][1]["runtime_routing_allowed"] = True
         routed_path = tmp / "routed-shadow.json"
         write_json(routed_path, routed_shadow)
-        routed_report = auto_shape_family_gate.build_report(cache, [routed_path], require_recommendations=True)
+        routed_report = auto_shape_family_gate.build_report(
+            cache, [routed_path], require_recommendations=True
+        )
         assert routed_report["rank36_gate_complete"] is False
-        assert any("shape_family_runtime_routing_not_disabled" in item for item in routed_report["blockers"])
+        assert any(
+            "shape_family_runtime_routing_not_disabled" in item
+            for item in routed_report["blockers"]
+        )
 
         stale_boundary_shadow = copy.deepcopy(shadow)
         stale_boundary_shadow["boundary_fields"] = [
-            field for field in stale_boundary_shadow["boundary_fields"] if field != "output_contract"
+            field
+            for field in stale_boundary_shadow["boundary_fields"]
+            if field != "output_contract"
         ]
         stale_boundary_path = tmp / "stale-boundary-shadow.json"
         write_json(stale_boundary_path, stale_boundary_shadow)
@@ -77,7 +86,10 @@ def main() -> int:
             require_recommendations=True,
         )
         assert stale_boundary_report["rank36_gate_complete"] is False
-        assert any("boundary_field_missing:output_contract" in item for item in stale_boundary_report["blockers"])
+        assert any(
+            "boundary_field_missing:output_contract" in item
+            for item in stale_boundary_report["blockers"]
+        )
 
     print("AUTO shape-family gate self-test: PASS")
     return 0

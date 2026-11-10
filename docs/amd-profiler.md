@@ -1,0 +1,492 @@
+# AMD profiler evidence
+
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
+Profiling explains an already admitted workload. It cannot replace exact output
+checks or provide unprofiled production latency. Raw captures stay in ignored
+temporary storage; derived report files describe their actual evidence scope.
+
+## Maintained source contracts
+
+| Path | Supported source contract | Current boundary |
+| --- | --- | --- |
+| Linux rocprofv3 | ROCprofiler-SDK 1.4.1 native JSON kernel dispatch | Process/agent/queue/dispatch, exact symbol and file-backed code-object association |
+| Linux rocpd | Native database schema 3.0.4 | Same dispatch join, native graph/stream/event relationships, individual counter observations and vendor definitions |
+| Windows RDP CLI | Candidate CLI 1.0.0 (RDP bundle 3.5.1) preflight and bounded dispatch-range capture | Owned controller/workload with raw-file custody; opaque RGP remains manual-review evidence |
+| Raw RGP, unsupported databases and exports | Inventory only | No inferred dispatch identity or fabricated counters |
+
+The candidate target-qualification profiler phase accepts replayed, bound Linux
+native-dispatch evidence. A Windows raw-RGP acquisition/manual-review receipt
+does not satisfy that machine gate. The source adapters retain these separate
+capabilities; native tool/format, asynchronous-marker and device qualification
+still require the corresponding platform. ATT/PC sampling remains a conditional
+diagnostic with explicit capability and decoder requirements.
+
+The Linux acquisition planner also accepts repeated `--counter NAME` options
+for one group of at most eight counters. Its exact ordered group must have a
+retained native availability and `pmc-check` observation for the explicit
+profiler agent. The maintained
+[SDK launcher](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/bin/rocprofv3.py)
+receives one `--pmc` group and performs one application execution; input files,
+multi-pass groups, kernel replay and privileged clock changes are not enabled.
+The two injected counter variables are checked against the benchmark's actual
+environment witness. Preflight collectability remains distinct from runtime
+permission and the observed dispatch/device association.
+
+`counter-pass.json` retains each selected dispatch's requested native
+observations, including vendor units, zero values and individual hardware
+instances. Absent counters and unavailable values or units remain partial;
+they never become zeros or cross-instance totals. Receipt replay reconstructs
+the report from the retained database. Complete selected measurements do not
+establish loss-free acquisition, complete run coverage or production latency.
+The acquisition and tampered-report controls are registered.
+
+AMD and host-profile publishers share an exclusive diagnostic writer. It
+encodes arrays/maps incrementally, enforces the64MiB document limit and the
+session's retained-byte/free-space budgets while emitting, and computes the
+receipt digest during the write. Derived captures, receipts and successful
+summaries use the same policy as timeline/allocation/counter sidecars. Existing
+outputs cannot be replaced; failed publication keeps unqualified scratch bytes
+and a failure outcome. Small failure records remain separate from successful
+evidence publication. This source change has no measured performance credit.
+
+## Windows dispatch capture
+
+`tools/amd_profiler_windows.py` plans an RDP CLI 1.0.0 dispatch-range capture
+from an admitted production control and its retained Windows capability
+preflight. The CLI reports its own version 1.0.0, independently of the RDP
+bundle's 3.5.1 version. Its pinned parser returns exit 1 for successful help and
+version requests. Preflight accepts that exit only for the exact information
+commands with recognized output, empty stderr and complete capture; receipts
+retain the original exit code and replay the same policy. Workload success
+still requires exit zero. For example, planning is read-only:
+
+    python tools/amd_profiler_windows.py temp/production.json --capabilities temp/windows-preflight/capabilities.json --out-dir temp/windows-rgp --first-dispatch 8 --dispatch-count 3
+
+Execution requires both `--execute` and `--authorize-driver-profile`. The
+controller connects to an already running local service over loopback; the
+workflow launches no service, GUI, installer, registry or clocks command.
+Counter collection and instruction tracing are separate explicit options.
+Dispatch indices belong to the native process capture and do not establish
+measured-operation, warmup or HIP-ordinal identity.
+
+The maintained [RDP controller source](https://github.com/GPUOpen-Tools/radeon_developer_panel/blob/fcc2ec5e8ed7f3432e59297a59fcec740434ee4b/source/cli/capture_cli.cpp)
+filters paths by substring and waits for a separate application. The owner
+therefore starts the controller first, records bounded concurrent stage output,
+then checks every reported accepted connection against the exact owned
+benchmark PID and path. Process creation is not reported as native readiness.
+Timeout, interruption or workload failure cancels only the owned controller;
+partial bytes and stage records remain available. The shared runner supports
+an explicit supervisor cancellation event and avoids `taskkill` against an
+already exited root PID.
+
+Offline `review_capture(plan_path)` reopens source/tool/binary inputs, compiled
+identity, actual argv/environment/device observations, stage streams and raw
+file hashes. The native save path and byte count must match one nonempty owned
+RGP file. A bounded summary records `raw_saved_unqualified`: it does not decode
+the opaque file or qualify dispatches, device identity, counters, loss state or
+production latency. A supported native decoder/export or manual review remains
+necessary. This implements the issue's raw-RGP fallback without inventing a
+machine-export CLI. The registered ownership, replay, cancellation, drift and
+failure controls are registered.
+
+The rocpd reader follows AMD's pinned
+[schema source](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/share/rocprofiler-sdk-rocpd/rocpd_tables.sql).
+It reads a finalized standalone database in immutable read-only mode, rejects
+live journal/WAL sidecars, unsupported/mixed versions and ambiguous process
+identities, and bounds SQL execution and materialized rows. Database IDs,
+profiler logical selectors and HIP ordinals are distinct namespaces.
+
+Selected dispatch admission also requires the native agent's serialized PCI
+`domain` and `location_id` to identify the same observed runtime device in the
+same OS instance. The pinned [agent definition](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/agent.h)
+and [serializer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/cxx/serialization/save.hpp)
+supply those fields. ROCpd retains the original agent object from `extdata`;
+its database ID does not replace the original SDK handle. Missing, malformed,
+ambiguous or conflicting PCI observations reject qualification. Architecture
+names, ordinal equality and caller labels cannot supply the binding.
+
+The pinned ROCpd writer populates its `uuid` column from the agent's
+`device_id`, a vendor device identifier rather than a unique GPU UUID. The
+reader labels that literal meaning and rejects contradictory values. It never
+expands that column into a HIP UUID. Raw-SDK JSON reads the actual top-level
+PCI fields, so an invented nested metadata alias cannot substitute for them.
+These admission and actual-format controls are authored; runtime validation
+and native target qualification remain pending.
+The pinned [native writer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/lib/output/generateRocpd.cpp)
+stores the internal SDK correlation in `rocpd_event.stack_id` and the external
+caller value in `correlation_id`. The reader preserves both, including an
+observed external zero, plus an optional native parent stack. The parent is a
+recorded relationship, not an inferred dependency. Native-layout controls use
+different internal, external and event IDs so those namespaces cannot collapse
+unnoticed. The corrected reader and controls are registered.
+
+The optional `read_process(..., include_timeline=True)` projection also reads
+native host regions, copies, allocation lifecycle, HIP events, graph launches
+and dispatch intervals. Their table IDs, real thread IDs, string categories,
+event associations and nullable agent/queue/stream references stay distinct.
+Shared event metadata is stored once, with literal event IDs on records.
+Intervals must belong to the completed native process; every nonnull reference
+needs its matching process/node/GUID inventory. Free size zero is preserved for
+later generation accounting, and unknown JSON metadata remains available.
+All queries share a cumulative row allowance and64MiB decoded-text budget;
+individual SQLite values are limited to1MiB and the interval projection to
+100,000 records. SQL work and final materialization retain the time limit.
+Missing or malformed requested tables fail rather than produce empty success.
+Empty tables mean no observation, not zero work or complete capture; instant
+samples and loss counters are outside this interval projection. The capture
+finalizer retains it and the receiver reconstructs it from the native database.
+The marker/operation consumer below is connected through an explicit option;
+the full causal critical-path report still needs broader native evidence. Actual-layout database controls are authored and
+registered, with no database fixture, reader or profiler execution in this pass.
+
+The operation join also associates copies, allocation lifecycle records, HIP
+events and graph launches through their exact internal API correlation and
+launch thread. Missing or ambiguous APIs, outside-operation records and work
+outliving the completed native window remain separate unresolved observations.
+Raw related records retain queue/stream, addresses, graph/event identities and
+zero free sizes; sharing an event handle does not establish a dependency.
+
+The embedded phase report uses native marker timestamps and explicit snapshot
+ancestry. It reports inclusive phase unions and disjoint per-thread marker wall
+nanoseconds. A sweep handles nested ranges without double-counting parents;
+overlapping siblings and foreign operation/iteration/role scopes remain
+ambiguous. An excluded synchronous interval masks the enclosing phase rather
+than crediting it with unclassified work. Launch phases require the complete
+API interval inside one exact marker ancestry. These are wall intervals, not
+sampled CPU time, blocked-wait attribution or exclusive device service, and
+concurrent thread totals do not add to process wall time. The source and
+actual-table controls are authored; runtime validation remains deferred.
+
+AMD's [rocpd documentation](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocpd-output-format.html)
+recommends retaining the database before converting to other formats. An
+export's display name, renamed kernel or temporal proximity cannot establish
+the original mangled symbol or loaded artifact. The adapter joins native
+process/node/GUID-scoped records and reuses the existing selected static ISA
+and immutable artifact receipts.
+
+The JSON code-object agent field is agent_id.handle, as emitted by the pinned
+[SDK serializer](https://github.com/ROCm/rocm-systems/blob/7da43026e4f2ef7600433c38c820732f7a205d22/projects/rocprofiler-sdk/source/include/rocprofiler-sdk/cxx/serialization/save.hpp).
+The adapter and authored format controls use that producer spelling; an
+unsupported alias cannot supply missing association.
+
+## Plan and preflight
+
+Plan-only emits supported-feature policy and read-only commands:
+
+    python tools/amd_profiler_capabilities.py --system Linux --target gfx942 --agent 7
+    python tools/amd_profiler_capabilities.py --system Windows --target gfx1100
+
+Explicit preflight runs those commands through the existing bounded owned-process
+runner, preserving stdout/stderr, command lines and executable hashes:
+
+    python tools/amd_profiler_capabilities.py --system Linux --target gfx942 --agent 7 --counter SQ_WAVES --preflight --out-dir temp/profiler-preflight
+
+The output directory must be fresh. No application workload, GUI or service is
+launched, and no driver, clock or permission setting is modified. At most eight
+unique counters may be requested for the explicit profiler agent. Preflight
+records supported tuple, located executable, parsed version, advertised feature,
+permission, capture, decode and evidence-binding states separately. A successful
+help command does not establish capture completion or counter permission.
+See AMD's [availability commands](https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3-avail.html).
+
+The acquisition-side preflight consumer reopens the receipt, tool executables
+and exact stdout/stderr files. It reconstructs the maintained probe inventory
+and recomputes version, advertised-feature and agent decisions. Resealing an
+edited readiness field cannot replace these raw inputs. The consumer reports
+inventory facts; permissions and physical HIP-to-profiler mapping remain
+separate capture gates.
+
+The shared process runner retains at most 64 MiB of combined stdout/stderr by
+default, draining both streams concurrently. Output overrun, decoding failure
+and incomplete cleanup remain failures even if the child exits zero. Optional
+owned artifact roots have a sampled byte budget, bounded inventory scans and
+explicit rejection of links/junctions. Artifact monitoring can overshoot
+between polls; it preserves partial files and reports their observed size.
+It never deletes captures or kills an unrelated service to recover space.
+Session, preflight, observation and qualification consumers share the same
+process-success rule.
+
+The maintained policy keeps discrete Radeon outside Compute Profiler's
+Instinct/APU support envelope, gfx1100 ATT trace-only, and stochastic PC sampling
+separate from CDNA2 host-trap sampling. Unknown/new tuples remain unqualified
+until their documented and observed capabilities are reconciled.
+
+## Native report attachments
+
+The dispatch receipt schema remains the shared
+[candidate qualification](target-qualification.md) input. Select the explicit
+adapter matching the retained output:
+
+- rocprofiler-sdk-json-kernel-dispatch-v1, with explicit JSON acquisition.
+- rocprofiler-sdk-rocpd-3.0.4-kernel-dispatch-v1, with explicit rocpd acquisition.
+
+Both require their own profiled process/capture, the exact production relation,
+native output digest, selected static ISA, profiler executable/version receipt
+and original acquisition argv. rocpd selected agent/queue/dispatch IDs refer to
+its database namespace, not the JSON handle namespace.
+
+Profiled runs must request --record-execution-environment. The benchmark records
+its actual argument vector and relevant C-runtime environment before and after
+work, including profiler-injected variables. The witness must be complete,
+stable and equal to the attached request. Caller-side labels alone cannot
+substitute for it. The production/profile relation permits this one observation
+flag when it was absent from the production control; other argument differences
+still require their explicit raw-output relation.
+
+The native observer and collector use the same relevant-variable contract.
+They retain RNS8/OMP/HIP/ROCR/ROCP/ROCPROF/HSA/KMP controls and selected loader/
+visibility variables, not the full environment. Each snapshot is bounded to
+256 selected entries, 4 KiB per value and 64 KiB total; argv is bounded
+separately. Windows native CRT text is converted to UTF-8 in a private platform
+translation unit. Failed encoding, ambiguity, over-budget or changed
+observations cannot qualify. Environment mutation during observation is outside
+the benchmark's controlled process contract.
+
+Ordinary runs leave the observer disabled. No environment enumeration occurs
+unless requested, and observation/serialization stays outside workload timing
+intervals. Older profiled captures without a native witness remain inventories;
+they cannot be silently upgraded into dispatch qualification.
+
+For automated collection, rns8-bench accepts --json-output NEW_FILE. It
+exclusively reserves the destination after argument validation and before
+work, writes native JSON after all measurement intervals, and preserves
+stdout/stderr for tool logs. Existing files are never overwritten. Failures
+retain an empty/partial native artifact for diagnosis.
+JSON printers receive an explicit destination stream; they never redirect
+global stdout, including while profiler background threads are active.
+
+A profiled file-output relation additionally retains native_benchmark_output
+as an immutable raw-file reference. Validation requires the separately bound
+profiled capture to equal that raw output apart from the four declared
+collector attachments, and requires its absolute --json-output argument to
+name that exact artifact. File-output plumbing is an explicit observation
+difference; arbitrary argument changes still fail the common work contract.
+
+`tools/amd_profiler_session.py` plans one Linux SDK 1.4.1 timeline acquisition
+from an existing hook-disabled, fully reference-checked production capture,
+its raw-bound capabilities receipt and selected static ISA. It does not require
+the later complete target-qualification verdict, which itself consumes profiler
+evidence. Planning reads files only; append `--execute` to launch the four
+bounded stages (compiled benchmark/inspector identities, live device inspection,
+and one native timeline execution):
+
+```shell
+python tools/amd_profiler_session.py temp/production.json --capabilities temp/profiler-preflight/capabilities.json --selected-isa temp/isa/report.json --inspector /absolute/build/rns8-inspect --out-dir temp/profiles/timeline-01
+```
+
+The session directory must be new and below repository `temp/`. Defaults reserve
+600 seconds including 60 seconds for export, cap each command at 300 seconds,
+retain at most 16 MiB of process output, sample a 2 GiB native-artifact budget,
+and require 5 GiB free space. Artifact limits are sampled and may overshoot;
+they are not a filesystem quota. Timeouts, incomplete output, tool/library
+changes, unsupported launcher injection, missing native files and ambiguous
+database inventories fail the session while preserving raw files. There is no
+automatic retry, permission adjustment, service launch or cache promotion.
+
+The runner replays the recorded relevant production environment under the same
+admitted visibility mapping. It does not relabel a masked ordinal as an unmasked
+physical device. Both live inspection and the profiled benchmark must match the
+production PCI/UUID observation. The native argv/environment witness must match
+the pinned single-pass launcher's exact injection, including its libraries and
+output paths. The dispatch-receipt consumer reopens the retained session stages,
+compiled identities, logs, input receipts and injection-library bytes. Exact
+mangled symbols select native dispatches; the existing validator then joins
+their actual loaded code objects. Selected-dispatch qualification establishes
+neither complete trace/counter coverage nor a production timing improvement.
+
+The collector and capability-gated native acquisition/export orchestration are
+implemented with registered offline controls. Supported Linux hardware and Windows
+command/finalization compatibility remain qualification gates. Raw RGP retains the
+manual-review path described above; unsupported machine formats and optional
+ATT/sampling decoders remain explicit capability limits.
+
+    python tools/gpu_counter_report.py temp/production.json --dispatch-receipt temp/dispatch-receipt.json --out-dir temp/counter-review
+
+For multiple captures use per-capture dispatch_receipts entries in the existing
+attachment manifest. Flat CSV/JSON attachments remain diagnostic inventory:
+matching execution/kernel labels alone cannot qualify resource or counter data.
+
+Counter-report ISA inventory and selected-symbol association share one parsed
+snapshot per input. Inventory entries retain absolute source paths and content
+hashes. The report's evidence owner verifies those files again before returning;
+ISA changes during review prevent publication. The shared ISA index reader also
+rejects duplicate JSON keys instead of accepting an ambiguous backend identity.
+Registered controls cover these
+source and admission changes.
+
+Native metrics preserve vendor name, description, unit, block, expression,
+value type, dispatch interval and XCC/SE/instance dimensions. A missing unit
+remains unknown; an observed zero stays zero. The report neither evaluates
+vendor formulas nor sums different instances, metrics or replay passes.
+Static register/LDS/private-segment requirements remain separate from dynamic
+occupancy, residency and traffic. Generic column-name maxima no longer become
+memory-pressure, wait or occupancy measurements.
+
+The review reports selected service time, interval union, overlap and uncovered
+span separately for each profiled process/pass. Unselected kernels or copies
+can occupy gaps, so gaps alone do not prove a host bottleneck. Missing loss/full
+coverage remains explicit; no complete-workload utilization or speedup is
+inferred. Markdown limits displayed metric rows; JSON retains all observations.
+
+## Optional ROCTx ranges
+
+Native Linux builds can opt into RNS8_ENABLE_ROCTX=ON when the current
+rocprofiler-sdk-roctx headers are discoverable. No marker API or profiler
+library is required by correctness builds or installed public consumers.
+The runtime loader remains disabled until RNS8_PROFILE_RANGES=1 is explicitly
+set. Windows requests are rejected because its marker backend is not established.
+
+The adapter uses the current SDK's process start/stop range API, loaded on
+demand. Its phase vocabulary covers preparation, pack, proof, dispatch enqueue,
+reduction, export, completion, publication, oracle and cleanup. No range is
+placed inside a per-cell/inner-product loop. Fused reduction does not acquire a
+fabricated separate duration. Regular benchmark warmup/measured loops carry
+numeric iteration/operation tags. Untagged paths remain unclassified.
+
+Nested host scopes restore their parent's tag on errors and exceptions.
+Prepared HIP operations retain a separate cross-thread range until completion
+and publication; a submit scope ending is not GPU completion. Prepared ID/epoch
+and benchmark iteration IDs have separate namespaces. Host parent relationships
+are explicit metadata, not inferred device dependencies.
+
+The benchmark emits a bounded 4096-record numeric sidecar inside its JSON.
+It records actual returned provider range IDs, phase, role, operation namespace,
+host stop state, dropped and unpublished records, and the loaded provider path
+where available. Provider availability does not establish that a profiler
+actually captured markers. Loss/truncation and unmatched IDs cannot become
+complete semantic-to-dispatch coverage. More detailed/long-lived correlation
+must use retained native traces. No file I/O or JSON formatting occurs inside
+the range path.
+
+New enabled captures declare `marker_label_contract=rns8_phase_slot_v1`.
+Native labels use `rns8.<phase>#slot=<decimal index>`, generated in a bounded
+stack buffer with `to_chars` and no heap allocation. The slot is claimed before
+the provider call; a complete snapshot with no unpublished/dropped records
+retains the same array order. This gives the native timeline reader a literal
+marker identity to match to the numeric sidecar. Returned ROCTx range IDs,
+snapshot slots and SDK internal/external correlations remain separate domains.
+Historical labels without this contract cannot inherit the new join. Formatting
+controls cover zero/full-width slots and short/null buffers; native capture and
+capture finalization controls still require runtime validation.
+
+`tools/amd_profiler_ranges.py` matches every published slot to one literal native
+marker message with the same phase/process/thread. It shares bounded snapshot,
+ancestry and measured-root admission with CPU sampling through
+`tools/host_range_contract.py`; no fabricated CPU sample is needed to validate
+an SDK timeline. Native host children must stay inside their explicit
+same-thread parents. Dispatch ownership follows one exact internal HIP API
+correlation and that API's complete containment in a measured native marker.
+Returned range IDs, table IDs, slots and caller external correlations stay
+separate. Zero/missing/ambiguous internal IDs, conflicting threads and work
+outliving the completed operation remain unresolved. Warmup/outside launches
+are retained separately. Roots on different threads may overlap; interval
+unions retain that overlap instead of summing service into wall time.
+
+Marker matching uses only the native SDK timestamp domain. The sidecar's
+host monotonic timestamps are not substituted for GPU timestamps. A kernel may
+start before its launch API returns, so an API-completion-to-kernel-start edge
+is never inferred. Complete literal marker matching still does not prove
+loss-free acquisition or complete work/dependency coverage. These exact native
+table-to-consumer, stale/duplicate marker, unknown/ambiguous correlation and
+overlapping-caller controls remain registered. Capture publication
+and receipt replay are connected; the dependency/critical-path
+consumer retains the unresolved boundaries described below.
+
+An additional marker-clock observation retains each exact native marker
+endpoint beside the host brackets around its ROCTx call. Prefix/suffix order
+envelopes produce conditional host bounds without fitting a constant offset,
+epoch or rate. Missing brackets and conflicting order remain unavailable or
+inconsistent. This records actual paired observations; it does not establish
+GPU timestamp normalization or authorize GPU duration/dependency claims. The
+original native timestamps and their uncertainty remain visible, and receipt
+replay reconstructs the observation. These controls are registered.
+
+The embedded dependency report records exact API-entry/native-start launch
+relationships, with elapsed time left unattributed to submission, driver or
+queue causes. Exact graph instance plus launch-API identity can establish a
+recorded membership, while missing/ambiguous membership and incomplete graph
+coverage remain explicit. Graph summary intervals are excluded from kernel/copy
+service totals, and a shared launch API is counted once. Per-operation native
+marker windows, selected service unions and selected API unions remain separate.
+Time outside selected service includes unselected or missing work and is not
+reported as host launch overhead.
+
+The pinned SDK emits `HIP_EVENT_RECORD` and `HIP_EVENT_WAIT` operation names.
+Handle, agent, source queue and observed API order support a record/wait
+candidate only; missing or multiple observed generations, conflicting queues
+and impossible observed completion order remain unresolved. The native schema
+lacks a complete create/destroy/generation/loss witness, so these candidates
+never become qualified causal edges. Temporal adjacency and API-return-to-GPU-
+start dependencies are not inferred. Without complete scheduler, clock and
+dependency evidence the report returns an unresolved critical path and an honest
+no-resolved-host-bottleneck conclusion, followed by the smallest resolving
+collection. Actual-table graph/event/overlap controls are registered.
+
+Add `--operation-ranges` to the timeline plan only for the same production
+binary compiled with `roctx=ON`. The launcher supplies the range opt-in and
+requires the actual active snapshot. Plan version3 binds the option and decoder/
+marker/source inputs. Finalization writes `native-timeline.json` and
+`operation-join.json` outside raw acquisition storage; absent opt-in emits
+`not_requested` rather than implying measured-operation coverage. Publication
+checks each document's64MiB cap, total owned artifact bytes and free-space
+reserve, and exclusively creates its output. The receiver uses its fresh native
+decode to reconstruct both sidecars, so changing a derivation and refreshing
+its file digest cannot authorize it. The native decode is reused by dispatch
+and operation validation instead of querying the database a third time.
+Source-authored collector controls cover native producer→sidecars→receipt,
+feature admission, total artifact budget and resealed derivation drift. SQLite
+fixtures close connections before rename/reopen; none of these controls or
+native acquisition paths has executed in this source pass.
+
+Finalization also retains `native-allocations.json` and reconstructs it during
+receipt replay. `tools/native_allocation_lifetimes.py` groups observed records
+by process/node/GUID, agent, REAL/VIRTUAL/SCRATCH level and address. Generation
+identity uses the native allocation record, with a separate resolved ordinal.
+Only a resolved live generation supplies a zero-size free's requested bytes.
+Unknown frees, missing identities, overlapping same-pointer effect intervals,
+unobserved frees before reuse and incomplete realloc/reclaim relations remain
+named unresolved records. Raw allocation counts/requested sizes stay visible.
+
+Allocation/free timestamps bound when the effect could occur inside the native
+interval; they are not exact allocation instants. The shared weighted-interval
+helper produces minimum/maximum payload peaks for the resolved observed
+subtrace, with explicit endpoint overlap. These bounds assume that subtrace's
+matched/retained sequence; unknown or missing events can change the actual
+peak. Whole-domain physical peak stays unavailable. CPU/GPU agent association,
+REAL allocation, VIRTUAL reservation and SCRATCH remain separate source labels;
+none establishes pinned-host classification or physical commitment. Sampled
+RSS and the separate host-heap interception lane are not added to these bytes.
+Actual-table free-zero/reuse, uncertain peaks, mixed domains, unmatched frees, ambiguous
+transitions and partial realloc controls are registered. Allocation-generation
+projections, phase association and the bounded critical-path report are implemented;
+unresolved clocks and missing causal edges remain explicit unknowns.
+
+Active/requested tracing is excluded from production timing admission. The
+profiler relation permits the explicitly declared range opt-in environment,
+retains its own capture identity, and still requires a matching exact result.
+The disabled build path uses empty inline scopes and has no dynamic loader,
+counter, allocation, synchronization or profiler call.
+
+## Remaining implementation and validation
+
+Native converter/export receipts, supported Windows RDP/RGP machine evidence
+beyond the opaque manual-review fallback, remaining async family coverage and
+additional ATT/sampling/pass coverage remain under #104.
+Unsupported formats and memory-backed code-object loads remain explicitly
+unqualified. Hardware unavailable locally can be qualified later, after its
+source implementation is ready.
+
+The new preflight/database/report fixtures are authored protocol controls, not
+collected GPU evidence. Their execution and all new hardware checks are deferred
+until the development pass is complete.
+
+
+Selected static ISA bindings include the physical tile M/N, K-block size and
+K-block policy when present in a benchmark capture. A generic kernel name cannot
+reuse another tile configuration's binding. Bound sidecar filenames include the
+binding digest so different explicit mappings for one artifact do not overwrite
+each other. Identical selected symbol records deduplicate; contradictory selected
+records within or across reports invalidate the selected association. Unselected
+inventory metadata never supplies missing selected-symbol resources.

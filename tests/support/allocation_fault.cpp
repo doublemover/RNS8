@@ -1,6 +1,7 @@
 #include "allocation_fault.hpp"
 
 #include <cstdint>
+#include <atomic>
 #include <cstdlib>
 #include <new>
 
@@ -14,11 +15,18 @@ thread_local bool active = false;
 thread_local std::size_t fail_index = std::numeric_limits<std::size_t>::max();
 thread_local rns8::test::allocation_fault::Profile profile;
 thread_local std::size_t live = 0;
+std::atomic<bool> observe_all{false};
+std::atomic<std::size_t> observed_calls{0}, observed_bytes{0};
 
 void* allocate(std::size_t bytes, std::size_t alignment) {
+  if (observe_all.load(std::memory_order_acquire)) {
+    observed_calls.fetch_add(1, std::memory_order_relaxed);
+    observed_bytes.fetch_add(bytes, std::memory_order_relaxed);
+  }
   if (active) {
     const std::size_t index = profile.calls++;
-    if (bytes > std::numeric_limits<std::size_t>::max() - profile.bytes) throw std::bad_alloc();
+    if (bytes > std::numeric_limits<std::size_t>::max() - profile.bytes)
+      throw std::bad_alloc();
     profile.bytes += bytes;
     if (index == fail_index) {
       profile.triggered = true;
@@ -26,11 +34,14 @@ void* allocate(std::size_t bytes, std::size_t alignment) {
     }
   }
   const std::size_t size = bytes == 0 ? 1 : bytes;
-  if (alignment < alignof(Header)) alignment = alignof(Header);
+  if (alignment < alignof(Header))
+    alignment = alignof(Header);
   const std::size_t overhead = sizeof(Header) + alignment - 1;
-  if (size > std::numeric_limits<std::size_t>::max() - overhead) throw std::bad_alloc();
+  if (size > std::numeric_limits<std::size_t>::max() - overhead)
+    throw std::bad_alloc();
   void* base = std::malloc(size + overhead);
-  if (!base) throw std::bad_alloc();
+  if (!base)
+    throw std::bad_alloc();
   const auto start = reinterpret_cast<std::uintptr_t>(base) + sizeof(Header);
   const auto address = (start + alignment - 1) & ~(std::uintptr_t(alignment) - 1);
   ::new (reinterpret_cast<void*>(address - sizeof(Header))) Header{base};
@@ -39,14 +50,15 @@ void* allocate(std::size_t bytes, std::size_t alignment) {
 }
 
 void release(void* pointer) noexcept {
-  if (!pointer) return;
+  if (!pointer)
+    return;
   auto* header = reinterpret_cast<Header*>(static_cast<char*>(pointer) - sizeof(Header));
   void* base = header->base;
   --live;
   std::free(base);
 }
 
-}  // namespace
+} // namespace
 
 namespace rns8::test::allocation_fault {
 
@@ -61,16 +73,42 @@ Profile end() noexcept {
   return profile;
 }
 
-std::size_t live_allocations() noexcept { return live; }
+std::size_t live_allocations() noexcept {
+  return live;
+}
 
-}  // namespace rns8::test::allocation_fault
+void begin_all_threads() {
+  observed_calls.store(0, std::memory_order_relaxed);
+  observed_bytes.store(0, std::memory_order_relaxed);
+  observe_all.store(true, std::memory_order_release);
+}
 
-void* operator new(std::size_t size) { return allocate(size, alignof(std::max_align_t)); }
-void* operator new[](std::size_t size) { return allocate(size, alignof(std::max_align_t)); }
-void operator delete(void* pointer) noexcept { release(pointer); }
-void operator delete[](void* pointer) noexcept { release(pointer); }
-void operator delete(void* pointer, std::size_t) noexcept { release(pointer); }
-void operator delete[](void* pointer, std::size_t) noexcept { release(pointer); }
+Profile end_all_threads() noexcept {
+  observe_all.store(false, std::memory_order_release);
+  return {observed_calls.load(std::memory_order_relaxed),
+          observed_bytes.load(std::memory_order_relaxed), false};
+}
+
+} // namespace rns8::test::allocation_fault
+
+void* operator new(std::size_t size) {
+  return allocate(size, alignof(std::max_align_t));
+}
+void* operator new[](std::size_t size) {
+  return allocate(size, alignof(std::max_align_t));
+}
+void operator delete(void* pointer) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer) noexcept {
+  release(pointer);
+}
+void operator delete(void* pointer, std::size_t) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer, std::size_t) noexcept {
+  release(pointer);
+}
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept {
   try {
@@ -86,8 +124,12 @@ void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
     return nullptr;
   }
 }
-void operator delete(void* pointer, const std::nothrow_t&) noexcept { release(pointer); }
-void operator delete[](void* pointer, const std::nothrow_t&) noexcept { release(pointer); }
+void operator delete(void* pointer, const std::nothrow_t&) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer, const std::nothrow_t&) noexcept {
+  release(pointer);
+}
 
 void* operator new(std::size_t size, std::align_val_t alignment) {
   return allocate(size, static_cast<std::size_t>(alignment));
@@ -95,10 +137,18 @@ void* operator new(std::size_t size, std::align_val_t alignment) {
 void* operator new[](std::size_t size, std::align_val_t alignment) {
   return allocate(size, static_cast<std::size_t>(alignment));
 }
-void operator delete(void* pointer, std::align_val_t) noexcept { release(pointer); }
-void operator delete[](void* pointer, std::align_val_t) noexcept { release(pointer); }
-void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept { release(pointer); }
-void operator delete[](void* pointer, std::size_t, std::align_val_t) noexcept { release(pointer); }
+void operator delete(void* pointer, std::align_val_t) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer, std::align_val_t) noexcept {
+  release(pointer);
+}
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer, std::size_t, std::align_val_t) noexcept {
+  release(pointer);
+}
 
 void* operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept {
   try {
@@ -114,5 +164,9 @@ void* operator new[](std::size_t size, std::align_val_t alignment, const std::no
     return nullptr;
   }
 }
-void operator delete(void* pointer, std::align_val_t, const std::nothrow_t&) noexcept { release(pointer); }
-void operator delete[](void* pointer, std::align_val_t, const std::nothrow_t&) noexcept { release(pointer); }
+void operator delete(void* pointer, std::align_val_t, const std::nothrow_t&) noexcept {
+  release(pointer);
+}
+void operator delete[](void* pointer, std::align_val_t, const std::nothrow_t&) noexcept {
+  release(pointer);
+}

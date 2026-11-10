@@ -1,0 +1,18 @@
+# Normalize text consistently for native Git and Windows clients sharing a checkout.
+* text=auto
+
+# Certificate identities hash exact tracked bytes across Windows and Linux.
+/tools/data/wrap64_signed*.json text eol=lf
+/tools/data/rank23-october-55.txt text eol=lf
+/third_party/rank48/* text eol=lf
+/metadata/quality-tools.json text eol=lf
+# Exact-source mutation pins bind the same tracked bytes on Windows and Linux.
+/src/backend_common/checked_arithmetic.hpp text eol=lf
+/src/reconstruct/crt.cpp text eol=lf
+/src/core/api_matrix_currentness_storage.inc text eol=lf
+/src/core/hip_handle_owner.hpp text eol=lf
+/src/core/api_export.cpp text eol=lf
+/src/core/api_prepared.cpp text eol=lf
+/src/backend_common/gram_plan.hpp text eol=lf
+/src/core/api_prepared_gram.cpp text eol=lf
+*.sh text eol=lf

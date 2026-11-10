@@ -1,0 +1,35 @@
+{
+  "schema": "rns8_python_typecheck_scope_v1",
+  "owner_issue": 100,
+  "source_target": "3.12",
+  "status": "initial_vertical_slice_qualified_windows_and_linux_wsl",
+  "strict_modules": [
+    "tools/json_evidence.py",
+    "tools/evidence_scalars.py",
+    "tools/execution_environment_contract.py",
+    "tools/execution_observation.py",
+    "tools/evidence_records.py"
+  ],
+  "negative_inputs": {
+    "tests/typecheck/wrong_command.py": "arg-type",
+    "tests/typecheck/missing_artifact_key.py": "typeddict-item",
+    "tests/typecheck/unresolved_name.py": "name-defined"
+  },
+  "remaining_migration": [
+    "Collector/report-specific validated projections",
+    "Target-qualification and native profiler record projections",
+    "Sweep command and cohort/report record projections"
+  ],
+  "unchecked_modules_policy": "Reported explicitly; ordinary import following remains enabled; no global missing-import suppression.",
+  "source_check": {
+    "date": "2026-11-07",
+    "checker": "mypy 2.4.1",
+    "interpreter": "CPython 3.15.2 on Windows and Ubuntu24.04/WSL2",
+    "source_target": "3.12",
+    "checked_files": 5,
+    "negative_controls": 3,
+    "result": "Five strict modules pass; arg-type, typeddict-item and name-defined defect fixtures fail as intended on both hosts.",
+    "scope": "Initial production vertical slice only; remaining_migration is explicit, with ordinary import discovery and runtime fixtures retained.",
+    "qualification_receipt": "metadata/issue-closeout-validation-20261107.json"
+  }
+}

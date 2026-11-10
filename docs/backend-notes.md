@@ -1,64 +1,287 @@
 # Backend implementation and selection
 
-All backends preserve explicit semantic contracts. Hardware support depends on
-actual compiler/runtime support and successful execution on the selected device.
-The [audit](audit-2026-10-06.md) and [qualification guide](gpu-qualification.md)
-supersede earlier blanket "production" or "complete" labels.
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
 
-| Backend | Contracts | Important limits |
-| --- | --- | --- |
-| CPU reference | bounded, exact-wide, finite | correctness reference; optional OpenMP |
-| CPU wrap64 byte-limb | wrap64 | explicit separate backend |
-| Direct HIP | bounded, exact-wide, finite, wrap64 | baseline for target qualification; no universal speed claim |
-| Native HIP vector ALU | bounded signed/unsigned | native exact comparator, not finite/wide/wrap routing |
-| hipBLASLt | bounded, exact-wide, finite | optional library, separate INT32 scratch/reduction; per-tile bounds unsupported |
-| CK | bounded including scheduled work, exact-wide, finite | optional headers/generated configuration; target/shape/static-modulus limits |
-| rocWMMA | bounded including scheduled work, exact-wide, finite | optional library; wrap byte-GEMM candidate is internal and separate |
-| AMDGPU builtins | dense RNS/finite and explicit sparse-A | target-specific WMMA/MFMA/SMFMAC/SWMMAC; K cap and modulus restrictions |
+Select a backend explicitly in `rns8_context_options.requested_backend`, or use
+`AUTO` with the policy below. The benchmark accepts the names in this table;
+the [public enum](../include/rns8/semantics.h) defines C API identities.
+[Readiness](platform-readiness.md) separates availability, compiled declarations
+and actual device validation.
 
-## Feature detection
+## Public paths
 
-Enable optional backends with `RNS8_ENABLE_HIPBLASLT`, `RNS8_ENABLE_CK`,
-`RNS8_ENABLE_ROCWMMA`, and `RNS8_ENABLE_AMDGPU_BUILTINS`. They require
-`RNS8_ENABLE_HIP=ON`. Discovery-only `RNS8_PROBE_ACCELERATORS` does not enable a
-backend. No optional accelerator is required for CPU or direct-HIP correctness.
+Builtin dense admission uses exact implemented targets: `gfx942`,
+`gfx1100`/`gfx1101`/`gfx1102`, and `gfx1200`/`gfx1201`, with validated feature
+suffixes. A family prefix such as `gfx110` does not admit `gfx1103` or an unknown
+future target. Context creation also checks that its selected arithmetic symbol
+has a matching compiled code object before any output can be written.
 
-The source contains RDNA3 WMMA, CDNA3 `gfx942` MFMA, and RDNA4 matrix/sparse
-builtins. That is source coverage, not a claim that all such targets compile or
-pass today. The recent scalar "WMMA skinny" candidates were removed: the dense
-RDNA3 route again uses the actual `rdna3_dense_wmma_kernel<Finite>` for skinny
-and ordinary shapes. It preserves finite/RNS semantics and leading dimensions.
+The current rocWMMA package has one host launch width. Configure rejects mixed
+wave32/wave64 target lists in either order and probes every admitted target.
+Same-wave lists remain eligible for the installed SDK's compile checks; runtime
+admission verifies the compiled launch width. Build separate rocWMMA packages
+for incompatible classes, or disable that optional backend in a mixed direct-HIP
+package. These source checks do not establish qualification on absent devices.
+
+CK and rocWMMA additionally qualify their generated padded pack/output domains
+through shared checked layout derivation. A valid logical matrix can still be
+unsupported by these signed32 adapters when padding expands a physical index
+beyond their admitted domain. Resource queries and launch preparation use the
+same result. Direct-HIP integer exporters derive scalar/quad/scheduled grids
+with wide checked arithmetic and the selected device's grid limits.
+
+Host matrix uploads distinguish the accessed source span from its row pitch.
+They allocate compact device storage, transfer only logical row widths, and use
+the compact device stride in conversion and compute. The final host row needs
+no trailing padding, and an unused single-row pitch does not enlarge the copy.
+Signed/unsigned, finite, byte-limb, retained-native and native one-shot paths
+share this checked transfer plan. These are source-level transfer bounds;
+performance comparisons remain pending measurement.
+
+Layout-aware products and CPU recipe products share the centered-byte
+65,536-term accumulation policy. Physical LDS/layout tiles do not introduce
+extra reduction boundaries. Host-prepared reciprocals cover the complete ordered
+byte basis. The arithmetic identity is `centered-byte-blocked-k65536-v2`;
+materialization graph/build identities invalidate earlier prices. New latency
+and ISA evidence must be collected for this implementation.
+
+Stable-version imports reuse the complete required materialization set,
+including retained native storage, without rescanning or advancing generation.
+An incomplete set performs a real import. Wrap64 host boundaries transfer
+canonical bytes directly on matching layouts, with explicit conversion for
+other host byte orders; they retain reader/writer leases across uncertain
+completion. These source changes await validation and matched measurements.
+
+| Backend / benchmark name | State and enablement | Arithmetic / constraints | Evidence or implementation owner |
+|---|---|---|---|
+| `cpu-reference` | Available public path | Bounded, exact-wide, finite; independent Boost reference, optional OpenMP | [Correctness](correctness.md), [developer checks](../CONTRIBUTING.md) |
+| `hip-direct` | Available public path with `RNS8_ENABLE_HIP=ON` | Bounded, wide, finite and separate byte-limb wrap64; target/address restrictions | [Local device validation](local-all-features-20261023.md) |
+| `hip-vector-alu-int64` | Available public HIP path | Bounded i64/u64 only; native storage and exact wide accumulation | [Matched measurements](7900xtx-large-throughput-2026-10-23.md#public-bounded-i64-pipelines-and-reuse) |
+| `hipblaslt` | Opt-in public path; `RNS8_ENABLE_HIPBLASLT=ON` | Fixed-prefix bounded, wide, finite; library availability; separate INT32 scratch/reduction; no adaptive tile bounds | [Implementation](../src/backend_hipblaslt/README.md) |
+| `ck` | Opt-in public path; `RNS8_ENABLE_CK=ON` | Bounded including adaptive schedules, wide, finite; headers, shapes and byte-modulus contracts constrain admission | [Implementation](../src/backend_ck/README.md) |
+| `rocwmma` | Opt-in public path; `RNS8_ENABLE_ROCWMMA=ON` | Bounded including adaptive schedules, wide, finite; target matrix instructions and header compatibility | [Implementation](../src/backend_rocwmma/README.md) |
+| `amdgpu-builtins` | Opt-in public path; `RNS8_ENABLE_AMDGPU_BUILTINS=ON` | Target-specific dense RNS/finite and explicit Sparse-A; accumulation/modulus/device restrictions | [Source](../src/backend_amdgpu_builtins/amdgpu_builtins_backend.cpp), [validation](local-all-features-20261023.md) |
+| `wrap64-byte-limb` | Available public CPU context; direct HIP provides the GPU route | Strict modulo 2⁶⁴ only, distinct byte-limb storage | [Implementation](../src/backend_wrap64/README.md) |
+
+All optional GPU paths require HIP. CMake feature detection checks components;
+`RNS8_PROBE_ACCELERATORS` is discovery only. The direct-HIP and CPU paths do not
+require optional matrix libraries. Windows correctness and measurements are
+scoped in the linked dated records; Linux and other GPU families need their own
+execution evidence.
+
+RDNA3 builtin kernels use actual WMMA instructions. CDNA3 `gfx942` MFMA and
+RDNA4 matrix/sparse variants also exist in source. Source coverage does not
+establish execution for an entire family. Sparse-A is an explicit public
+structured-sparsity contract with target restrictions; dense GEMM does not infer
+sparsity. Private block-sparse research is a separate path.
+
+Compact experimental consumers can submit indexed matrix batches with an
+explicit physical modulus list. Logical plane IDs, compact positions and
+moduli are validated together before launch; they are never interpreted as a
+shifted default prefix. Indexed entry points share each architecture's inlined
+INT8 matrix body and select only the epilogue modulus. Default-basis kernel
+signatures and arithmetic bodies remain unchanged. Both routes share checked
+batch/address/overlap admission and the existing 65536-element K cap. A borrowed
+nondefault stream selects pure enqueue; its owner retains storage and observes
+completion. Default-stream calls retain synchronous completion.
+
+The authored indexed differential controls include reordered prime channels,
+48 batches, padded matrices, K=65536 and both submission modes. Syntax checks
+do not qualify their emitted instructions or device execution; the current
+frontload pass defers those checks to the final validation batch.
+
+Finite Sparse-A discovery forwards the actual modulus to the shared target
+predicate, keeping its single storage plane separate from arithmetic modulus.
+
+Sparse-A source preflight is shared with raw-device dispatch: current kernels
+admit `gfx942`, `gfx1200` and `gfx1201`, K divisible by4 up to65536, supported
+static byte moduli or default-basis prefix1..20, and complete packed/input/output
+address spans within their index domain. This is source admissibility, not a
+GPU/OS qualification statement. In particular, dense `gfx1100` availability
+does not enable sparse instructions. An unsupported sparse request now rejects
+before output invalidation, preserving its old bytes, generation and range
+proof. CPU predicate and gfx1100 negative-preservation fixtures pass the
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json);
+supported sparse-target arithmetic remains unqualified.
+
+## Generated sparse support profiles
+
+`rns8-inspect --sparse-profiles --json --backend cpu-reference` generates a
+concrete dense/structured-Sparse-A/block-sparse matrix from the same public
+operation provider. Select `--backend hip-direct --device 0` to bind the inventory to an available GPU context and target. This queries
+all source providers without allocating matrices, preparing sparse owners,
+running a capability kernel or executing GEMM. Context creation performs the
+ordinary selected-backend discovery.
+
+The18 fixed profiles cover bounded signed/unsigned and signed/unsigned wide,
+all six builtin finite byte moduli plus unsupported-provider controls,
+short/large family shapes, K tails and65536/65537 boundaries, and a padded-address
+control. Every profile includes all three representation families and every
+returned backend, including rejected/uncompiled rows. Typed fields preserve
+semantic/modulus/basis policy, input dimensions/strides, reason/offending field,
+execution modes, safe K, alignment, resource status and requested byte bounds.
+Unknown or binding-dependent storage is not zero-resource qualification.
+Structured V1 requires complete four-position K groups even on CPU.
+Separate authored CPU and capability-gated GPU fixtures exercise signed/unsigned
+wide Sparse-A at every ordered prefix and all six position pairs. Tiny proved
+input bounds fit prefix1; independent Boost dots, dense controls and padded
+three-limb sign-extension checks cover every output. GPU absence/unsupported
+source targets remain explicit skips, never inferred execution.
+
+The sparse kernel catalogue is generated from the existing metadata registry;
+its names expose the declared SMFMAC/SWMMAC/source families. It is not a selected
+or executed-symbol list. Compiled inventory, matching-context runtime observation
+and receipt-bound differential/performance qualification remain separate per
+row. The unbound block-sparse query covers its scalar operation; explicit
+WMMA/hybrid owners retain their native compiled capability probe and dynamic
+structure/range checks.
+Profile controls and CLI coverage are registered.
 
 ## AUTO and reviewed caches
 
-An AUTO context probes direct HIP and can fall back to CPU if HIP is unavailable.
-Within a HIP AUTO context, an eligible plan can select a compiled backend from a
-reviewed exact-match cache. Candidate checks include semantics, target/runtime
-identity, selected kernel, workspace, and the full plan key. No matching entry
-means the baseline context backend remains selected. There is no runtime timing
-search and no general shape-neighborhood interpolation.
+AUTO refreshes a context-owned immutable snapshot from the complete current
+cache bytes on every selection. The absolute path and SHA256 identify reuse of
+the parsed records and exact-key/cohort indexes. Creation, removal, atomic
+replacement, malformed content and environment-selected path changes are seen
+by the next selection; timestamps alone never authorize reuse. Input is bounded
+to a regular16MiB file,65536 entries and128 JSON nesting levels, with duplicate
+members and duplicate entry keys rejected.
 
-`implementation_revision=2` is now part of the exact plan key. Historical cache
-entries cannot implicitly carry performance validation across the correctness
-repairs. Rebuild, qualify, measure, review, and explicitly reinstall entries.
-A cache label does not cryptographically attest to the source or evidence;
-keep the original capture and build provenance outside the cache.
+A conservative backend/semantics/modulus/shape/target shortlist eliminates
+definite misses before accelerator probing, lazy library creation or candidate
+plan construction. Surviving candidates still require complete arithmetic,
+runtime, exact-key and workspace admission. The trace retains every candidate;
+`RNS8_AUTO_NO_PLAUSIBLE_REVIEWED_ENTRY` has disposition3 (`not_evaluated`). Its
+empty key, false hit flags and zero workspace mean those facts were unobserved,
+not that an exact-key lookup or resource query failed. These rows are excluded
+from the rejected-candidate projection. Source-authored refresh, identity,
+shortlist and actual selector controls follow the roadmap's execution scope;
+no planning or
+one-shot latency benefit has been measured.
 
-## Metadata and lifetimes
+An AUTO context probes direct HIP and can use CPU when HIP is unavailable.
+Within a HIP AUTO context, an eligible plan may select a compiled backend from
+a reviewed exact-match cache. Admission binds semantics, target/runtime, kernel,
+workspace and the full plan key. Missing/rejected entries retain the baseline
+context backend. There is no runtime timing search or shape interpolation.
 
-`rns8_get_backend_capability_info` reports compiled/source capability metadata;
-it does not run an on-device validation campaign. `rns8_get_plan_backend_info`
-adds the selected kernel, accumulation policy, workspace and autotune key.
-`rns8_get_plan_packing_info` describes input/output domains, currentness, and
-possible continuations. Distinguish these declarations from external hardware
-qualification results.
+`implementation_revision=8` participates in that key. Earlier cache entries do
+not carry validation across implementation repairs. Reviewed caches are routing
+inputs, not cryptographic attestations; retain the original capture, artifact
+hash and build provenance. [Performance review](performance.md) owns promotion.
 
-Public grouped APIs operate on already-current resident tasks. Graph replay,
-streaming overlap, several pack/export variants, and repeated-workload reports
-have benchmark-specific contracts. The actual graph implementation remains in
-the benchmark and graph-safe backend helpers; removed dead graph prototypes are
-not public APIs.
+## Metadata, ownership and execution
 
-For backend-specific details also see the implementation READMEs under
-`src/backend_hipblaslt`, `src/backend_ck`, `src/backend_rocwmma`, and
-`src/backend_wrap64`. [Performance policy](performance.md) defines evidence gates.
+The source frontload shares CK/rocWMMA/hipBLASLt's optional launch timing policy. Event
+samples require finite nonnegative elapsed time, and synchronized-host fallback
+samples require a successful drain. Failed completion records the runtime error
+and returns the provider's backend failure instead of publishing timing evidence.
+Host fallback labels remain distinct from GPU-event labels; nondefault-stream
+enqueue paths bypass this instrumentation. These repairs and their portable
+publication controls follow the
+roadmap's execution scope. hipBLASLt retains its explicitly synchronized pre-stop boundary only inside
+diagnostic timing; a failed synchronization now prevents sample publication.
+
+`rns8_get_backend_capability_info` reports compiled/source metadata;
+`rns8_get_plan_backend_info` adds selected kernel, accumulation and workspace;
+`rns8_get_plan_packing_info` reports domains/currentness and continuations.
+These APIs describe the selected implementation without running a campaign.
+The context-free capability accessor therefore returns
+`exact_differential_validated=0` and `performance_validated=0`: no run receipt is
+bound to that inventory. Zero means unknown in this scope, not a failed test.
+Correctness-backend roles and compiled availability remain separate fields.
+An AUTO plan admitted through the existing reviewed exact-match cache can
+expose that scoped exact/performance evidence; ordinary plans do not infer it
+from compile switches. The named dated validation/measurement reports above
+retain their actual target, source and toolchain qualification.
+
+New raw benchmark diagnostics may consequently carry false in the metadata
+validation field while retaining their independently required per-capture
+reference/checksum checks. The schema accepts this unknown inventory state;
+it still requires a Boolean, and rejects performance validation without bound
+exact-differential evidence. Historic captures declaring true remain readable.
+This does not relax reviewed comparison/provenance/variance or routing gates.
+
+Ordinary GEMM/grouped calls are synchronous and operate on compatible current
+resident resources. Public [prepared execution](prepared-execution.md) retains
+resources and binds generations. Explicit fixed-prefix direct-HIP stream
+submission, owned HIP capture/replay, same-device prepared groups and
+[resident DAG submission](resident-graphs.md#explicit-asynchronous-direct-hip-dags)
+have separate completion-token and reservation rules. Benchmark graph/streaming
+flags are separate experiments; their larger combinations do not extend the
+public API envelope.
+
+## Experimental paths and reserved APIs
+
+| Family | Current boundary | Owner |
+|---|---|---|
+| Native-byte WMMA, grouped native conversion, queue and split-K | Private register/LDS controls plus explicit prepared native groups and windowed split-K owners; ordinary dispatch unchanged | [Native narrow](native-narrow.md), [native tiled](native-tiled-wmma.md), [queue](persistent-native-queue.md), [split-K](native-split-k.md) |
+| [Bound whole-route planner](bound-pipeline-recipes.md) | Explicit preparation/execution of representation, split-K, narrow, queue, stream/graph and final checked CRT alternatives; unpriced routes remain unknown | [Issue30](https://github.com/doublemover/RNS8/issues/30) |
+| [CDNA5 transfer research](cdna5-tdm-research.md) | Private ordinary/TDM/two-stage cluster-multicast raw-native controls; LLVM23 gfx1250 syntax only, no target run | [Issue52](https://github.com/doublemover/RNS8/issues/52) |
+| Matrix-owned narrow native | Opt-in synchronous public exact-wide scalar/byte products; fresh domain/partial-sum scans and complete RNS output; applicable local checks pass | [Narrow owner](narrow-native-owner.md) |
+| Encoded B | Explicit generation-bound public cache of actual K-contiguous B residues with grouped WMMA consumers; applicable local checks pass | [Encoded-B owner](encoded-b-native.md) |
+| Runtime product arena | CPU/direct-HIP exact-wide DAG, strict last-reader reuse and opt-in public packed-materialization planning; capacity-aware price schema and measured-stage ingestion | [Runtime arena](runtime-product-arena.md), [materializations](planning-recipes.md#cost-planned-product-materializations) |
+| Matrix-owned adaptive native | Opt-in public exact-wide direct-HIP call with retained native inputs; synchronous; applicable local checks pass | [Adaptive ownership](adaptive-native-product.md#explicit-matrix-owned-native-inputs) |
+| Paired complex 3M/4M | Opt-in public signed exact-wide CPU/direct-HIP and synchronous graph composition; local binding checks pass | [Complex owner](complex-residue-composition.md) |
+| Wide-index residue control | Private scalar64-bit offsets plus public panel streaming with a completed >32GiB native-input capacity study; each path keeps its own indexing/output contract | [Wide-index control](wide-index-gemm.md), [capacity study](out-of-core-panels.md#real-32-gib-input-on-the-24-gib-rx-7900-xtx) |
+| Strassen / rank-23 / rank48 | Opt-in public one-level direct-HIP exact-wide Strassen; private rank-23 and canonical retained/recomputed rank48; applicable local checks pass; performance qualification pending | [Strassen](strassen-device.md), [rank-23](rank23-device.md), [#48](https://github.com/doublemover/RNS8/issues/48) |
+| Packed INT4/IU4 | Explicit public finite signed-nibble owner and versioned packed B; gfx1100/1101/1102 implementation; target/performance qualification deferred | [Specification](RNS8_RESEARCH_SPEC.md#171-int4), [#46](https://github.com/doublemover/RNS8/issues/46) |
+| Floating encodings / integer splitting | Explicit finite gfx942/gfx1201 FP8 and gfx950 fixed/dynamic/mixed FP4/FP6/FP8 kernels with conditional instruction models; separate caller-owned host radix128 split/merge; floating target execution/performance unqualified | [FP8 and split contracts](fp8-modular-research.md), [rewrite oracle](floating-rewrite-oracle.md), [#45](https://github.com/doublemover/RNS8/issues/45) |
+| Redundant checks / Freivalds | Native-input independent residue sentinel, producer-attached public integrity and distributed commit check; public finite Freivalds verifier with explicit randomness metadata | [Integrity](device-integrity.md), [#49](https://github.com/doublemover/RNS8/issues/49) |
+| Sparse/hybrid | Public structured Sparse-A and generation-bound block-sparse owners with explicit scalar/WMMA/hybrid methods; provider restrictions and measured cohorts remain scoped | [Block sparse](block-sparse.md), [#51](https://github.com/doublemover/RNS8/issues/51) |
+| Multi-GPU | Private HIP all-axis shards, staged/peer and MPI/RCCL/rocSHMEM process transports, bounded ownership and independent commit integrity; actual linked cluster qualification pending | [Real HIP owner](distributed-hip.md), [Linux helpers](platform-linux.md#existing-bounded-host-scripts), [#50](https://github.com/doublemover/RNS8/issues/50) |
+
+The [integer split API](../include/rns8/integer_split.h) exposes exact signed
+radix128 host components with explicit strides, capacity and transactional merge.
+The seeded Freivalds entrypoint delegates to the public finite verifier; other arithmetic domains
+remain unsupported. Strassen accepts the explicitly documented subset. The [research index](research/README.md) groups focused technical notes.
+
+Sparse entry points also return `RNS8_BUSY` for a dense B with a pending writer,
+or an output with pending readers or a writer, before target admission and output
+mutation. Concurrent read-only reservations on B remain valid. State fixtures
+cover both sparse RNS and finite-ring calls; applicable cases passed the
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json).
+Later source changes retain their separate pending validation.
+
+
+The internal epilogue and exact-suffix-lift support providers now share static
+shape/prefix/address/resource admission between public owners and raw wrappers.
+Records distinguish unknown resources from zero scratch and never mark a device
+qualified. Lift reports suffix payload and the additional device status word
+separately: the public staged-residue budget still limits payload, preserving its
+documented meaning. Pointer aliases, generations, value proofs and stream ownership
+remain dynamic admission steps. Provider parity/budget fixtures pass applicable local validation;
+the [bound recipe layer](bound-pipeline-recipes.md) composes these providers with
+existing resource owners and explicit complete-route prices.
+
+### Explicit finite INT4 ownership
+
+`rns8_prepare_int4_recipe` prepares the real signed-mode IU4 WMMA candidate for
+finite rings 2..16 and eligible prime fields. Mode 0 converts inside the tile;
+mode 1 retains B as `[ceil(K/16)][N][2]` little-nibble uint32 fragments (lower K
+in the low nibble). Odd/tail K is numerical zero, never uninitialized payload.
+Both wave halves consume the documented duplicated B fragment. This is not an
+unsigned-nibble path and does not truncate the ordinary RNS basis.
+
+The shared arithmetic guard models four-bit signed inputs, signed prior residue
+and every 65,536-product slab: `65536*64+15 < INT32_MAX`. Preparation probes the
+actual device code object once; steady execution neither probes nor allocates.
+The immutable owner binds B instance/generation, modulus, format, target, build
+and certificate. Source mutation rejects before C invalidation. Device failure
+invalidates C and retains borrowed storage until a checked drain; preparation
+may return a non-null cleanup-only owner on an undrainable failure. Checked
+destruction remains retryable. Default finite GEMM/AUTO are unchanged.
+
+`rns8-int4-calibrate` and `collect_int4_calibration.py` provide matched ordinary
+INT8, on-the-fly INT4 and packed-B routes, including full cold ownership, repeated
+B and repeated A+B, padded complete export, setup/execute/export/cleanup phases,
+sustained uninstrumented intervals and counterbalanced independent processes.
+Fixtures cover tails, all slab boundaries and multiple slabs; authored regressions
+cover every finite nibble alphabet, packed tails, stale generations and full
+public output. Applicable gfx1100 regressions passed the
+[October 27 local batch](../metadata/remaining-code-validation-20261027.json);
+later source changes follow
+the roadmap's execution scope, and
+no new campaign or speedup (including the specification's 1.25x gate) follows.
+Public reachability does not qualify other targets.

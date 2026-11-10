@@ -6,7 +6,7 @@
 #include <limits>
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-#  include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 namespace rns8::detail {
@@ -36,48 +36,52 @@ bool round_up_aligned_u64(uint64_t value, uint64_t alignment, uint64_t& out) {
   return true;
 }
 
-int run_timed_device_code(const char* label, const std::function<int()>& fn) {
+int run_timed_device_code(const char* label, const std::function<int()>& fn, void* stream) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!hip_direct_timing_enabled() || !label) {
     return fn();
   }
 
   hip_unique_event_pair events;
-  hipError_t event_status = events.create_and_record_start();
+  hipError_t event_status = events.create_and_record_start(static_cast<hipStream_t>(stream));
   if (event_status != hipSuccess) {
+    hip_direct_timing_record_failure(label, "create_or_record_start",
+                                     static_cast<int>(event_status));
     return fn();
   }
 
   const int code = fn();
   if (code == 0) {
-    event_status = events.record_stop();
+    event_status = events.record_stop(static_cast<hipStream_t>(stream));
     if (event_status == hipSuccess) {
-      hip_direct_timing_record_pending_event(label, events.release_start(), events.release_stop());
+      hip_direct_timing_record_pending_event(label, std::move(events));
       return code;
     }
+    hip_direct_timing_record_failure(label, "record_stop", static_cast<int>(event_status));
   }
   return code;
 #else
   (void)label;
+  (void)stream;
   return fn();
 #endif
 }
 
 rns8_status status_from_device_code(int code) {
   switch (code) {
-    case 0:
-      return RNS8_SUCCESS;
-    case 1:
-      return RNS8_INVALID_ARGUMENT;
-    case 2:
-      return RNS8_UNSUPPORTED_BACKEND;
-    case 3:
-      return RNS8_BACKEND_FAILURE;
-    case 4:
-      return RNS8_RANGE_ERROR;
-    default:
-      return RNS8_BACKEND_FAILURE;
+  case 0:
+    return RNS8_SUCCESS;
+  case 1:
+    return RNS8_INVALID_ARGUMENT;
+  case 2:
+    return RNS8_UNSUPPORTED_BACKEND;
+  case 3:
+    return RNS8_BACKEND_FAILURE;
+  case 4:
+    return RNS8_RANGE_ERROR;
+  default:
+    return RNS8_BACKEND_FAILURE;
   }
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

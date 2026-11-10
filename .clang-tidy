@@ -1,0 +1,13 @@
+Checks: >-
+  -*,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-sizeof-expression,
+  bugprone-misplaced-widening-cast,
+  bugprone-implicit-widening-of-multiplication-result
+WarningsAsErrors: ''
+SystemHeaders: false
+# The runner supplies an absolute first-party/control-header filter per session.
+HeaderFilterRegex: ''

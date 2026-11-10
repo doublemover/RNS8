@@ -4,12 +4,28 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <iosfwd>
 
 #include "rns8/rns8.h"
 
 namespace rns8::bench {
 
-uint64_t elapsed_us(std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point end);
+template <typename Rep, typename Period>
+constexpr double duration_us(std::chrono::duration<Rep, Period> duration) {
+  return std::chrono::duration<double, std::micro>(duration).count();
+}
+
+inline double elapsed_us(std::chrono::steady_clock::time_point start,
+                         std::chrono::steady_clock::time_point end) {
+  return duration_us(end - start);
+}
+
+struct HostClockCalibration {
+  double pair_median_us;
+  double pair_p95_us;
+  double censor_threshold_us;
+};
+const HostClockCalibration& host_clock_calibration();
 
 [[noreturn]] void usage_error(const std::string& message);
 
@@ -39,18 +55,19 @@ std::string compiler_id();
 
 std::string compiler_version();
 
-void print_nullable_string(const char* value);
+void print_nullable_string(std::ostream& output, const char* value);
 
-void print_json_string_or_null(const char* value);
+void print_json_string_or_null(std::ostream& output, const char* value);
 
-void print_json_string_or_null(const std::string& value);
+void print_json_string_or_null(std::ostream& output, const std::string& value);
 
 std::size_t checked_elements(int64_t rows, int64_t cols, const char* label);
 
-std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count, const char* label);
+std::size_t checked_limb_elements(int64_t rows, int64_t cols, uint32_t limb_count,
+                                  const char* label);
 
 std::size_t checked_bytes(std::size_t elements, std::size_t element_size, const char* label);
 
 std::size_t checked_add_bytes(std::size_t lhs, std::size_t rhs, const char* label);
 
-}  // namespace rns8::bench
+} // namespace rns8::bench

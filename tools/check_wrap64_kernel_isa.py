@@ -29,11 +29,16 @@ WRAP64_SYMBOL_MARKERS = [
     "rns8_wrap64_export_u64_contiguous4_kernel",
 ]
 
+
 def wrap64_symbols(objdump: str, code_object: Path) -> list[str]:
-    return symbols_matching_markers(objdump, code_object, WRAP64_SYMBOL_MARKERS, "wrap64 kernel symbols")
+    return symbols_matching_markers(
+        objdump, code_object, WRAP64_SYMBOL_MARKERS, "wrap64 kernel symbols"
+    )
 
 
-def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str, symbols: list[str]) -> list[str]:
+def scan_disassembly(
+    objdump: str, code_object: Path, amdgpu_target: str, symbols: list[str]
+) -> list[str]:
     reports: list[str] = []
     for symbol in symbols:
         disassembly = disassemble_code_object(objdump, code_object, amdgpu_target, symbol)
@@ -46,7 +51,8 @@ def scan_disassembly(objdump: str, code_object: Path, amdgpu_target: str, symbol
             )
         if forbidden_matrix:
             raise RuntimeError(
-                f"{symbol} unexpectedly contains matrix-engine instructions:\n" + "\n".join(forbidden_matrix[:20])
+                f"{symbol} unexpectedly contains matrix-engine instructions:\n"
+                + "\n".join(forbidden_matrix[:20])
             )
         reports.append(f"{symbol}: no div/rem/rcp mnemonics; no matrix-engine mnemonics")
     return reports
@@ -58,7 +64,9 @@ def main() -> int:
         "Compiled wrap64 HIP host object containing .hip_fatbin",
         "wrap64 HIP object",
     )
-    with extracted_device_code_object(config, "rns8-wrap64-isa-", "wrap64_hip_kernels.fatbin") as code_object:
+    with extracted_device_code_object(
+        config, "rns8-wrap64-isa-", "wrap64_hip_kernels.fatbin"
+    ) as code_object:
         symbols = wrap64_symbols(config.objdump, code_object)
         reports = scan_disassembly(config.objdump, code_object, config.target, symbols)
 
@@ -73,6 +81,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001 - command-line tool should print concise failure cause.
+    except Exception as exc:
         print(f"wrap64 ISA check: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

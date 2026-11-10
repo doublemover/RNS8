@@ -82,8 +82,8 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
   auto malformed_future_signed = signed_desc;
   malformed_future_signed.requested_backend = RNS8_BACKEND_HIPBLASLT;
   malformed_future_signed.bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
-  CHECK(rns8_gemm_i64_oneshot(ctx, &malformed_future_signed, signed_a, 2, signed_b, 2, signed_c, 2) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_i64_oneshot(ctx, &malformed_future_signed, signed_a, 2, signed_b, 2, signed_c,
+                              2) == RNS8_INVALID_ARGUMENT);
   auto valid_future_signed = signed_desc;
   valid_future_signed.requested_backend = RNS8_BACKEND_HIPBLASLT;
   CHECK(rns8_gemm_i64_oneshot(ctx, &valid_future_signed, signed_a, 2, signed_b, 2, signed_c, 2) ==
@@ -96,8 +96,8 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
   unsigned_desc.bound = 100;
   auto invalid_unsigned_abi = unsigned_desc;
   invalid_unsigned_abi.abi_version = 0;
-  CHECK(rns8_gemm_u64_oneshot(ctx, &invalid_unsigned_abi, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &invalid_unsigned_abi, unsigned_a, 2, unsigned_b, 2, unsigned_c,
+                              2) == RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 1, unsigned_b, 2, unsigned_c, 2) ==
         RNS8_INVALID_ARGUMENT);
   CHECK(rns8_gemm_u64_oneshot(ctx, &unsigned_desc, unsigned_a, 2, unsigned_b, 1, unsigned_c, 2) ==
@@ -107,12 +107,12 @@ TEST_CASE("bounded one-shot APIs validate ABI and leading dimensions before disp
   auto malformed_future_unsigned = unsigned_desc;
   malformed_future_unsigned.requested_backend = RNS8_BACKEND_CK;
   malformed_future_unsigned.bound_kind = static_cast<rns8_bound_kind>(0x7fffu);
-  CHECK(rns8_gemm_u64_oneshot(ctx, &malformed_future_unsigned, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &malformed_future_unsigned, unsigned_a, 2, unsigned_b, 2,
+                              unsigned_c, 2) == RNS8_INVALID_ARGUMENT);
   auto valid_future_unsigned = unsigned_desc;
   valid_future_unsigned.requested_backend = RNS8_BACKEND_CK;
-  CHECK(rns8_gemm_u64_oneshot(ctx, &valid_future_unsigned, unsigned_a, 2, unsigned_b, 2, unsigned_c, 2) ==
-        RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_gemm_u64_oneshot(ctx, &valid_future_unsigned, unsigned_a, 2, unsigned_b, 2, unsigned_c,
+                              2) == RNS8_UNSUPPORTED_BACKEND);
 
   rns8_destroy_context(ctx);
 }
@@ -143,24 +143,21 @@ TEST_CASE("public finite ring and field u8 oneshot use explicit modulus contract
   constexpr int64_t ldb = 5;
   constexpr int64_t ldc = 5;
   const std::vector<uint8_t> A = {
-      254, 128, 7, 3, 0xaa, 0xaa,
-      5, 250, 251, 1, 0xaa, 0xaa,
+      254, 128, 7, 3, 0xaa, 0xaa, 5, 250, 251, 1, 0xaa, 0xaa,
   };
   const std::vector<uint8_t> B = {
-      2, 3, 4, 0xbb, 0xbb,
-      250, 11, 9, 0xbb, 0xbb,
-      13, 17, 19, 0xbb, 0xbb,
-      23, 29, 31, 0xbb, 0xbb,
+      2, 3, 4, 0xbb, 0xbb, 250, 11, 9, 0xbb, 0xbb, 13, 17, 19, 0xbb, 0xbb, 23, 29, 31, 0xbb, 0xbb,
   };
 
   {
     auto desc = finite_desc(RNS8_FINITE_RING_U8, m, n, k);
     std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xcc);
-    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx, &desc, 255, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_finite_ring_u8_oneshot(ctx, &desc, 255, A.data(), lda, B.data(), ldb,
+                                             C.data(), ldc) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t col = 0; col < n; ++col) {
-        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == exact_finite_cell(A, B, lda, ldb, k, row, col, 255));
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
+              exact_finite_cell(A, B, lda, ldb, k, row, col, 255));
       }
       CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xcc);
     }
@@ -169,11 +166,12 @@ TEST_CASE("public finite ring and field u8 oneshot use explicit modulus contract
   {
     auto desc = finite_desc(RNS8_FINITE_FIELD_U8, m, n, k);
     std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xdd);
-    REQUIRE(rns8_gemm_finite_field_u8_oneshot(ctx, &desc, 251, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_finite_field_u8_oneshot(ctx, &desc, 251, A.data(), lda, B.data(), ldb,
+                                              C.data(), ldc) == RNS8_SUCCESS);
     for (int64_t row = 0; row < m; ++row) {
       for (int64_t col = 0; col < n; ++col) {
-        CHECK(C[static_cast<std::size_t>(row * ldc + col)] == exact_finite_cell(A, B, lda, ldb, k, row, col, 251));
+        CHECK(C[static_cast<std::size_t>(row * ldc + col)] ==
+              exact_finite_cell(A, B, lda, ldb, k, row, col, 251));
       }
       CHECK(C[static_cast<std::size_t>(row * ldc + n)] == 0xdd);
     }
@@ -191,14 +189,10 @@ TEST_CASE("public finite ring and field u8 persistent matrices use explicit modu
   constexpr int64_t ldb = 5;
   constexpr int64_t ldc = 5;
   const std::vector<uint8_t> A = {
-      254, 128, 7, 3, 0xaa, 0xaa,
-      5, 250, 251, 1, 0xaa, 0xaa,
+      254, 128, 7, 3, 0xaa, 0xaa, 5, 250, 251, 1, 0xaa, 0xaa,
   };
   const std::vector<uint8_t> B = {
-      2, 3, 4, 0xbb, 0xbb,
-      250, 11, 9, 0xbb, 0xbb,
-      13, 17, 19, 0xbb, 0xbb,
-      23, 29, 31, 0xbb, 0xbb,
+      2, 3, 4, 0xbb, 0xbb, 250, 11, 9, 0xbb, 0xbb, 13, 17, 19, 0xbb, 0xbb, 23, 29, 31, 0xbb, 0xbb,
   };
 
   for (const auto item : {std::pair{RNS8_FINITE_RING_U8, uint16_t{255}},
@@ -227,7 +221,8 @@ TEST_CASE("public finite ring and field u8 persistent matrices use explicit modu
     REQUIRE(rns8_create_workspace(ctx, plan, &workspace) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_finite_u8(ctx, a_matrix, item.second, A.data(), lda, 11) == RNS8_SUCCESS);
     REQUIRE(rns8_pack_finite_u8(ctx, b_matrix, item.second, B.data(), ldb, 12) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_finite_u8(ctx, plan, item.second, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_finite_u8(ctx, plan, item.second, a_matrix, b_matrix, c_matrix, workspace) ==
+            RNS8_SUCCESS);
 
     std::vector<uint8_t> C(static_cast<std::size_t>(m * ldc), 0xcc);
     REQUIRE(rns8_export_finite_u8(ctx, plan, item.second, c_matrix, C.data(), ldc) == RNS8_SUCCESS);
@@ -241,7 +236,8 @@ TEST_CASE("public finite ring and field u8 persistent matrices use explicit modu
 
     std::vector<uint64_t> wrong_export(static_cast<std::size_t>(m * ldc), 0);
     CHECK(rns8_export_u64(ctx, plan, c_matrix, wrong_export.data(), ldc) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_gemm_rns(ctx, plan, a_matrix, b_matrix, c_matrix, workspace) ==
+          RNS8_INVALID_ARGUMENT);
 
     rns8_destroy_workspace(workspace);
     rns8_destroy_matrix(c_matrix);
@@ -261,27 +257,36 @@ TEST_CASE("finite u8 oneshot descriptors reject stale CRT metadata and invalid f
 
   auto ring = finite_desc(RNS8_FINITE_RING_U8, 1, 1, 1);
   CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 1, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 257, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 257, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto field = finite_desc(RNS8_FINITE_FIELD_U8, 1, 1, 1);
-  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 241, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
-  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 251, A, 0, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 241, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 255, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &field, 251, A, 0, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto stale_prefix = ring;
   stale_prefix.max_prefix = 1;
-  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_prefix, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_prefix, 255, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   auto stale_bound = ring;
   stale_bound.bound_kind = RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
   stale_bound.bound = 15;
-  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_bound, 255, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &stale_bound, 255, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
-  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_finite_field_u8_oneshot(ctx, &ring, 251, A, 1, B, 1, C, 1) ==
+        RNS8_INVALID_ARGUMENT);
 
   ring.requested_backend = RNS8_BACKEND_CK;
-  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 255, A, 1, B, 1, C, 1) == RNS8_UNSUPPORTED_BACKEND);
+  CHECK(rns8_gemm_finite_ring_u8_oneshot(ctx, &ring, 255, A, 1, B, 1, C, 1) ==
+        RNS8_UNSUPPORTED_BACKEND);
 
   rns8_destroy_context(ctx);
 }
@@ -337,8 +342,10 @@ TEST_CASE("finite u8 persistent descriptors reject stale CRT metadata and modulu
   CHECK(rns8_pack_finite_u8(ctx, a_matrix, 1, A, 1, 1) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_pack_finite_u8(ctx, a_matrix, 255, A, 1, 1) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_finite_u8(ctx, b_matrix, 255, B, 1, 1) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_finite_u8(ctx, plan, 251, a_matrix, b_matrix, c_matrix, workspace) == RNS8_INVALID_ARGUMENT);
-  REQUIRE(rns8_gemm_finite_u8(ctx, plan, 255, a_matrix, b_matrix, c_matrix, workspace) == RNS8_SUCCESS);
+  CHECK(rns8_gemm_finite_u8(ctx, plan, 251, a_matrix, b_matrix, c_matrix, workspace) ==
+        RNS8_INVALID_ARGUMENT);
+  REQUIRE(rns8_gemm_finite_u8(ctx, plan, 255, a_matrix, b_matrix, c_matrix, workspace) ==
+          RNS8_SUCCESS);
   CHECK(rns8_export_finite_u8(ctx, plan, 251, c_matrix, C, 1) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_export_finite_u8(ctx, plan, 255, c_matrix, C, 1) == RNS8_SUCCESS);
   CHECK(C[0] == 15);
@@ -387,7 +394,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
     auto desc = gemm_desc(RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
     desc.requested_backend = unknown_backend;
     rns8_plan* plan = nullptr;
-    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_plan(ctx, &desc, &plan) == RNS8_INVALID_ARGUMENT);
     CHECK(plan == nullptr);
   }
   {
@@ -430,7 +437,7 @@ TEST_CASE("unknown public enum values are invalid before backend routing") {
     options.abi_version = RNS8_ABI_VERSION;
     options.requested_backend = unknown_backend;
     rns8_context* unknown_ctx = nullptr;
-    CHECK(rns8_create_context(0, &options, &unknown_ctx) == RNS8_UNSUPPORTED_BACKEND);
+    CHECK(rns8_create_context(0, &options, &unknown_ctx) == RNS8_INVALID_ARGUMENT);
     CHECK(unknown_ctx == nullptr);
   }
 
@@ -448,4 +455,3 @@ TEST_CASE("known but unimplemented descriptor contracts report unsupported statu
   }
   rns8_destroy_context(ctx);
 }
-

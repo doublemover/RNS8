@@ -24,7 +24,8 @@
     "rocwmma_fused_i32_to_centered_residue_then_crt_export",
     "amdgpu_builtin_fused_i32_to_centered_residue_then_canonical_u8_export",
     "amdgpu_builtin_fused_i32_to_centered_residue_rns_output",
-    "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export"
+    "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export",
+    "cpu_amx_tile_local_centered_then_reference_crt"
   ],
   "generated_reducer_identities": [
     "not_applicable",

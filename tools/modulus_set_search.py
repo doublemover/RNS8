@@ -31,6 +31,7 @@ DEFAULT_MODULI = [
     211,
     199,
     197,
+    193,
     191,
     181,
     179,
@@ -44,19 +45,43 @@ DEFAULT_MODULI = [
     137,
     131,
     127,
-    113,
 ]
 HOT_REDUCER_MODULI = {251, 253, 255, 256}
-DEFAULT_REQUIRED_BITS = {
-    "bounded_i64_full_signed": 65,
-    "bounded_u64_full_unsigned": 64,
-    "exact_wide_signed_512": 137,
-    "exact_wide_unsigned_512": 138,
-    "exact_wide_signed_1024": 138,
-    "exact_wide_unsigned_1024": 139,
-    "exact_wide_signed_2048": 139,
-    "exact_wide_unsigned_2048": 140,
+# These are exact semantic domains, not product bit-length thresholds.  The
+# signed wide bound includes INT64_MIN * INT64_MIN; the unsigned bound uses
+# UINT64_MAX exactly rather than rounding the admissible range to a power of 2.
+DEFAULT_RANGE_PROFILES = {
+    "bounded_i64_full_signed": {"bound": 1 << 63, "signed": True},
+    "bounded_u64_full_unsigned": {"bound": (1 << 64) - 1, "signed": False},
+    **{
+        f"exact_wide_{kind}_{k}": {
+            "bound": k * ((1 << 126) if kind == "signed" else ((1 << 64) - 1) ** 2),
+            "signed": kind == "signed",
+        }
+        for k in (512, 1024, 2048)
+        for kind in ("signed", "unsigned")
+    },
 }
+
+
+def range_contracts(profiles: dict[str, dict]) -> dict[str, dict]:
+    result = {}
+    for name, profile in profiles.items():
+        bound, signed = profile["bound"], profile["signed"]
+        if type(bound) is not int or bound < 0 or type(signed) is not bool:
+            raise ValueError(
+                "range profiles require a nonnegative integer bound and explicit signedness"
+            )
+        threshold = bound * (2 if signed else 1)
+        result[name] = {
+            "absolute_or_nonnegative_bound": bound,
+            "signed": signed,
+            "strict_product_threshold": threshold,
+            "criterion": "P > 2B" if signed else "P > B",
+            "minimum_admissible_product": threshold + 1,
+            "minimum_product_bit_length_diagnostic": (threshold + 1).bit_length(),
+        }
+    return result
 
 
 def is_coprime_set(values: list[int]) -> bool:
@@ -119,33 +144,38 @@ def ntt_friendly_lengths(value: int, max_length: int) -> list[int]:
     return lengths
 
 
-def prefix_products(moduli: list[int], required_bits: dict[str, int]) -> list[dict]:
+def prefix_products(moduli: list[int], profiles: dict[str, dict]) -> list[dict]:
+    contracts = range_contracts(profiles)
     rows: list[dict] = []
-    running: list[int] = []
+    running = 1
+    coprime = True
     for index, modulus in enumerate(moduli, start=1):
-        running.append(modulus)
-        bits = product_bits(running)
+        if type(modulus) is not int or modulus <= 1:
+            raise ValueError("moduli must be integers greater than one")
+        coprime = coprime and math.gcd(running, modulus) == 1
+        running *= modulus
         rows.append(
             {
                 "prefix": index,
                 "last_modulus": modulus,
-                "product_bits": bits,
+                "product": running,
+                "product_bits": running.bit_length(),
+                "pairwise_coprime": coprime,
                 "satisfies": {
-                    name: bits >= required
-                    for name, required in required_bits.items()
+                    name: coprime and running > contract["strict_product_threshold"]
+                    for name, contract in contracts.items()
                 },
             }
         )
     return rows
 
 
-def required_prefixes(moduli: list[int], required_bits: dict[str, int]) -> dict[str, int | None]:
-    rows = prefix_products(moduli, required_bits)
-    result: dict[str, int | None] = {}
-    for name in required_bits:
-        prefix = next((row["prefix"] for row in rows if row["satisfies"][name]), None)
-        result[name] = prefix
-    return result
+def required_prefixes(moduli: list[int], profiles: dict[str, dict]) -> dict[str, int | None]:
+    rows = prefix_products(moduli, profiles)
+    return {
+        name: next((row["prefix"] for row in rows if row["satisfies"][name]), None)
+        for name in profiles
+    }
 
 
 def crt_prefix_constants(moduli: list[int]) -> list[dict]:
@@ -214,7 +244,6 @@ def candidate_disposition(item: dict, min_bits: int) -> str:
 
 
 def candidate_report(moduli: list[int], name: str) -> dict:
-    required_bits = dict(DEFAULT_REQUIRED_BITS)
     item = {
         "name": name,
         "moduli": moduli,
@@ -223,8 +252,8 @@ def candidate_report(moduli: list[int], name: str) -> dict:
         "pairwise_coprime": is_coprime_set(moduli),
         "reducer_cost_hints": {str(value): reducer_cost_hint(value) for value in moduli},
         "reducer_cost_summary": reducer_cost_summary(moduli),
-        "required_prefixes": required_prefixes(moduli, required_bits),
-        "prefix_products": prefix_products(moduli, required_bits),
+        "required_prefixes": required_prefixes(moduli, DEFAULT_RANGE_PROFILES),
+        "prefix_products": prefix_products(moduli, DEFAULT_RANGE_PROFILES),
         "crt_prefix_constants": crt_prefix_constants(moduli),
         "ntt_friendliness": ntt_summary(moduli, max_ntt_length=128),
         "promotion_eligible": False,
@@ -282,11 +311,12 @@ def build_report(
     for item in reports:
         item["satisfies_min_bits"] = item["product_bits"] >= min_bits and item["pairwise_coprime"]
         item["disposition"] = candidate_disposition(item, min_bits)
-    return {
-        "schema_version": 2,
+    report = {
+        "schema_version": 3,
         "policy": "offline_search_evidence_only_non_promoting",
         "minimum_product_bits": min_bits,
-        "required_bits": DEFAULT_REQUIRED_BITS,
+        "range_contracts": range_contracts(DEFAULT_RANGE_PROFILES),
+        "minimum_product_bits_is_semantic_proof": False,
         "search_dimensions": [
             "candidate_rns_ladders",
             "modulus_ordering",
@@ -300,11 +330,73 @@ def build_report(
         "default_change_gate": "spec_cache_schema_proof_and_same_target_review_required",
         "candidates": reports,
     }
+    return validate_search_report(report)
+
+
+def validate_search_report(data: object) -> dict:
+    """Validate current semantic proofs; legacy search files stay nonqualifying."""
+    if (
+        not isinstance(data, dict)
+        or type(data.get("schema_version")) is not int
+        or data["schema_version"] not in {1, 2, 3}
+    ):
+        raise ValueError("modulus-set search report must be a schema v1/v2/v3 object")
+    candidates = data.get("candidates")
+    if not isinstance(candidates, list) or any(not isinstance(item, dict) for item in candidates):
+        raise ValueError("modulus-set search report must contain candidate objects")
+    result = dict(data)
+    if data["schema_version"] < 3:
+        result["semantic_range_evidence_status"] = "legacy_nonqualifying"
+        return result
+    if (
+        data.get("minimum_product_bits_is_semantic_proof") is not False
+        or data.get("runtime_policy") != "report_only_runtime_ladder_unchanged"
+        or data.get("policy") != "offline_search_evidence_only_non_promoting"
+        or type(data.get("minimum_product_bits")) is not int
+        or data["minimum_product_bits"] < 1
+        or json.dumps(data.get("range_contracts"), sort_keys=True, allow_nan=False)
+        != json.dumps(range_contracts(DEFAULT_RANGE_PROFILES), sort_keys=True)
+    ):
+        raise ValueError("invalid schema-v3 strict semantic range contract")
+    names = set()
+    for item in candidates:
+        name, moduli = item.get("name"), item.get("moduli")
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in names
+            or not isinstance(moduli, list)
+            or not moduli
+            or any(type(q) is not int or q < 2 for q in moduli)
+        ):
+            raise ValueError("invalid or duplicate modulus search candidate")
+        names.add(name)
+        # Recompute the proof-bearing fields, never trust bit length as range.
+        expected = candidate_report(moduli, name)
+        for key in (
+            "prefix_count",
+            "pairwise_coprime",
+            "product_bits",
+            "required_prefixes",
+            "prefix_products",
+        ):
+            if json.dumps(item.get(key), sort_keys=True, allow_nan=False) != json.dumps(
+                expected[key], sort_keys=True
+            ):
+                raise ValueError(f"candidate {name}: inconsistent {key}")
+        if (
+            item.get("promotion_eligible") is not False
+            or item.get("runtime_selectable") is not False
+        ):
+            raise ValueError("offline search cannot enable runtime promotion")
+    result["semantic_range_evidence_status"] = "strict_products_verified"
+    return result
 
 
 def write_report(report: dict, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "modulus-set-search-report.json"
+    report = validate_search_report(report)
     out_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return out_path
 

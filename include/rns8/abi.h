@@ -9,9 +9,9 @@
  * C clients must use the platform's normal 32-bit enum ABI, not -fshort-enums.
  */
 #ifdef __cplusplus
-#  define RNS8_ENUM_BASE : uint32_t
+#define RNS8_ENUM_BASE : uint32_t
 #else
-#  define RNS8_ENUM_BASE
+#define RNS8_ENUM_BASE
 #endif
 
 #endif

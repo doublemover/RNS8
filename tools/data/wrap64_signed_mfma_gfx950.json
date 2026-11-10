@@ -1,0 +1,23 @@
+{
+  "schema": "rns8_wrap64_signed_mfma_v1",
+  "radix": 256,
+  "digits": 8,
+  "bias": 9259542123273814144,
+  "carry_before_xor": true,
+  "signed_operands": true,
+  "clamp": false,
+  "prior_accumulator": 0,
+  "pair_count": 36,
+  "fold": "unsigned64_after_each_pair",
+  "shift": "8_times_i_plus_j",
+  "layout": "cdna_wave64_16x16_signed_radix_register_v1",
+  "instruction_padded_k": 64,
+  "target": "gfx950",
+  "opcode": "mfma_i32_16x16x64_i8",
+  "wave_size": 64,
+  "input_bytes_per_lane": 16,
+  "accumulators_per_lane": 4,
+  "a_map": "row=lane%16;k=(lane//16)*(K//4)+byte",
+  "b_map": "k=(lane//16)*(K//4)+byte;col=lane%16",
+  "c_map": "row=(lane//16)*4+reg;col=lane%16"
+}

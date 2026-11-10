@@ -1,0 +1,757 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "recorded_utc": "2026-10-25T18:40:51.243793+00:00",
+  "host": {
+    "os": "Windows",
+    "gpu": "Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "visual_studio": "2026 18.11.1",
+    "msvc": "19.51",
+    "hip": "7.1",
+    "python": "3.15.1",
+    "llvm": "23.1.4",
+    "cmake": "4.4.4",
+    "ninja": "1.13.2",
+    "omp_num_threads": 3
+  },
+  "lanes": [
+    {
+      "lane": "dot4-table",
+      "counts": {
+        "passed": 673,
+        "skipped": 5,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/lanes/0/tests",
+        "entries": 678
+      },
+      "junit_sha256": "e8b7a33a8977f445061cf32fe4c1f09337404bb3871e43f1ed72f15883f60980",
+      "build_manifest": {
+        "configuration": {
+          "archived_json_pointer": "/lanes/0/build_manifest/configuration"
+        },
+        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+        "external_dependencies": {
+          "BOOST": {
+            "bytes": 31958612,
+            "files": 2292,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+          },
+          "CATCH2_1": {
+            "bytes": 640342,
+            "files": 183,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+          },
+          "JSON_1": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          },
+          "JSON_2": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          }
+        },
+        "identity_scope": "source-config-and-external-headers",
+        "linkage": "static-rns8",
+        "source_commit": "168a1601a55c1cb35837d64f1362778a12122770",
+        "source_digest": "017c2b766f73b7e626618f0f8b79d1d1ee05dbdd5eda423e6952be1330b83afb",
+        "source_dirty": false,
+        "version": 2
+      },
+      "build_receipt": {
+        "archived_json_pointer": "/lanes/0/build_receipt",
+        "entries": 3
+      },
+      "test_receipt": {
+        "source_commit": "168a1601a55c1cb35837d64f1362778a12122770",
+        "feature_lane": "dot4-table",
+        "records": {
+          "archived_json_pointer": "/lanes/0/test_receipt/records",
+          "entries": 1
+        }
+      }
+    },
+    {
+      "lane": "scalar-control",
+      "counts": {
+        "passed": 673,
+        "skipped": 5,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/lanes/1/tests",
+        "entries": 678
+      },
+      "junit_sha256": "964a5e3747796b2d53931a27eb7116cbced6e4a471f1295f4532b37adaa3b0c4",
+      "build_manifest": {
+        "configuration": {
+          "archived_json_pointer": "/lanes/1/build_manifest/configuration"
+        },
+        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+        "external_dependencies": {
+          "BOOST": {
+            "bytes": 31958612,
+            "files": 2292,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\boost",
+            "sha256": "c6369792496f464806f485bf416b7e473a84e4850a4f08c5104a45d05cfb6116"
+          },
+          "CATCH2_1": {
+            "bytes": 640342,
+            "files": 183,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\catch2",
+            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+          },
+          "JSON_1": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          },
+          "JSON_2": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          }
+        },
+        "identity_scope": "source-config-and-external-headers",
+        "linkage": "static-rns8",
+        "source_commit": "168a1601a55c1cb35837d64f1362778a12122770",
+        "source_digest": "017c2b766f73b7e626618f0f8b79d1d1ee05dbdd5eda423e6952be1330b83afb",
+        "source_dirty": false,
+        "version": 2
+      },
+      "build_receipt": {
+        "archived_json_pointer": "/lanes/1/build_receipt",
+        "entries": 3
+      },
+      "test_receipt": {
+        "source_commit": "168a1601a55c1cb35837d64f1362778a12122770",
+        "feature_lane": "scalar-control",
+        "records": {
+          "archived_json_pointer": "/lanes/1/test_receipt/records",
+          "entries": 1
+        }
+      }
+    },
+    {
+      "lane": "asan",
+      "counts": {
+        "passed": 547,
+        "skipped": 23,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/lanes/2/tests",
+        "entries": 570
+      },
+      "junit_sha256": "9cc04a1219f486e0479d72f5c487889ab59911a65445995ca10581eadab75ce6",
+      "build_manifest": {
+        "configuration": {
+          "archived_json_pointer": "/lanes/2/build_manifest/configuration"
+        },
+        "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+        "external_dependencies": {
+          "BOOST": {
+            "bytes": 31958582,
+            "files": 2292,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\boost",
+            "sha256": "991764a777827b24937cbc1a43373345e71e2d2ae050f783f26ebafced161bbe"
+          },
+          "CATCH2_1": {
+            "bytes": 640342,
+            "files": 183,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\catch2",
+            "sha256": "545bbc8c6f202d3ae13641eeecf550a80d4c1afcfcb33697e82909a171471abe"
+          },
+          "JSON_1": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          },
+          "JSON_2": {
+            "bytes": 953872,
+            "files": 46,
+            "root": "C:\\Users\\sneak\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\RNS8\\dependencies\\installed-b42e8ed\\x64-windows-static\\include\\nlohmann",
+            "sha256": "34ab397aa722a13842352acd9790fb22c193aea3063dbfed8d5ed48888178f8b"
+          }
+        },
+        "identity_scope": "source-config-and-external-headers",
+        "linkage": "static-rns8",
+        "source_commit": "2fcb91c371f4150f29b3343029287edf5f02d4b6",
+        "source_digest": "67e829d067fcfda5b50dcc65f8dbcd8824e49fee4d1f7ee46eb2f47dbb04a8d5",
+        "source_dirty": false,
+        "version": 2
+      },
+      "build_receipt": {
+        "archived_json_pointer": "/lanes/2/build_receipt",
+        "entries": 5
+      },
+      "test_receipt": {
+        "source_commit": "2fcb91c371f4150f29b3343029287edf5f02d4b6",
+        "lane": "asan",
+        "phase": "ownership-global-retry-tests",
+        "records": {
+          "archived_json_pointer": "/lanes/2/test_receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      }
+    },
+    {
+      "lane": "gpu",
+      "counts": {
+        "passed": 931,
+        "skipped": 15,
+        "failed": 0
+      },
+      "tests": {
+        "archived_json_pointer": "/lanes/3/tests",
+        "entries": 946
+      },
+      "junit_sha256": "7422344127d02995ed5d6510f2d51271409e6ebe6547f0092529f35c104ded6a",
+      "build_manifest": {
+        "archived_json_pointer": "/lanes/3/build_manifest",
+        "entries": 9
+      },
+      "build_receipt": {
+        "archived_json_pointer": "/lanes/3/build_receipt",
+        "entries": 5
+      },
+      "test_receipt": {
+        "source_commit": "2fcb91c371f4150f29b3343029287edf5f02d4b6",
+        "lane": "gpu",
+        "phase": "ownership-global-retry-tests",
+        "records": {
+          "archived_json_pointer": "/lanes/3/test_receipt/records",
+          "entries": 1
+        },
+        "campaign_resumed": false
+      }
+    }
+  ],
+  "artifacts": {
+    "archived_json_pointer": "/artifacts",
+    "entries": 13
+  },
+  "campaign_resumed": false,
+  "performance_measurements_executed": false,
+  "prior_failure": {
+    "receipt": "metadata/product-stage-validation-20261025.json",
+    "test": "direct HIP per-tile bounded GEMM leaves skipped residue planes untouched",
+    "repair_commits": [
+      "3ca72d8",
+      "8004339"
+    ]
+  },
+  "issue_closures": [],
+  "all_research_complete": false,
+  "unchanged_logical_proof": {
+    "reused_from": "metadata/local-validation-20261025.json",
+    "source_checkpoint": "e31cb71",
+    "seconds": 1020.41,
+    "fresh_execution": false,
+    "input_hashes": [
+      {
+        "path": "tools/test_native_wmma_logic.py",
+        "sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+        "bytes": 5306
+      },
+      {
+        "path": "tools/check_native_wmma_logic.py",
+        "sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+        "bytes": 18232
+      },
+      {
+        "path": "tools/native_wmma_lowering.py",
+        "sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+        "bytes": 9829
+      },
+      {
+        "path": "tools/generate_native_wmma.py",
+        "sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+        "bytes": 12165
+      },
+      {
+        "path": "tools/promotion_ledger.py",
+        "sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+        "bytes": 33949
+      }
+    ],
+    "scope": "Existing generated native WMMA logical interpreter; new layout consumer is covered by its CPU/Boost and real HIP differentials.",
+    "input_comparison": "Git blobs and working files match after CRLF/LF normalization; hashes identify current working-file bytes.",
+    "current_normalized_source_comparison_passed": true
+  },
+  "installed": {
+    "build_receipt": {
+      "source_checkout": "168a1601a55c1cb35837d64f1362778a12122770",
+      "records": [
+        {
+          "name": "install",
+          "argv": {
+            "archived_json_pointer": "/installed/build_receipt/records/0/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 1.7014281749725342
+        },
+        {
+          "name": "static-configure",
+          "argv": {
+            "archived_json_pointer": "/installed/build_receipt/records/1/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 3.899247407913208
+        },
+        {
+          "name": "static-build",
+          "argv": {
+            "archived_json_pointer": "/installed/build_receipt/records/2/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 6.453688144683838
+        },
+        {
+          "name": "shared-configure",
+          "argv": {
+            "archived_json_pointer": "/installed/build_receipt/records/3/argv",
+            "entries": 11
+          },
+          "exit_code": 0,
+          "seconds": 3.649404287338257
+        },
+        {
+          "name": "shared-build",
+          "argv": {
+            "archived_json_pointer": "/installed/build_receipt/records/4/argv",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 5.9935688972473145
+        }
+      ]
+    },
+    "test_receipt": {
+      "source_checkout": "168a1601a55c1cb35837d64f1362778a12122770",
+      "records": [
+        {
+          "name": "static-test",
+          "argv": {
+            "archived_json_pointer": "/installed/test_receipt/records/0/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.346564769744873
+        },
+        {
+          "name": "shared-test",
+          "argv": {
+            "archived_json_pointer": "/installed/test_receipt/records/1/argv",
+            "entries": 6
+          },
+          "exit_code": 0,
+          "seconds": 1.395925760269165
+        }
+      ]
+    },
+    "counts": {
+      "static": 6,
+      "shared": 6
+    }
+  },
+  "installed_allocation_abi_probe": {
+    "source": {
+      "archived_json_pointer": "/installed_allocation_abi_probe/source"
+    },
+    "source_sha256": "179bc9d6a2d1202274eea76a69aa56783daabe217e3bfb2c8c4709d4fec28a48",
+    "installed_header_sha256": "21dd1e2948482cb6b2d6455932738e842f21301c6134b4783c52b473afb1e773",
+    "records": [
+      {
+        "linkage": "static",
+        "phase": "configure",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/0/command",
+          "entries": 12
+        },
+        "exit_code": 0,
+        "seconds": 5.698577642440796
+      },
+      {
+        "linkage": "static",
+        "phase": "build",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/1/command",
+          "entries": 5
+        },
+        "exit_code": 0,
+        "seconds": 2.0251338481903076
+      },
+      {
+        "linkage": "static",
+        "phase": "run",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/2/command",
+          "entries": 1
+        },
+        "exit_code": 0,
+        "seconds": 0.0611262321472168
+      },
+      {
+        "linkage": "shared",
+        "phase": "configure",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/3/command",
+          "entries": 12
+        },
+        "exit_code": 0,
+        "seconds": 5.883225679397583
+      },
+      {
+        "linkage": "shared",
+        "phase": "build",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/4/command",
+          "entries": 5
+        },
+        "exit_code": 0,
+        "seconds": 1.7290449142456055
+      },
+      {
+        "linkage": "shared",
+        "phase": "run",
+        "command": {
+          "archived_json_pointer": "/installed_allocation_abi_probe/records/5/command",
+          "entries": 1
+        },
+        "exit_code": 0,
+        "seconds": 0.04392743110656738
+      }
+    ]
+  },
+  "documentation": {
+    "local_errors": [],
+    "documents": 134,
+    "external_scope": "official dependency domains",
+    "external_results": {
+      "archived_json_pointer": "/documentation/external_results",
+      "entries": 44
+    }
+  },
+  "all_lanes_passed": true,
+  "consolidated_repairs": [
+    "Add bounded structured event-failure diagnostics to benchmark JSON.",
+    "Reconcile explicit censored captures in schema, AUTO and prepacked correctness tests without relaxing event/promotion admission."
+  ],
+  "first_pass": {
+    "schema": "rns8_allocation_global_control_validation_v1",
+    "recorded_utc": "2026-10-25T18:23:29.621529+00:00",
+    "host": {
+      "os": "Windows",
+      "gpu": "Radeon RX 7900 XTX",
+      "target": "gfx1100",
+      "visual_studio": "2026 18.11.1",
+      "msvc": "19.51",
+      "hip": "7.1",
+      "python": "3.15.1",
+      "llvm": "23.1.4",
+      "cmake": "4.4.4",
+      "ninja": "1.13.2",
+      "omp_num_threads": 3
+    },
+    "lanes": [
+      {
+        "archived_json_pointer": "/first_pass/lanes/0",
+        "entries": 7
+      },
+      {
+        "archived_json_pointer": "/first_pass/lanes/1",
+        "entries": 7
+      },
+      {
+        "archived_json_pointer": "/first_pass/lanes/2",
+        "entries": 7
+      },
+      {
+        "archived_json_pointer": "/first_pass/lanes/3",
+        "entries": 7
+      }
+    ],
+    "artifacts": {
+      "archived_json_pointer": "/first_pass/artifacts",
+      "entries": 13
+    },
+    "campaign_resumed": false,
+    "performance_measurements_executed": false,
+    "prior_failure": {
+      "receipt": "metadata/product-stage-validation-20261025.json",
+      "test": "direct HIP per-tile bounded GEMM leaves skipped residue planes untouched",
+      "repair_commits": [
+        "3ca72d8",
+        "8004339"
+      ]
+    },
+    "issue_closures": [],
+    "all_research_complete": false,
+    "unchanged_logical_proof": {
+      "reused_from": "metadata/local-validation-20261025.json",
+      "source_checkpoint": "e31cb71",
+      "seconds": 1020.41,
+      "fresh_execution": false,
+      "input_hashes": [
+        {
+          "path": "tools/test_native_wmma_logic.py",
+          "sha256": "479d04a1afd71c3408a29c4a9e2b88d0719c5154ce93a84247b9554be7e580ab",
+          "bytes": 5306
+        },
+        {
+          "path": "tools/check_native_wmma_logic.py",
+          "sha256": "6b2cd1337d8fb398827435e474d691be878fdbc0382280da99b018ae45227316",
+          "bytes": 18232
+        },
+        {
+          "path": "tools/native_wmma_lowering.py",
+          "sha256": "841f83aef07d348dfaeb4e42351df6589a7a23a3bbf2cab413f4f40df53fccb0",
+          "bytes": 9829
+        },
+        {
+          "path": "tools/generate_native_wmma.py",
+          "sha256": "a01975ed31a13a9307b28629308d759fd2f82ecdbceae643c85dfd2ed6754057",
+          "bytes": 12165
+        },
+        {
+          "path": "tools/promotion_ledger.py",
+          "sha256": "59c110a745b61080d4ba3be15f7e77bb6b7f712dfe58e844ec9b2a6fdca8c4bb",
+          "bytes": 33949
+        }
+      ],
+      "scope": "Existing generated native WMMA logical interpreter; new layout consumer is covered by its CPU/Boost and real HIP differentials.",
+      "input_comparison": "Git blobs and working files match after CRLF/LF normalization; hashes identify current working-file bytes.",
+      "current_normalized_source_comparison_passed": true
+    },
+    "installed": {
+      "build_receipt": {
+        "archived_json_pointer": "/first_pass/installed/build_receipt",
+        "entries": 2
+      },
+      "test_receipt": {
+        "source_checkout": "168a1601a55c1cb35837d64f1362778a12122770",
+        "records": {
+          "archived_json_pointer": "/first_pass/installed/test_receipt/records",
+          "entries": 2
+        }
+      },
+      "counts": {
+        "static": 6,
+        "shared": 6
+      }
+    },
+    "installed_allocation_abi_probe": {
+      "source": {
+        "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/source"
+      },
+      "source_sha256": "179bc9d6a2d1202274eea76a69aa56783daabe217e3bfb2c8c4709d4fec28a48",
+      "installed_header_sha256": "21dd1e2948482cb6b2d6455932738e842f21301c6134b4783c52b473afb1e773",
+      "records": [
+        {
+          "linkage": "static",
+          "phase": "configure",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/0/command",
+            "entries": 12
+          },
+          "exit_code": 0,
+          "seconds": 5.698577642440796
+        },
+        {
+          "linkage": "static",
+          "phase": "build",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/1/command",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 2.0251338481903076
+        },
+        {
+          "linkage": "static",
+          "phase": "run",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/2/command",
+            "entries": 1
+          },
+          "exit_code": 0,
+          "seconds": 0.0611262321472168
+        },
+        {
+          "linkage": "shared",
+          "phase": "configure",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/3/command",
+            "entries": 12
+          },
+          "exit_code": 0,
+          "seconds": 5.883225679397583
+        },
+        {
+          "linkage": "shared",
+          "phase": "build",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/4/command",
+            "entries": 5
+          },
+          "exit_code": 0,
+          "seconds": 1.7290449142456055
+        },
+        {
+          "linkage": "shared",
+          "phase": "run",
+          "command": {
+            "archived_json_pointer": "/first_pass/installed_allocation_abi_probe/records/5/command",
+            "entries": 1
+          },
+          "exit_code": 0,
+          "seconds": 0.04392743110656738
+        }
+      ]
+    },
+    "documentation": {
+      "local_errors": [],
+      "documents": 134,
+      "external_scope": "official dependency domains",
+      "external_results": {
+        "archived_json_pointer": "/first_pass/documentation/external_results",
+        "entries": 44
+      }
+    },
+    "all_lanes_passed": false,
+    "consolidated_repairs": [
+      "Add bounded structured event-failure diagnostics to benchmark JSON.",
+      "Reconcile explicit censored captures in schema, AUTO and prepacked correctness tests without relaxing event/promotion admission."
+    ]
+  },
+  "first_pass_censored_examples": [
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\default-cache-auto-ck-finite-u8-ring.json",
+      "sha256": "89ffa51ff01bfb97b2365819e6c57d16ddbbff08d5cd799efd172e12052b3f1c",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/0/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\default-cache-auto-hipblaslt-exact-wide-signed.json",
+      "sha256": "8f45dcab353422bc36af7cbb4878e7b48b5368e4bfef68d07cf97bc194cd7247",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/1/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\default-cache-auto-rocwmma-bounded-i64.json",
+      "sha256": "6b76c2ec9e783fc5f6b61e5c56560f0ae6247f5b5629db72f56151e238ec73e6",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/2/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\explicit-ck-exact-wide-signed.json",
+      "sha256": "0849c0b848e99541846025bbbe793a5946c9d614fbf7faa7c1aa5e57130153ba",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/3/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\explicit-hipblaslt-exact-wide-signed.json",
+      "sha256": "82e24f84f9e06f22709a5a178d20fa005ee45231c0fc785c97cfba234e1cfe68",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/4/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\explicit-rocwmma-exact-wide-signed.json",
+      "sha256": "98fa98d16645c799e97b388358fcaa8bff7da546048703cc5939408a48298346",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/5/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-auto-default-cache-smoke\\explicit-rocwmma-finite-u8-field.json",
+      "sha256": "e8079dab76dcfd6fdcfe143e2806576af10913825ca50648fb5b840d2781236d",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/6/timing_metadata",
+        "entries": 65
+      }
+    },
+    {
+      "path": "temp\\benchmark-reuse-packed-inputs-smoke\\bounded-i64-hipblaslt-reuse-packed-inputs.json",
+      "sha256": "766dc02c68b0285429196004e6191c43b9ea1d4c07bbc75cda225edefadea8dd",
+      "timing_metadata": {
+        "archived_json_pointer": "/first_pass_censored_examples/7/timing_metadata",
+        "entries": 65
+      }
+    }
+  ],
+  "consolidated_repair_commit": "2fcb91c",
+  "numerical_control_reuse": "Both arithmetic controls passed at 168a160; the later capture-contract repair changes benchmark JSON/Python validation only. They were not rebuilt or relabeled.",
+  "gcc_warning_repair": {
+    "commit": "709ff6f",
+    "prior_ci_revision": "2fcb91c",
+    "prior_failed_jobs": [
+      121252635878,
+      121252636283
+    ],
+    "error": "-Werror=misleading-indentation in arithmetic_certificate.hpp:103",
+    "change": "Explicit braces and line breaks; arithmetic/control flow unchanged.",
+    "local_compilation": {
+      "scope": "Actual GCC compilation of the formerly failing CPU allocation-fault translation unit; WSL2 CPU only, no Linux GPU claim.",
+      "platform": "Linux-6.6.114.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "compiler": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+      "commit": "709ff6f58d82fd30fa651d1e8dacbb1fb9e6ae83",
+      "certificate_header_sha256": "e9623b1d4844464f2f103f2edefc2d480f9410f0c91eb167282c7f15de9b512e",
+      "records": [
+        {
+          "command": {
+            "archived_json_pointer": "/gcc_warning_repair/local_compilation/records/0/command",
+            "entries": 15
+          },
+          "exit_code": 0,
+          "seconds": 5.484590530395508,
+          "object_sha256": "7a400568c8b484a3eacaad12b4e7bcc5b155aab288730c6e48022c24fbc1134b"
+        },
+        {
+          "command": {
+            "archived_json_pointer": "/gcc_warning_repair/local_compilation/records/1/command",
+            "entries": 16
+          },
+          "exit_code": 0,
+          "seconds": 5.486127138137817,
+          "object_sha256": "5da05490d8a4d8f746606e8bbb41edccc23f49f1e17b4775988e9b2f343b8cb7"
+        }
+      ]
+    },
+    "linux_gpu_validation": false,
+    "ci_completion_not_inferred": true
+  },
+  "original_schema": "rns8_allocation_global_control_validation_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/allocation-global-control-validation-20261025.json",
+    "sha256": "d508494e690d20907cf1f9823c4092ddc1fad8575142d751c55d7cb4cbf6f630",
+    "bytes": 1162742
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

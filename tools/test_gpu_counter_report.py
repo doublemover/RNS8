@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import csv
 import json
+import hashlib
+from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
 import gpu_counter_report
+import evidence_database_lib.isa as isa_reader
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "benchmark_schema"
@@ -58,7 +61,14 @@ def write_counter_csv(path: Path) -> None:
 
 def write_counter_json(path: Path) -> None:
     path.write_text(
-        json.dumps({"records": [{"LDS_BANK_CONFLICT": 2, "WAIT_COUNT": 1}, {"LDS_BANK_CONFLICT": 4, "WAIT_COUNT": 3}]}),
+        json.dumps(
+            {
+                "records": [
+                    {"LDS_BANK_CONFLICT": 2, "WAIT_COUNT": 1},
+                    {"LDS_BANK_CONFLICT": 4, "WAIT_COUNT": 3},
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -130,13 +140,65 @@ def main() -> int:
         assert report["counter_inputs"][0]["numeric_metric_average"]["SQ_INSTS_VALU"] == 20.0
         assert report["counter_inputs"][1]["numeric_metric_average"]["LDS_BANK_CONFLICT"] == 3.0
         assert report["isa_summaries"][0]["instruction_totals"]["global_store"] == 4
-        assert report["resource_summary"]["memory_pressure_signal"] == 4.0
-        assert report["resource_summary"]["global_store_instruction_count"] == 4
-        assert report["resource_summary"]["vgpr"] == 42.0
-        assert report["resource_summary"]["occupancy"] == 0.5625
+        assert report["isa_summaries"][0]["path"] == str(isa_summary.resolve())
+        assert (
+            report["isa_summaries"][0]["sha256"]
+            == hashlib.sha256(isa_summary.read_bytes()).hexdigest()
+        )
+        assert report["counter_observation_metrics"]["TCP_TCC_WRITE_REQ"] == 4.0
+        assert report["resource_summary"]["memory_pressure_signal"] is None
+        assert report["resource_summary"]["global_store_instruction_count"] == 0
+        assert report["counter_observation_metrics"]["VGPR_COUNT"] == 42.0
+        assert report["resource_summary"]["vgpr"] is None
+        assert report["counter_observation_metrics"]["ACHIEVED_OCCUPANCY"] == 0.5625
+        assert report["resource_summary"]["occupancy"] is None
+        assert (
+            report["resource_summary"]["counter_scope"]
+            == "flat_labels_inventory_only_native_dispatch_receipt_required"
+        )
+        assert report["native_profiler_evidence"] == []
+        assert (
+            report["native_profiler_review"]["conclusion"]
+            == "inconclusive_for_whole_workload_bottleneck"
+        )
         assert report["evidence_status"]["profiler_counter_status"] == "present"
-        assert report["evidence_status"]["isa_resource_status"] == "present"
+        assert report["evidence_status"]["isa_resource_status"] == "missing"
+        assert not report["isa_selected_association"]["isa_association"]["qualified"]
         assert report["evidence_status"]["gpu_event_timing_status"] == "present"
+
+        original = isa_summary.read_bytes()
+        original_index = isa_reader.isa_index_from_reports
+        seen = []
+
+        def change_file_after_snapshot(inputs):
+            owned = list(inputs)
+            seen.append(owned[0][1]["instruction_totals"]["global_store"])
+            changed = json.loads(original)
+            changed["instruction_totals"]["global_store"] = 999
+            isa_summary.write_text(json.dumps(changed), encoding="utf-8")
+            return original_index(owned)
+
+        try:
+            with patch.object(
+                isa_reader, "isa_index_from_reports", side_effect=change_file_after_snapshot
+            ):
+                try:
+                    gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
+                except ValueError as error:
+                    assert "changed during review" in str(error)
+                else:
+                    raise AssertionError("ISA drift must prevent counter-report publication")
+            assert seen == [4]
+        finally:
+            isa_summary.write_bytes(original)
+        duplicate_keys = root / "duplicate-isa-summary.json"
+        duplicate_keys.write_text('{"backend":"ck","backend":"hip-direct"}', encoding="utf-8")
+        try:
+            isa_reader.load_isa_index([duplicate_keys])
+        except ValueError as error:
+            assert "duplicate evidence JSON key" in str(error)
+        else:
+            raise AssertionError("ambiguous ISA identities must not be indexed")
 
         json_path = gpu_counter_report.write_json_report(report, out_dir, "self-test")
         md_path = gpu_counter_report.write_markdown_report(report, out_dir, "self-test")
@@ -147,8 +209,8 @@ def main() -> int:
         batch = gpu_counter_report.build_batch_report([report])
         assert batch["group_count"] == 1
         assert batch["groups"][0]["counter_evidence"] == "present"
-        assert batch["groups"][0]["resource_signal_summary"]["vgpr"]["average"] == 42.0
-        assert batch["groups"][0]["resource_signal_summary"]["occupancy"]["present_count"] == 1
+        assert batch["groups"][0]["resource_signal_summary"]["vgpr"]["average"] is None
+        assert batch["groups"][0]["resource_signal_summary"]["occupancy"]["present_count"] == 0
         batch_paths = gpu_counter_report.write_batch_reports(batch, out_dir)
         assert Path(batch_paths["json"]).exists()
         assert Path(batch_paths["markdown"]).exists()
@@ -156,18 +218,25 @@ def main() -> int:
         missing_report = gpu_counter_report.report_for_capture(second_capture, [], [], top_limit=3)
         assert missing_report["evidence_status"]["profiler_counter_status"] == "missing"
         assert missing_report["evidence_status"]["isa_resource_status"] == "missing"
-        assert "missing_profiler_counter_export" in missing_report["evidence_status"]["missing_evidence"]
+        assert (
+            "missing_profiler_counter_export"
+            in missing_report["evidence_status"]["missing_evidence"]
+        )
         assert "missing_isa_summary" in missing_report["evidence_status"]["missing_evidence"]
 
-        partial_report = gpu_counter_report.report_for_capture(capture, [counter_csv], [partial_isa_summary], 3)
-        assert partial_report["evidence_status"]["isa_resource_status"] == "partial"
-        assert "partial_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
+        partial_report = gpu_counter_report.report_for_capture(
+            capture, [counter_csv], [partial_isa_summary], 3
+        )
+        assert partial_report["evidence_status"]["isa_resource_status"] == "missing"
+        assert "missing_isa_summary" in partial_report["evidence_status"]["missing_evidence"]
 
-        isa_only_report = gpu_counter_report.report_for_capture(capture, [], [isa_summary], top_limit=3)
-        assert isa_only_report["resource_summary"]["vgpr"] == 64
-        assert isa_only_report["resource_summary"]["sgpr"] == 48
-        assert isa_only_report["resource_summary"]["lds_bytes"] == 2048
-        assert isa_only_report["evidence_status"]["isa_resource_status"] == "present"
+        isa_only_report = gpu_counter_report.report_for_capture(
+            capture, [], [isa_summary], top_limit=3
+        )
+        assert isa_only_report["resource_summary"]["vgpr"] is None
+        assert isa_only_report["resource_summary"]["sgpr"] is None
+        assert isa_only_report["resource_summary"]["lds_bytes"] is None
+        assert isa_only_report["evidence_status"]["isa_resource_status"] == "missing"
         assert "missing_occupancy_signal" in isa_only_report["evidence_status"]["missing_evidence"]
 
         multi_batch = gpu_counter_report.build_batch_report([report, missing_report])

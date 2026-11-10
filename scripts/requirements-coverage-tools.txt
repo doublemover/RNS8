@@ -1,0 +1,2 @@
+# Optional CPython3.15 Windows AMD64/Linux x86_64 source coverage; no runtime dependency.
+coverage==7.17.2 --hash=sha256:075566a44289afb634ceaafa7d8d377bb2667a5b4a90fbee2609efdcd015c66e --hash=sha256:3bd065e75c077d6de8cd3fe68699a8b47be3ec595af6b66e3629926839094609

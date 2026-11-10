@@ -18,14 +18,15 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(public_contract.descriptor_contract_supported == 1);
   CHECK(public_contract.public_execution_available == 1);
   CHECK(public_contract.same_shape_required == 1);
-  CHECK(public_contract.unique_matrix_handles_required == 1);
+  CHECK(public_contract.unique_matrix_handles_required == 0);
   CHECK(public_contract.unique_workspace_handles_required == 1);
   CHECK(public_contract.same_plan_fingerprint_required == 1);
   CHECK(public_contract.same_device_required == 1);
   CHECK(public_contract.device_resident_inputs_required == 1);
   CHECK(public_contract.produces_device_current_output == 1);
   CHECK(std::string(public_contract.unsupported_reason).empty());
-  CHECK(std::string(public_contract.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");
+  CHECK(std::string(public_contract.device_descriptor_policy) ==
+        "device_pointer_tables_and_compact_slabs");
 
   rns8_workspace* workspace0 = nullptr;
   rns8_workspace* workspace1 = nullptr;
@@ -35,9 +36,9 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   rns8_matrix_desc a_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   rns8_matrix_desc b_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
   rns8_matrix_desc c_desc = matrix_desc(2, 2, RNS8_BOUNDED_U64, RNS8_BOUND_GLOBAL_MAX_UNSIGNED);
-  a_desc.max_prefix = plan->prefix;
+  a_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
   b_desc.max_prefix = plan->prefix;
-  c_desc.max_prefix = plan->prefix;
+  c_desc.max_prefix = RNS8_MAX_SUPPORTED_PREFIX;
 
   rns8_matrix* a0 = nullptr;
   rns8_matrix* b0 = nullptr;
@@ -58,15 +59,8 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   };
   rns8::detail::hip_direct_grouped_gemm_bucket_plan bucket_plan;
   REQUIRE(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
-              plan,
-              tasks,
-              2,
-              RNS8_BOUNDED_U64,
-              2,
-              2,
-              2,
-              plan->prefix,
-              &bucket_plan) == RNS8_SUCCESS);
+              plan, tasks, 2, RNS8_BOUNDED_U64, 2, 2, 2, plan->prefix, &bucket_plan) ==
+          RNS8_SUCCESS);
   CHECK(bucket_plan.task_count == 2);
   CHECK(bucket_plan.bucket_count == 1);
   CHECK(bucket_plan.same_shape_required);
@@ -78,8 +72,8 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   const auto& descriptor = *descriptor_ptr;
 
   int descriptor_device = -1;
-  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(descriptor, &descriptor_device) ==
-        RNS8_SUCCESS);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(
+            descriptor, &descriptor_device) == RNS8_SUCCESS);
   CHECK(descriptor_device == 0);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
         RNS8_INVALID_ARGUMENT);
@@ -89,30 +83,35 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
 
   rns8::detail::hip_direct_grouped_device_resources grouped_resources;
   REQUIRE(rns8::detail::hip_direct_allocate_grouped_task_device_resources(
-              descriptor,
-              8 * sizeof(uint64_t),
-              8 * sizeof(uint64_t),
-              8 * sizeof(uint64_t),
-              sizeof(int),
-              &grouped_resources) == RNS8_SUCCESS);
+              descriptor, 8 * sizeof(uint64_t), 8 * sizeof(uint64_t), 8 * sizeof(uint64_t),
+              sizeof(int), &grouped_resources) == RNS8_SUCCESS);
   int pointer_device = -1;
   REQUIRE(rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
-              descriptor,
-              grouped_resources,
-              &pointer_device) == RNS8_SUCCESS);
+              descriptor, grouped_resources, &pointer_device) == RNS8_SUCCESS);
   CHECK(pointer_device == 0);
   CHECK(grouped_resources.device_id == 0);
   REQUIRE(grouped_resources.c_matrices.size() == 2);
-  REQUIRE(rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
-              descriptor,
-              grouped_resources,
-              grouped_a_slab,
-              grouped_b_slab,
-              2,
-              2,
-              101) == RNS8_SUCCESS);
+  CHECK_FALSE(grouped_resources.a_residue_ptrs.pending());
+  grouped_resources.mark_pending();
+  REQUIRE(rns8::detail::hip_direct_prepare_grouped_task_residue_pointers(
+              descriptor, grouped_resources, &pointer_device) == RNS8_SUCCESS);
+  // Completing the host table upload must not cancel an enclosing device lease.
+  CHECK(grouped_resources.a_residue_ptrs.pending());
+  CHECK(grouped_resources.b_residue_ptrs.pending());
+  CHECK(grouped_resources.c_residue_ptrs.pending());
+  REQUIRE(rns8::detail::hip_direct_synchronize(0) == RNS8_SUCCESS);
+  grouped_resources.mark_completed();
+  REQUIRE(rns8::detail::hip_direct_pack_grouped_u64_task_inputs(descriptor, grouped_resources,
+                                                                grouped_a_slab, grouped_b_slab, 2,
+                                                                2, 101) == RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
         RNS8_SUCCESS);
+  for (auto* input : {a0, b0, a1, b1})
+    CHECK(input->materialized_rns_prefix == plan->prefix);
+  a0->materialized_rns_prefix = plan->prefix - 1;
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_pack(descriptor, 101) ==
+        RNS8_RANGE_ERROR);
+  a0->materialized_rns_prefix = plan->prefix;
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_INVALID_ARGUMENT);
 
@@ -127,19 +126,15 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   CHECK(rns8_gemm_rns_grouped(ctx, plan, public_tasks, 2) == RNS8_INVALID_ARGUMENT);
   rns8::test::set_device_residues_current(*a1, true);
 
-  REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
-              descriptor,
-              grouped_resources) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(descriptor, grouped_resources) ==
+          RNS8_SUCCESS);
   CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_after_gemm(descriptor) ==
         RNS8_SUCCESS);
 
   std::vector<uint64_t> grouped_export(8, UINT64_C(0xdeadbeefdeadbeef));
   REQUIRE(rns8::detail::hip_direct_export_grouped_u64_task_outputs_to_host(
-              descriptor,
-              grouped_resources,
-              static_cast<uint64_t>(desc.bound),
-              grouped_export.data(),
-              grouped_export.size()) == RNS8_SUCCESS);
+              descriptor, grouped_resources, static_cast<uint64_t>(desc.bound),
+              grouped_export.data(), grouped_export.size()) == RNS8_SUCCESS);
   std::vector<uint64_t> expected0(4);
   std::vector<uint64_t> expected1(4);
   REQUIRE(rns8_export_u64(ctx, plan, c0, expected0.data(), 2) == RNS8_SUCCESS);
@@ -159,19 +154,41 @@ TEST_CASE("Direct-HIP grouped descriptor validates task ownership and phase cont
   };
   rns8::detail::hip_direct_grouped_gemm_bucket_plan invalid_bucket_plan;
   CHECK(rns8::detail::hip_direct_build_same_shape_grouped_bucket_plan(
-            plan,
-            shared_workspace_tasks,
-            2,
-            RNS8_BOUNDED_U64,
-            2,
-            2,
-            2,
-            plan->prefix,
+            plan, shared_workspace_tasks, 2, RNS8_BOUNDED_U64, 2, 2, 2, plan->prefix,
             &invalid_bucket_plan) == RNS8_INVALID_ARGUMENT);
   auto shared_workspace_descriptor = descriptor;
   shared_workspace_descriptor.tasks = shared_workspace_tasks;
-  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(shared_workspace_descriptor, nullptr) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8::detail::hip_direct_validate_grouped_gemm_descriptor_setup(
+            shared_workspace_descriptor, nullptr) == RNS8_INVALID_ARGUMENT);
+
+  // Shared read-only inputs are legal, including A == B; writes cannot alias.
+  rns8_grouped_gemm_task shared_tasks[2]{};
+  for (auto& task : shared_tasks) {
+    task.struct_size = sizeof(task);
+    task.abi_version = RNS8_ABI_VERSION;
+    task.a = a0;
+    task.b = a0;
+  }
+  shared_tasks[0].c = c0;
+  shared_tasks[0].workspace = workspace0;
+  shared_tasks[1].c = c1;
+  shared_tasks[1].workspace = workspace1;
+  REQUIRE(rns8_gemm_rns_grouped(ctx, plan, shared_tasks, 2) == RNS8_SUCCESS);
+  std::vector<uint64_t> shared0(4), shared1(4), reference(4);
+  REQUIRE(rns8_export_u64(ctx, plan, c0, shared0.data(), 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c1, shared1.data(), 2) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(ctx, plan, a0, a0, c0, workspace0) == RNS8_SUCCESS);
+  REQUIRE(rns8_export_u64(ctx, plan, c0, reference.data(), 2) == RNS8_SUCCESS);
+  CHECK(shared0 == reference);
+  CHECK(shared1 == reference);
+  CHECK(shared0 == std::vector<uint64_t>{7, 10, 15, 22});
+  const auto old_generation = c0->content_generation;
+  shared_tasks[1].c = a0;
+  CHECK(rns8_gemm_rns_grouped(ctx, plan, shared_tasks, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(c0->content_generation == old_generation);
+  shared_tasks[1].c = c0;
+  CHECK(rns8_gemm_rns_grouped(ctx, plan, shared_tasks, 2) == RNS8_INVALID_ARGUMENT);
+  CHECK(c0->content_generation == old_generation);
 
   rns8_destroy_matrix(c1);
   rns8_destroy_matrix(b1);
@@ -223,7 +240,8 @@ TEST_CASE("Direct-HIP grouped descriptor builds same-contract shape buckets") {
     bucket.workspaces.resize(2);
     bucket.tasks.resize(2);
     for (uint32_t task_index = 0; task_index < 2; ++task_index) {
-      REQUIRE(rns8_create_workspace(ctx, bucket.plan, &bucket.workspaces[task_index]) == RNS8_SUCCESS);
+      REQUIRE(rns8_create_workspace(ctx, bucket.plan, &bucket.workspaces[task_index]) ==
+              RNS8_SUCCESS);
       rns8_matrix* a = nullptr;
       rns8_matrix* b = nullptr;
       rns8_matrix* c = nullptr;
@@ -242,8 +260,9 @@ TEST_CASE("Direct-HIP grouped descriptor builds same-contract shape buckets") {
   BucketFixture skinny = create_bucket(3, 2, 2);
 
   rns8::detail::hip_direct_grouped_gemm_bucket_request requests[2] = {
-      {small.plan, small.tasks.data(), 0, static_cast<uint32_t>(small.tasks.size()), RNS8_BOUNDED_U64,
-       small.plan->desc.m, small.plan->desc.n, small.plan->desc.k, small.plan->prefix},
+      {small.plan, small.tasks.data(), 0, static_cast<uint32_t>(small.tasks.size()),
+       RNS8_BOUNDED_U64, small.plan->desc.m, small.plan->desc.n, small.plan->desc.k,
+       small.plan->prefix},
       {skinny.plan, skinny.tasks.data(), static_cast<uint32_t>(small.tasks.size()),
        static_cast<uint32_t>(skinny.tasks.size()), RNS8_BOUNDED_U64, skinny.plan->desc.m,
        skinny.plan->desc.n, skinny.plan->desc.k, skinny.plan->prefix},
@@ -283,9 +302,7 @@ TEST_CASE("Direct-HIP grouped descriptor builds same-contract shape buckets") {
   };
   rns8::detail::hip_direct_grouped_gemm_bucket_plan invalid_plan;
   CHECK(rns8::detail::hip_direct_build_bucketed_grouped_gemm_plan(
-            duplicate_requests,
-            2,
-            &invalid_plan) == RNS8_INVALID_ARGUMENT);
+            duplicate_requests, 2, &invalid_plan) == RNS8_INVALID_ARGUMENT);
 
   destroy_bucket(skinny);
   destroy_bucket(small);

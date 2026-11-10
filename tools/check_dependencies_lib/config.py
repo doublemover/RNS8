@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 HOST_NEUTRAL_CORE_COMMANDS = ["cmake", "ninja", "git", "python"]
 CMAKE_MINIMUM_VERSION = "3.22.0"
 WINDOWS_CORE_COMMANDS = ["vcpkg"]
 CORE_COMMANDS = HOST_NEUTRAL_CORE_COMMANDS + WINDOWS_CORE_COMMANDS
 WINDOWS_HIP_COMMANDS = ["hipcc", "hipInfo", "hipconfig"]
+WINDOWS_OPTIONAL_PROFILER_COMMANDS = ["wpr", "wpaexporter"]
 LINUX_ROCM_REQUIRED_COMMANDS = ["hipcc", "rocminfo"]
 LINUX_ROCM_DIAGNOSTIC_COMMANDS = ["hipconfig"]
 LINUX_ROCM_COMMANDS = LINUX_ROCM_REQUIRED_COMMANDS + LINUX_ROCM_DIAGNOSTIC_COMMANDS
 LINUX_SMI_COMMANDS = ["rocm-smi", "amd-smi"]
 LINUX_TOPOLOGY_COMMANDS = ["numactl", "lstopo"]
 LINUX_PROFILER_COMMANDS = ["rocprofv3", "rocprofv3-avail"]
+LINUX_OPTIONAL_PROFILER_COMMANDS = ["rocpd", "rocprof-compute"]
 LINUX_BANDWIDTH_COMMANDS = ["rocm-bandwidth-test"]
 RCCL_TEST_COMMANDS = ["all_reduce_perf", "all_gather_perf", "broadcast_perf", "reduce_scatter_perf"]
 LINUX_READINESS_COMMANDS = (
@@ -30,10 +34,15 @@ RADEON_TOOLS = [
     "RadeonDeveloperPanel",
     "RadeonMemoryVisualizer",
     "RadeonDeveloperServiceCLI",
+    "RadeonDeveloperPanelCLI",
 ]
 SUPPORTED_TARGETS = {
     "gfx1030": {"tier": "W2", "family": "RDNA2", "role": "functional HIP regression"},
-    "gfx1100": {"tier": "W0", "family": "RDNA3", "role": "local Windows bring-up and RDNA3 optimization"},
+    "gfx1100": {
+        "tier": "W0",
+        "family": "RDNA3",
+        "role": "local Windows bring-up and RDNA3 optimization",
+    },
     "gfx1200": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
     "gfx1201": {"tier": "W1", "family": "RDNA4", "role": "current consumer matrix-core target"},
     "gfx90a": {"tier": "I2", "family": "CDNA2", "role": "supported CDNA2 cluster target"},
@@ -106,96 +115,12 @@ int main() {
 }
 
 ACCELERATOR_PRIMITIVE_PROBE_SOURCES = {
-    "ck": """#include <cstdint>
-#include <ck/ck.hpp>
-#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#ifndef RNS8_CK_PRIMITIVE_USE_XDL
-#define RNS8_CK_PRIMITIVE_USE_XDL 0
-#endif
-#if RNS8_CK_PRIMITIVE_USE_XDL
-#include <ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp>
-#else
-#include <ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp>
-#endif
-#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <finite_u8_reducer.hpp>
-
-template <ck::index_t... Is>
-using S = ck::Sequence<Is...>;
-
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
-struct CenteredModulo {
-  int32_t modulus;
-  uint32_t reciprocal;
-
-  __host__ __device__ CenteredModulo(int32_t m = 253, uint32_t r = 0) : modulus(m), reciprocal(r) {}
-
-  template <typename Y, typename X>
-  __host__ __device__ void operator()(Y& y, const X& x) const {
-    y = static_cast<Y>(rns8::detail::finite_u8::reduce_to_centered_ck_i32(
-        static_cast<int32_t>(x), static_cast<uint32_t>(modulus), reciprocal));
-  }
-};
-
-#if RNS8_CK_PRIMITIVE_USE_XDL
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
-    Row, Col, Row, int8_t, int8_t, int8_t, int32_t, int32_t, PassThrough, PassThrough, CenteredModulo,
-    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-    1, 256, 128, 128, 64, 16, 16, 32, 32, 4, 2,
-    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, true,
-    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
-    1, 1, S<1, 32, 1, 4>, 16>;
-#else
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<
-    Row, Col, Row, int8_t, int8_t, int8_t, int32_t, int32_t, PassThrough, PassThrough, CenteredModulo,
-    ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-    1, 128, 64, 128, 64, 2, 16, 16, 2, 4,
-    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
-    S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 2, 2, true,
-    1, 1, S<1, 32, 1, 4>, 8>;
-#endif
-
-extern "C" float rns8_ck_i8_primitive_probe(const int8_t* a, const int8_t* b, int8_t* c) {
-#if RNS8_CK_PRIMITIVE_USE_XDL
-  auto arg = DeviceGemmInstance::MakeArgument(
-      a,
-      b,
-      c,
-      64,
-      128,
-      64,
-      64,
-      64,
-      128,
-      PassThrough{},
-      PassThrough{},
-      CenteredModulo{253, rns8::detail::finite_u8::modulus_reciprocal_u32(253)});
-#else
-  auto arg = DeviceGemmInstance::MakeArgument(
-      a,
-      b,
-      c,
-      64,
-      128,
-      64,
-      64,
-      128,
-      128,
-      PassThrough{},
-      PassThrough{},
-      CenteredModulo{253, rns8::detail::finite_u8::modulus_reciprocal_u32(253)});
-#endif
-  if (!DeviceGemmInstance::IsSupportedArgument(arg) || !DeviceGemmInstance::IsValidCompilationParameter()) {
-    return -1.0f;
-  }
-  auto invoker = DeviceGemmInstance::MakeInvoker();
-  return invoker.Run(arg);
-}
-""",
+    "amdgpu_builtins": (
+        Path(__file__).resolve().parents[1] / "probes/amdgpu_builtins_primitive.hip"
+    ).read_text(encoding="utf-8"),
+    "ck": (Path(__file__).resolve().parents[1] / "probes/ck_primitive.hip").read_text(
+        encoding="utf-8"
+    ),
     "rocwmma": """#include <cstdint>
 #include <rocwmma/rocwmma.hpp>
 
@@ -216,5 +141,3 @@ extern "C" __global__ void rns8_rocwmma_i8_mma_primitive_probe(
 }
 """,
 }
-
-

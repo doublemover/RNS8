@@ -1,0 +1,120 @@
+{
+  "schema": "rns8_benchmark_catalog_v1",
+  "family": "native-calibration",
+  "groups": [
+    {
+      "root": "array",
+      "keys": [
+        "items"
+      ],
+      "defaults": {},
+      "columns": [
+        "items"
+      ],
+      "rows": [
+        [
+          "generated-wmma.json",
+          "5eeda58037f824c775039268fb847e80c6107c7a8cef721e5564cf81b52066bc",
+          {
+            "$rns8_records": {
+              "layouts": [
+                [
+                  "candidate",
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned_inputs",
+                  "reuse_count"
+                ],
+                [
+                  "candidate",
+                  "m",
+                  "n",
+                  "k",
+                  "prefix",
+                  "group",
+                  "unsigned_inputs"
+                ]
+              ],
+              "defaults": {
+                "prefix": 3
+              },
+              "rows": [
+                [0,"generated_wmma",17,19,257,1,false,1],
+                [0,"wmma",17,19,257,1,false,1],
+                [0,"generated_wmma",17,19,257,2,false,1],
+                [0,"wmma",17,19,257,2,false,1],
+                [0,"generated_wmma",17,19,257,4,false,1],
+                [0,"wmma",17,19,257,4,false,1],
+                [1,"pack_gemm",17,19,257,1,false],
+                [0,"generated_wmma",17,19,257,1,true,1],
+                [0,"wmma",17,19,257,1,true,1],
+                [0,"generated_wmma",17,19,257,2,true,1],
+                [0,"wmma",17,19,257,2,true,1],
+                [0,"generated_wmma",17,19,257,4,true,1],
+                [0,"wmma",17,19,257,4,true,1],
+                [1,"pack_gemm",17,19,257,1,true],
+                [0,"generated_wmma",1,129,33,1,false,1],
+                [0,"wmma",1,129,33,1,false,1],
+                [0,"generated_wmma",1,129,33,2,false,1],
+                [0,"wmma",1,129,33,2,false,1],
+                [0,"generated_wmma",1,129,33,4,false,1],
+                [0,"wmma",1,129,33,4,false,1],
+                [1,"pack_gemm",1,129,33,1,false],
+                [0,"generated_wmma",1,129,33,1,true,1],
+                [0,"wmma",1,129,33,1,true,1],
+                [0,"generated_wmma",1,129,33,2,true,1],
+                [0,"wmma",1,129,33,2,true,1],
+                [0,"generated_wmma",1,129,33,4,true,1],
+                [0,"wmma",1,129,33,4,true,1],
+                [1,"pack_gemm",1,129,33,1,true],
+                [0,"generated_wmma",65,17,513,1,false,1],
+                [0,"wmma",65,17,513,1,false,1],
+                [0,"generated_wmma",65,17,513,2,false,1],
+                [0,"wmma",65,17,513,2,false,1],
+                [0,"generated_wmma",65,17,513,4,false,1],
+                [0,"wmma",65,17,513,4,false,1],
+                [1,"pack_gemm",65,17,513,1,false],
+                [0,"generated_wmma",65,17,513,1,true,1],
+                [0,"wmma",65,17,513,1,true,1],
+                [0,"generated_wmma",65,17,513,2,true,1],
+                [0,"wmma",65,17,513,2,true,1],
+                [0,"generated_wmma",65,17,513,4,true,1],
+                [0,"wmma",65,17,513,4,true,1],
+                [1,"pack_gemm",65,17,513,1,true],
+                [0,"generated_wmma",256,256,512,1,false,1],
+                [0,"wmma",256,256,512,1,false,1],
+                [0,"generated_wmma",256,256,512,2,false,1],
+                [0,"wmma",256,256,512,2,false,1],
+                [0,"generated_wmma",256,256,512,4,false,1],
+                [0,"wmma",256,256,512,4,false,1],
+                [1,"pack_gemm",256,256,512,1,false],
+                [0,"generated_wmma",256,256,512,1,true,1],
+                [0,"wmma",256,256,512,1,true,1],
+                [0,"generated_wmma",256,256,512,2,true,1],
+                [0,"wmma",256,256,512,2,true,1],
+                [0,"generated_wmma",256,256,512,4,true,1],
+                [0,"wmma",256,256,512,4,true,1],
+                [1,"pack_gemm",256,256,512,1,true],
+                [0,"generated_wmma",256,256,512,1,false,8],
+                [0,"wmma",256,256,512,1,false,8],
+                [0,"generated_wmma",256,256,512,2,false,8],
+                [0,"wmma",256,256,512,2,false,8],
+                [0,"generated_wmma",256,256,512,4,false,8],
+                [0,"wmma",256,256,512,4,false,8],
+                [0,"generated_wmma",256,256,512,1,true,8],
+                [0,"wmma",256,256,512,1,true,8],
+                [0,"generated_wmma",256,256,512,2,true,8],
+                [0,"wmma",256,256,512,2,true,8],
+                [0,"generated_wmma",256,256,512,4,true,8],
+                [0,"wmma",256,256,512,4,true,8]
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

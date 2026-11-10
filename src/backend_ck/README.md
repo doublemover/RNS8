@@ -1,16 +1,49 @@
 # Composable Kernel Backend
 
+Public availability and target evidence are summarized in the
+[backend reference](../../docs/backend-notes.md); this page owns implementation
+layout and admission details. The [dated local validation](../../docs/local-all-features-20261023.md)
+records the specific Windows/gfx1100 configuration exercised.
+
+
 Opt-in Composable Kernel accelerator backend for the active HIP/ROCm target.
 
-The backend is compiled only with `RNS8_ENABLE_CK=ON`. It uses the pinned
-repo-local CK headers plus RNS8-owned HIP pack/output helper kernels to run
-signed `int8 x int8 -> int32` matrix GEMM for fixed-prefix bounded plans,
+The backend is compiled only with `RNS8_ENABLE_CK=ON`. It uses the selected
+installed SDK or explicit CK source headers plus RNS8-owned HIP pack/output
+helper kernels to run INT8-to-INT32 matrix GEMM for fixed-prefix bounded plans,
 adaptive per-tile bounded plans, exact-wide RNS output, and finite u8. CK
 CShuffle keeps the INT32 accumulation internal to the matrix-engine kernel and
 uses an RNS8 centered-residue epilogue to store `int8_t` output. RNS8 helper
 kernels only copy or add centered byte tiles when padding or K-split accumulation
 requires temporary output storage. The path is optional and is not required for
 CPU or direct-HIP correctness.
+
+Operand interpretation is explicit. Core SDK10.1's CK1.3 WMMA defaults to signed
+operands, so packing retains centered `int8_t` bytes. The retained CK1.1 source
+defaults to unsigned WMMA operands and requires canonical unsigned-byte packing.
+CMake reads the actual selected header defaults, rejects mixed/unknown contracts,
+and records `ck_wmma_signed_inputs` in the compiled manifest. XDL retains signed
+centered inputs. The interpretation is never inferred from the C++ storage type
+or an SDK version label. CPU algebra covers all byte moduli; GPU regressions
+exercise negative residues, poisoned padding and K=64/65536/65537. Accumulation
+remains fused with centered-byte reduction; no INT32 global scratch is added.
+
+`implementation_contract.hpp` is shared by host planning, generated workspace
+admission and HIP packing. It records WMMA/XDL, the detected signed or unsigned
+alphabet, INT32 accumulation and the 32768-element slab. Ordinary-plan
+certificates model unsigned packing as a checked modular reduction of the
+logical centered residue. Every hardware dot starts at zero; its centered-byte
+epilogue precedes the INT32 merge with the previous centered slab. The current
+cap is unchanged. A larger host-proven boundary alone does not admit a larger
+device slab.
+
+Kernel identities use the v4 physical family (`wmma_s8`, `wmma_u8` or `xdl_s8`
+within the complete selected-kernel string). Dependency metadata reports
+`CK-sha256-192:` plus the first 192 bits of a SHA256 content identity of the
+selected implementation and available CK/version headers. This fits the existing
+64-byte public version field; the complete build manifest also binds dependency
+trees. Historical reports retain their original labels. Host certificate checks
+do not qualify generated matrix instructions or a device run.
 
 Dependency discovery and compile probes remain evidence only. CK reports an
 enabled correctness backend only in the explicit CK preset after the compiled

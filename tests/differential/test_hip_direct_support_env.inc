@@ -1,20 +1,10 @@
 
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-extern "C" int rns8_hip_direct_ring_gemm_i8_device(
-    const int8_t* d_a,
-    const int8_t* d_b,
-    int8_t* d_c,
-    int m,
-    int n,
-    int k,
-    int lda,
-    int ldb,
-    int ldc,
-    int modulus,
-    uint32_t modulus_reciprocal,
-    int modulus_index,
-    int selected_prefix,
-    int safe_k_block);
+extern "C" int rns8_hip_direct_ring_gemm_i8_device(const int8_t* d_a, const int8_t* d_b,
+                                                   int8_t* d_c, int m, int n, int k, int lda,
+                                                   int ldb, int ldc, int modulus,
+                                                   uint32_t modulus_reciprocal, int modulus_index,
+                                                   int selected_prefix, int safe_k_block);
 #endif
 
 uint32_t reciprocal_for_modulus(uint16_t modulus) {
@@ -100,11 +90,13 @@ rns8_context* create_context(rns8_backend_kind backend) {
   options.abi_version = RNS8_ABI_VERSION;
   options.requested_backend = backend;
   rns8_context* ctx = nullptr;
-  REQUIRE(rns8_create_context(backend == RNS8_BACKEND_HIP_DIRECT ? 0 : -1, &options, &ctx) == RNS8_SUCCESS);
+  REQUIRE(rns8_create_context(backend == RNS8_BACKEND_HIP_DIRECT ? 0 : -1, &options, &ctx) ==
+          RNS8_SUCCESS);
   return ctx;
 }
 
-rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                           rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -118,7 +110,8 @@ rns8_gemm_desc signed_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8
   return desc;
 }
 
-rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rns8_backend_kind backend) {
+rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound,
+                             rns8_backend_kind backend) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -132,12 +125,9 @@ rns8_gemm_desc unsigned_desc(int64_t m, int64_t n, int64_t k, uint64_t bound, rn
   return desc;
 }
 
-rns8_gemm_desc per_tile_signed_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& bounds,
-    rns8_backend_kind backend) {
+rns8_gemm_desc per_tile_signed_desc(int64_t m, int64_t n, int64_t k,
+                                    const std::vector<uint64_t>& bounds,
+                                    rns8_backend_kind backend) {
   rns8_gemm_desc desc = signed_desc(m, n, k, 0, backend);
   desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_ABS;
   desc.tile_m = 64;
@@ -147,12 +137,9 @@ rns8_gemm_desc per_tile_signed_desc(
   return desc;
 }
 
-rns8_gemm_desc per_tile_unsigned_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& bounds,
-    rns8_backend_kind backend) {
+rns8_gemm_desc per_tile_unsigned_desc(int64_t m, int64_t n, int64_t k,
+                                      const std::vector<uint64_t>& bounds,
+                                      rns8_backend_kind backend) {
   rns8_gemm_desc desc = unsigned_desc(m, n, k, 0, backend);
   desc.bound_kind = RNS8_BOUND_PER_TILE_MAX_UNSIGNED;
   desc.tile_m = 64;
@@ -203,13 +190,8 @@ rns8_gemm_desc wrap_desc(int64_t m, int64_t n, int64_t k, rns8_backend_kind back
   return desc;
 }
 
-rns8_gemm_desc finite_desc(
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    rns8_semantics semantics,
-    rns8_backend_kind backend,
-    uint16_t modulus = 0) {
+rns8_gemm_desc finite_desc(int64_t m, int64_t n, int64_t k, rns8_semantics semantics,
+                           rns8_backend_kind backend, uint16_t modulus = 0) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -225,7 +207,8 @@ rns8_gemm_desc finite_desc(
   return desc;
 }
 
-rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics, rns8_bound_kind bound_kind) {
+rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                             rns8_bound_kind bound_kind) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -247,4 +230,3 @@ rns8_matrix_desc matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantic
   }
   return desc;
 }
-

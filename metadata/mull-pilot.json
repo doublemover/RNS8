@@ -1,0 +1,22 @@
+{
+  "schema": "rns8_optional_mull_pilot_policy_v1",
+  "owner_issue": 103,
+  "date": "2026-11-06",
+  "version": "0.37.0",
+  "source_commit": "04f5c409878d602e1527ffae4c8d21c61a33d8ea",
+  "source": "https://github.com/mull-project/mull/releases/tag/0.37.0",
+  "native_scope": "explicit_installed_native_Linux_compiler_runner_plugin_no_auto_install",
+  "selected_host_compiler_unchanged": true,
+  "compatibility": "exact_observed_Clang_and_plugin_full_LLVM_version_and_plugin_path; actual_load_requires_instrumented_build",
+  "packaged_LLVM23": "macOS_arm64_only_in_reviewed_release; no_native_Linux_or_Windows_package_inherited",
+  "native_Windows": "unsupported_by_this_pilot",
+  "source_schema": [
+    "https://github.com/mull-project/mull/blob/04f5c409878d602e1527ffae4c8d21c61a33d8ea/rust/mull-reporters/src/sqlite_reporter.rs",
+    "https://github.com/mull-project/mull/blob/04f5c409878d602e1527ffae4c8d21c61a33d8ea/rust/mull-state/src/execution_status.rs"
+  ],
+  "mutator_scope": [
+    "src/backend_common/checked_arithmetic.hpp",
+    "src/core/api_integer_split.cpp"
+  ],
+  "qualification": "not_run; native failure is not an intended assertion kill"
+}

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from evidence_scalars import text_choice
+
 from typing import Any
 
 from metadata_registry_constants import (
     CURRENT_CORRECTNESS_BACKENDS,
-    HIP_RESIDENT_BACKENDS,
     SELECTED_KERNELS,
     VECTOR_ALU_SELECTED_KERNELS,
 )
@@ -45,11 +46,11 @@ def _amdgpu_builtin_matrix_dtype(selected_kernel: str) -> str | None:
 def _amdgpu_builtin_matrix_sparsity(family: str | None) -> str | None:
     if family is None:
         return None
-    return "structured_4_2" if family in {"smfmac", "swmmac"} else "dense"
+    return "structured_4_2" if text_choice(family, {"smfmac", "swmmac"}) else "dense"
 
 
 def _semantics_are_finite_u8(data: dict[str, Any]) -> bool:
-    return data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+    return text_choice(data.get("semantics"), {"finite_ring_u8", "finite_field_u8"})
 
 
 def _amdgpu_builtin_target_family(data: dict[str, Any]) -> str | None:
@@ -61,7 +62,7 @@ def _amdgpu_builtin_target_family(data: dict[str, Any]) -> str | None:
         return "cdna3"
     if target.startswith("gfx110"):
         return "rdna3"
-    if target in {"gfx1200", "gfx1201"}:
+    if text_choice(target, {"gfx1200", "gfx1201"}):
         return "rdna4"
     return None
 
@@ -105,7 +106,7 @@ def _amdgpu_builtin_allowed_selected_kernels(data: dict[str, Any]) -> set[str] |
 
 def _amdgpu_builtin_matrix_operand_signedness(selected_kernel: str) -> str | None:
     dtype = _amdgpu_builtin_matrix_dtype(selected_kernel)
-    if dtype in {"i8", "iu8"}:
+    if text_choice(dtype, {"i8", "iu8"}):
         return "signed_i8x_signed_i8"
     if dtype == "iu4":
         return "signed_i4x_signed_i4_research_only"
@@ -129,7 +130,9 @@ def _amdgpu_builtin_matrix_sparse_index_layout(selected_kernel: str) -> str | No
     return None
 
 
-def _amdgpu_builtin_matrix_a_value_contract(data: dict[str, Any], selected_kernel: str) -> str | None:
+def _amdgpu_builtin_matrix_a_value_contract(
+    data: dict[str, Any], selected_kernel: str
+) -> str | None:
     if _amdgpu_builtin_matrix_family(selected_kernel) is None:
         return None
     finite = _semantics_are_finite_u8(data)
@@ -139,17 +142,27 @@ def _amdgpu_builtin_matrix_a_value_contract(data: dict[str, Any], selected_kerne
             if finite
             else "signed_i8_centered_residue_planes"
         )
-    return "dense_a_public_u8_centered_for_matrix_core" if finite else "dense_a_centered_i8_residue_planes"
+    return (
+        "dense_a_public_u8_centered_for_matrix_core"
+        if finite
+        else "dense_a_centered_i8_residue_planes"
+    )
 
 
-def _amdgpu_builtin_matrix_b_value_contract(data: dict[str, Any], selected_kernel: str) -> str | None:
+def _amdgpu_builtin_matrix_b_value_contract(
+    data: dict[str, Any], selected_kernel: str
+) -> str | None:
     if _amdgpu_builtin_matrix_family(selected_kernel) is None:
         return None
-    return "dense_b_public_u8_centered_for_matrix_core" if _semantics_are_finite_u8(data) else "dense_b_centered_i8_residue_planes"
+    return (
+        "dense_b_public_u8_centered_for_matrix_core"
+        if _semantics_are_finite_u8(data)
+        else "dense_b_centered_i8_residue_planes"
+    )
 
 
 def _amdgpu_builtin_rdna_integer_modifier_policy(selected_kernel: str) -> dict[str, str] | None:
-    if _amdgpu_builtin_matrix_family(selected_kernel) not in {"wmma", "swmmac"}:
+    if not text_choice(_amdgpu_builtin_matrix_family(selected_kernel), {"wmma", "swmmac"}):
         return None
     return {
         "NEG[0]": "A operand signedness: 0 unsigned, 1 signed",
@@ -170,7 +183,9 @@ def validate_backend_metadata(self: Any) -> None:
         return
     selected_backend = self.data.get("backend_selected")
     selected_kernel_for_source = self.data.get("selected_kernel")
-    sparse_a_capture = isinstance(selected_kernel_for_source, str) and "sparse_a" in selected_kernel_for_source
+    sparse_a_capture = (
+        isinstance(selected_kernel_for_source, str) and "sparse_a" in selected_kernel_for_source
+    )
     expected_source = (
         "rns8_bench_wrap64_rocwmma_candidate"
         if self._is_wrap64_rocwmma_candidate()
@@ -221,6 +236,11 @@ def validate_backend_metadata(self: Any) -> None:
     ]:
         if not isinstance(metadata.get(key), bool):
             self._error(f"backend_metadata.{key} must be a boolean")
+    if (
+        metadata.get("performance_validated") is True
+        and metadata.get("exact_differential_validated") is not True
+    ):
+        self._error("performance_validated requires bound exact differential evidence")
     for key in [
         "accelerator_library",
         "accelerator_version",
@@ -233,28 +253,44 @@ def validate_backend_metadata(self: Any) -> None:
         value = metadata.get(key)
         if value is not None and not isinstance(value, str):
             self._error(f"backend_metadata.{key} must be a string or null")
-    for key in ["capability_status", "epilogue_mode", "workspace_mode", "isa_evidence", "autotune_key"]:
+    for key in [
+        "capability_status",
+        "epilogue_mode",
+        "workspace_mode",
+        "isa_evidence",
+        "autotune_key",
+    ]:
         value = metadata.get(key)
         if not isinstance(value, str) or not value:
             self._error(f"backend_metadata.{key} must be a nonempty string")
     workspace_bytes = metadata.get("workspace_required_bytes")
     if not _is_int(workspace_bytes) or workspace_bytes < 0:
         self._error("backend_metadata.workspace_required_bytes must be a nonnegative integer")
-    if selected_backend in CURRENT_CORRECTNESS_BACKENDS:
+    if text_choice(selected_backend, CURRENT_CORRECTNESS_BACKENDS):
         if metadata.get("accelerator_backend") is not False:
-            self._error("current correctness backends must set backend_metadata.accelerator_backend=false")
+            self._error(
+                "current correctness backends must set backend_metadata.accelerator_backend=false"
+            )
         if metadata.get("correctness_backend") is not True:
-            self._error("current correctness backends must set backend_metadata.correctness_backend=true")
+            self._error(
+                "current correctness backends must set backend_metadata.correctness_backend=true"
+            )
         if metadata.get("matrix_engine_backend") is not False:
-            self._error("current correctness backends must set backend_metadata.matrix_engine_backend=false")
+            self._error(
+                "current correctness backends must set backend_metadata.matrix_engine_backend=false"
+            )
         if metadata.get("compiled_kernel_available") is not True:
-            self._error("current correctness backends must set backend_metadata.compiled_kernel_available=true")
-        if metadata.get("exact_differential_validated") is not True:
-            self._error("current correctness backends must set backend_metadata.exact_differential_validated=true")
+            self._error(
+                "current correctness backends must set backend_metadata.compiled_kernel_available=true"
+            )
         if metadata.get("performance_validated") is not False:
-            self._error("current correctness backends must set backend_metadata.performance_validated=false")
+            self._error(
+                "current correctness backends must set backend_metadata.performance_validated=false"
+            )
         if metadata.get("capability_status") != "implemented_correctness_backend":
-            self._error("current correctness backends must use capability_status=implemented_correctness_backend")
+            self._error(
+                "current correctness backends must use capability_status=implemented_correctness_backend"
+            )
     if selected_backend == "hipblaslt":
         expected = {
             "selected_kernel": "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2",
@@ -271,18 +307,22 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": True,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
         }
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:
                 self._error(f"hipBLASLt captures must use backend_metadata.{key}={value}")
         epilogue = metadata.get("epilogue_mode")
-        if epilogue not in {
-            "separate_i32_scratch_reduce_then_crt_export",
-            "separate_i32_scratch_reduce_rns_output",
-            "separate_i32_scratch_reduce_then_canonical_u8_export",
-        }:
-            self._error("hipBLASLt captures must report a separate INT32 scratch reduction epilogue")
+        if not text_choice(
+            epilogue,
+            {
+                "separate_i32_scratch_reduce_then_crt_export",
+                "separate_i32_scratch_reduce_rns_output",
+                "separate_i32_scratch_reduce_then_canonical_u8_export",
+            },
+        ):
+            self._error(
+                "hipBLASLt captures must report a separate INT32 scratch reduction epilogue"
+            )
     if selected_backend == "hip-vector-alu-int64":
         runtime_capture = self._is_vector_alu_runtime_capture()
         expected = {
@@ -294,15 +334,21 @@ def validate_backend_metadata(self: Any) -> None:
             ),
             "epilogue_mode": "direct_int64_export",
             "workspace_mode": (
-                "native_device_i64_u64_buffers" if runtime_capture else "benchmark_owned_device_buffers"
+                "native_device_i64_u64_buffers"
+                if runtime_capture
+                else "benchmark_owned_device_buffers"
             ),
             "isa_evidence": "source_level_192bit_limb_accumulator_no_matrix_engine",
         }
         for key, value in expected.items():
             if metadata.get(key) != value:
-                self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
-        if metadata.get("selected_kernel") not in VECTOR_ALU_SELECTED_KERNELS:
-            self._error("hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel")
+                self._error(
+                    f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}"
+                )
+        if not text_choice(metadata.get("selected_kernel"), VECTOR_ALU_SELECTED_KERNELS):
+            self._error(
+                "hip-vector-alu-int64 captures must report a known vector-ALU selected_kernel"
+            )
         gemv_n1 = self.data.get("n") == 1 and self.data.get("k", 0) >= 4096
         gemv_small_n = (
             _is_int(self.data.get("n"))
@@ -330,20 +376,25 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": False,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
             "performance_validated": False,
         }
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:
-                self._error(f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}")
+                self._error(
+                    f"hip-vector-alu-int64 captures must use backend_metadata.{key}={value}"
+                )
     if selected_backend == "amdgpu-builtins":
-        if metadata.get("selected_kernel") not in SELECTED_KERNELS or not str(
+        if not text_choice(metadata.get("selected_kernel"), SELECTED_KERNELS) or not str(
             metadata.get("selected_kernel")
         ).startswith("amdgpu_builtin_"):
-            self._error("amdgpu-builtins captures must report a registered amdgpu_builtin_* selected_kernel")
+            self._error(
+                "amdgpu-builtins captures must report a registered amdgpu_builtin_* selected_kernel"
+            )
         amdgpu_kernel = str(metadata.get("selected_kernel") or "")
         if "_research_" in amdgpu_kernel:
-            self._error("research-only amdgpu-builtins kernels cannot be reported as executed runtime captures")
+            self._error(
+                "research-only amdgpu-builtins kernels cannot be reported as executed runtime captures"
+            )
         allowed_kernels = _amdgpu_builtin_allowed_selected_kernels(self.data)
         if allowed_kernels is None:
             self._error("amdgpu-builtins captures require a supported device.gcn_arch target")
@@ -356,10 +407,16 @@ def validate_backend_metadata(self: Any) -> None:
             "matrix_instruction_shape": _amdgpu_builtin_matrix_shape(amdgpu_kernel),
             "matrix_instruction_dtype": _amdgpu_builtin_matrix_dtype(amdgpu_kernel),
             "matrix_operand_signedness": _amdgpu_builtin_matrix_operand_signedness(amdgpu_kernel),
-            "matrix_a_value_contract": _amdgpu_builtin_matrix_a_value_contract(self.data, amdgpu_kernel),
-            "matrix_b_value_contract": _amdgpu_builtin_matrix_b_value_contract(self.data, amdgpu_kernel),
+            "matrix_a_value_contract": _amdgpu_builtin_matrix_a_value_contract(
+                self.data, amdgpu_kernel
+            ),
+            "matrix_b_value_contract": _amdgpu_builtin_matrix_b_value_contract(
+                self.data, amdgpu_kernel
+            ),
             "matrix_sparse_contract": _amdgpu_builtin_matrix_sparse_contract(amdgpu_kernel),
-            "matrix_sparse_dense_operand": _amdgpu_builtin_matrix_sparse_dense_operand(amdgpu_kernel),
+            "matrix_sparse_dense_operand": _amdgpu_builtin_matrix_sparse_dense_operand(
+                amdgpu_kernel
+            ),
             "matrix_sparse_a_compression_index_layout": _amdgpu_builtin_matrix_sparse_index_layout(
                 amdgpu_kernel
             ),
@@ -383,7 +440,9 @@ def validate_backend_metadata(self: Any) -> None:
             )
         if not str(metadata.get("epilogue_mode", "")).startswith("amdgpu_builtin_"):
             self._error("amdgpu-builtins captures must report an amdgpu_builtin_* epilogue")
-        finite_sparse_capture = self.data.get("semantics") in {"finite_ring_u8", "finite_field_u8"}
+        finite_sparse_capture = text_choice(
+            self.data.get("semantics"), {"finite_ring_u8", "finite_field_u8"}
+        )
         expected_workspace = (
             (
                 "resident_sparse_a_explicit_4_to_2_contract_dense_b_finite_u8"
@@ -394,9 +453,7 @@ def validate_backend_metadata(self: Any) -> None:
             else "resident_device_buffers_direct_amdgpu_builtin_matrix_core_no_dense_pack_workspace"
         )
         if metadata.get("workspace_mode") != expected_workspace:
-            self._error(
-                f"amdgpu-builtins captures must use workspace_mode={expected_workspace}"
-            )
+            self._error(f"amdgpu-builtins captures must use workspace_mode={expected_workspace}")
         expected_isa = (
             "amdgpu_builtin_sparse_a_matrix_core_isa_gate_no_divide"
             if "sparse_a" in amdgpu_kernel
@@ -424,7 +481,6 @@ def validate_backend_metadata(self: Any) -> None:
             "correctness_backend": True,
             "matrix_engine_backend": True,
             "compiled_kernel_available": True,
-            "exact_differential_validated": True,
         }
         for key, value in bool_expected.items():
             if metadata.get(key) is not value:

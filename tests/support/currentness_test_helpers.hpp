@@ -28,4 +28,4 @@ inline void set_device_native_current(rns8_matrix& matrix, bool value) {
   matrix.device_native_current = value;
 }
 
-}  // namespace rns8::test
+} // namespace rns8::test

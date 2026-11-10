@@ -1,18 +1,16 @@
-rns8_status hip_direct_gemm_finite_u8_resident_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus) {
+rns8_status hip_direct_gemm_finite_u8_resident_device(int device_id, const void* device_a_residues,
+                                                      const void* device_b_residues,
+                                                      void* device_c_residues, int64_t m, int64_t n,
+                                                      int64_t k, int64_t lda, int64_t ldb,
+                                                      int64_t ldc, uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
-      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+  if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 ||
+      modulus > 256 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
       ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
@@ -25,18 +23,12 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
   const hipError_t err = timed_hip_operation("finite_resident_gemm_kernel", [&]() {
     const int code = rns8_hip_direct_finite_ring_gemm_i8_device(
         static_cast<const int8_t*>(device_a_residues),
-        static_cast<const int8_t*>(device_b_residues),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus),
-        static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+        static_cast<const int8_t*>(device_b_residues), static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda),
+        static_cast<int>(ldb), static_cast<int>(ldc), static_cast<int>(modulus),
+        modulus_reciprocal_u32(modulus), static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -55,33 +47,31 @@ rns8_status hip_direct_gemm_finite_u8_resident_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_finite_u8_region_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    int64_t region_row_offset,
-    int64_t region_col_offset,
-    int64_t region_rows,
-    int64_t region_cols,
-    uint16_t modulus) {
+rns8_status hip_direct_gemm_finite_u8_region_device(int device_id, const void* device_a_residues,
+                                                    const void* device_b_residues,
+                                                    void* device_c_residues, int64_t m, int64_t n,
+                                                    int64_t k, int64_t lda, int64_t ldb,
+                                                    int64_t ldc, int64_t region_row_offset,
+                                                    int64_t region_col_offset, int64_t region_rows,
+                                                    int64_t region_cols, uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
-      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n || region_row_offset < 0 ||
-      region_col_offset < 0 || region_rows <= 0 || region_cols <= 0 || region_row_offset > m ||
-      region_col_offset > n || region_rows > m - region_row_offset || region_cols > n - region_col_offset ||
-      m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
-      k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
-      ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max() ||
+  if (!device_a_residues || !device_b_residues || !device_c_residues || modulus < 2 ||
+      modulus > 256 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+      region_row_offset < 0 || region_col_offset < 0 || region_rows <= 0 || region_cols <= 0 ||
+      region_row_offset > m || region_col_offset > n || region_rows > m - region_row_offset ||
+      region_cols > n - region_col_offset || m > std::numeric_limits<int>::max() ||
+      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max() ||
+      lda > std::numeric_limits<int>::max() || ldb > std::numeric_limits<int>::max() ||
+      ldc > std::numeric_limits<int>::max() ||
       region_row_offset > std::numeric_limits<int>::max() ||
       region_col_offset > std::numeric_limits<int>::max() ||
-      region_rows > std::numeric_limits<int>::max() || region_cols > std::numeric_limits<int>::max()) {
+      region_rows > std::numeric_limits<int>::max() ||
+      region_cols > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status device_status = set_hip_device(device_id);
@@ -91,22 +81,14 @@ rns8_status hip_direct_gemm_finite_u8_region_device(
   const hipError_t err = timed_hip_operation("finite_resident_gemm_region_kernel", [&]() {
     const int code = rns8_hip_direct_finite_ring_gemm_i8_region_device(
         static_cast<const int8_t*>(device_a_residues),
-        static_cast<const int8_t*>(device_b_residues),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(region_row_offset),
-        static_cast<int>(region_col_offset),
-        static_cast<int>(region_rows),
-        static_cast<int>(region_cols),
-        static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus),
+        static_cast<const int8_t*>(device_b_residues), static_cast<int8_t*>(device_c_residues),
+        static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), static_cast<int>(lda),
+        static_cast<int>(ldb), static_cast<int>(ldc), static_cast<int>(region_row_offset),
+        static_cast<int>(region_col_offset), static_cast<int>(region_rows),
+        static_cast<int>(region_cols), static_cast<int>(modulus), modulus_reciprocal_u32(modulus),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -130,25 +112,16 @@ rns8_status hip_direct_gemm_finite_u8_region_device(
 }
 
 rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
-    int device_id,
-    rns8_matrix* const* a_matrices,
-    rns8_matrix* const* b_matrices,
-    rns8_matrix* const* c_matrices,
-    uint32_t task_count,
-    rns8_semantics expected_semantics,
-    const void* device_a_residue_ptrs,
-    const void* device_b_residue_ptrs,
-    const void* device_c_residue_ptrs,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    uint16_t modulus) {
+    int device_id, rns8_matrix* const* a_matrices, rns8_matrix* const* b_matrices,
+    rns8_matrix* const* c_matrices, uint32_t task_count, rns8_semantics expected_semantics,
+    const void* device_a_residue_ptrs, const void* device_b_residue_ptrs,
+    const void* device_c_residue_ptrs, int64_t m, int64_t n, int64_t k, uint16_t modulus) {
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!a_matrices || !b_matrices || !c_matrices || task_count == 0 || !device_a_residue_ptrs ||
       !device_b_residue_ptrs || !device_c_residue_ptrs ||
-      !valid_finite_modulus_for_semantics(expected_semantics, modulus) ||
-      m <= 0 || n <= 0 || k <= 0 || m > std::numeric_limits<int>::max() ||
-      n > std::numeric_limits<int>::max() || k > std::numeric_limits<int>::max()) {
+      !valid_finite_modulus_for_semantics(expected_semantics, modulus) || m <= 0 || n <= 0 ||
+      k <= 0 || m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
+      k > std::numeric_limits<int>::max()) {
     return RNS8_INVALID_ARGUMENT;
   }
 
@@ -158,22 +131,23 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
   uint32_t a_prefix = 0;
   uint32_t b_prefix = 0;
   uint32_t c_prefix = 0;
-  rns8_status status = validate_grouped_rns_matrices(
-      a_matrices, task_count, expected_semantics, m, k, true, &a_device_id, &a_prefix, nullptr);
+  rns8_status status = validate_grouped_rns_matrices(a_matrices, task_count, expected_semantics, m,
+                                                     k, true, &a_device_id, &a_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      b_matrices, task_count, expected_semantics, k, n, true, &b_device_id, &b_prefix, nullptr);
+  status = validate_grouped_rns_matrices(b_matrices, task_count, expected_semantics, k, n, true,
+                                         &b_device_id, &b_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  status = validate_grouped_rns_matrices(
-      c_matrices, task_count, expected_semantics, m, n, false, &c_device_id, &c_prefix, nullptr);
+  status = validate_grouped_rns_matrices(c_matrices, task_count, expected_semantics, m, n, false,
+                                         &c_device_id, &c_prefix, nullptr);
   if (status != RNS8_SUCCESS) {
     return status;
   }
-  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != 0 || b_prefix != 0 || c_prefix != 0) {
+  if (a_device_id != b_device_id || a_device_id != c_device_id || a_prefix != 0 || b_prefix != 0 ||
+      c_prefix != 0) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (device_id < 0) {
@@ -182,7 +156,8 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
     return RNS8_INVALID_ARGUMENT;
   }
   for (uint32_t index = 0; index < task_count; ++index) {
-    if (a_matrices[index]->finite_modulus != modulus || b_matrices[index]->finite_modulus != modulus) {
+    if (a_matrices[index]->finite_modulus != modulus ||
+        b_matrices[index]->finite_modulus != modulus) {
       return RNS8_INVALID_ARGUMENT;
     }
   }
@@ -196,18 +171,9 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
   auto* c_ptrs = static_cast<int8_t* const*>(const_cast<void*>(device_c_residue_ptrs));
   const hipError_t err = timed_hip_operation("finite_resident_gemm_kernel", [&]() {
     const int code = rns8_hip_direct_finite_ring_gemm_i8_grouped_device(
-        a_ptrs,
-        b_ptrs,
-        c_ptrs,
-        static_cast<int>(task_count),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(k),
-        static_cast<int>(n),
-        static_cast<int>(n),
-        static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus),
+        a_ptrs, b_ptrs, c_ptrs, static_cast<int>(task_count), static_cast<int>(m),
+        static_cast<int>(n), static_cast<int>(k), static_cast<int>(k), static_cast<int>(n),
+        static_cast<int>(n), static_cast<int>(modulus), modulus_reciprocal_u32(modulus),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
     if (code != static_cast<int>(hipSuccess)) {
       return static_cast<hipError_t>(code);
@@ -221,9 +187,6 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
     rns8_matrix* matrix = c_matrices[index];
     mark_device_residue_output_current(matrix);
     matrix->finite_modulus = modulus;
-    matrix->source_version = api::gemm_output_source_version_values(
-        a_matrices[index]->source_version,
-        b_matrices[index]->source_version);
   }
   return RNS8_SUCCESS;
 #else
@@ -244,18 +207,16 @@ rns8_status hip_direct_gemm_finite_u8_grouped_matrices_device(
 #endif
 }
 
-rns8_status hip_direct_gemm_finite_u8_native_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_native,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    uint16_t modulus) {
+rns8_status hip_direct_gemm_finite_u8_native_device(int device_id, const void* device_a_native,
+                                                    const void* device_b_native,
+                                                    void* device_c_residues, int64_t m, int64_t n,
+                                                    int64_t k, int64_t lda, int64_t ldb,
+                                                    int64_t ldc, uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_native || !device_b_native || !device_c_residues || modulus < 2 || modulus > 256 ||
       m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
@@ -270,19 +231,13 @@ rns8_status hip_direct_gemm_finite_u8_native_device(
   }
   const hipError_t err = timed_hip_operation("finite_native_gemm_kernel", [&]() {
     const int code = rns8_hip_direct_finite_ring_gemm_u8_native_device(
-        static_cast<const uint8_t*>(device_a_native),
-        static_cast<const uint8_t*>(device_b_native),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus),
+        static_cast<const uint8_t*>(device_a_native), static_cast<const uint8_t*>(device_b_native),
+        static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+        static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
+        static_cast<int>(modulus), modulus_reciprocal_u32(modulus),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -302,20 +257,17 @@ rns8_status hip_direct_gemm_finite_u8_native_device(
 }
 
 rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
-    int device_id,
-    const void* device_a_native,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
+    int device_id, const void* device_a_native, const void* device_b_residues,
+    void* device_c_residues, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
     uint16_t modulus) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_native || !device_b_residues || !device_c_residues || modulus < 2 || modulus > 256 ||
-      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
+  if (!device_a_native || !device_b_residues || !device_c_residues || modulus < 2 ||
+      modulus > 256 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n ||
       m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
       k > std::numeric_limits<int>::max() || lda > std::numeric_limits<int>::max() ||
       ldb > std::numeric_limits<int>::max() || ldc > std::numeric_limits<int>::max()) {
@@ -327,19 +279,13 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
   }
   const hipError_t err = timed_hip_operation("finite_native_a_gemm_kernel", [&]() {
     const int code = rns8_hip_direct_finite_ring_gemm_u8_native_a_i8_b_device(
-        static_cast<const uint8_t*>(device_a_native),
-        static_cast<const int8_t*>(device_b_residues),
-        static_cast<int8_t*>(device_c_residues),
-        static_cast<int>(m),
-        static_cast<int>(n),
-        static_cast<int>(k),
-        static_cast<int>(lda),
-        static_cast<int>(ldb),
-        static_cast<int>(ldc),
-        static_cast<int>(modulus),
-        modulus_reciprocal_u32(modulus),
+        static_cast<const uint8_t*>(device_a_native), static_cast<const int8_t*>(device_b_residues),
+        static_cast<int8_t*>(device_c_residues), static_cast<int>(m), static_cast<int>(n),
+        static_cast<int>(k), static_cast<int>(lda), static_cast<int>(ldb), static_cast<int>(ldc),
+        static_cast<int>(modulus), modulus_reciprocal_u32(modulus),
         static_cast<int>(RNS8_SAFE_INT32_K_BLOCK));
-    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize() : static_cast<hipError_t>(code);
+    return code == static_cast<int>(hipSuccess) ? hipDeviceSynchronize()
+                                                : static_cast<hipError_t>(code);
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
 #else
@@ -359,32 +305,15 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_device(
 }
 
 rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
-    int device_id,
-    const void* device_a_native,
-    const rns8_matrix* B,
-    rns8_matrix* C,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    uint16_t modulus,
-    uint64_t source_version) {
+    int device_id, const void* device_a_native, const rns8_matrix* B, rns8_matrix* C, int64_t m,
+    int64_t n, int64_t k, int64_t lda, uint16_t modulus, uint64_t source_version) {
   if (!B || !C || B->finite_modulus != modulus || !B->device_residues_current ||
       B->desc.rows != k || B->desc.cols != n || C->desc.rows != m || C->desc.cols != n) {
     return RNS8_INVALID_ARGUMENT;
   }
   const rns8_status status = hip_direct_gemm_finite_u8_native_a_resident_b_device(
-      device_id,
-      device_a_native,
-      B->hip_residues,
-      C->hip_residues,
-      m,
-      n,
-      k,
-      lda,
-      B->desc.logical_ld,
-      C->desc.logical_ld,
-      modulus);
+      device_id, device_a_native, B->hip_residues, C->hip_residues, m, n, k, lda,
+      B->desc.logical_ld, C->desc.logical_ld, modulus);
   if (status != RNS8_SUCCESS) {
     return status;
   }
@@ -394,22 +323,21 @@ rns8_status hip_direct_gemm_finite_u8_native_a_resident_b_matrix(
   return RNS8_SUCCESS;
 }
 
-rns8_status hip_direct_gemm_rns_tiled_device(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    const rns8_plan_tile_schedule_entry* entries,
-    uint64_t entry_count) {
+rns8_status hip_direct_gemm_rns_tiled_device(int device_id, const void* device_a_residues,
+                                             const void* device_b_residues, void* device_c_residues,
+                                             int64_t m, int64_t n, int64_t k, int64_t lda,
+                                             int64_t ldb, int64_t ldc,
+                                             const rns8_plan_tile_schedule_entry* entries,
+                                             uint64_t entry_count) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc,
+                                                RNS8_MAX_SUPPORTED_PREFIX)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
-  if (!device_a_residues || !device_b_residues || !device_c_residues || !entries || entry_count == 0 || m <= 0 ||
-      n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
+  if (!device_a_residues || !device_b_residues || !device_c_residues || !entries ||
+      entry_count == 0 || m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -445,33 +373,27 @@ rns8_status hip_direct_gemm_rns_tiled_device(
           }
           if ((entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) != 0) {
             auto* tile_c =
-                c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
+                c_base + c_offset +
+                static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
                 static_cast<std::size_t>(entry.col_offset);
-            const hipError_t zero_status = hipMemset2D(
-                tile_c,
-                static_cast<std::size_t>(ldc) * sizeof(int8_t),
-                0,
-                static_cast<std::size_t>(entry.col_extent) * sizeof(int8_t),
-                static_cast<std::size_t>(entry.row_extent));
+            const hipError_t zero_status =
+                hipMemset2D(tile_c, static_cast<std::size_t>(ldc) * sizeof(int8_t), 0,
+                            static_cast<std::size_t>(entry.col_extent) * sizeof(int8_t),
+                            static_cast<std::size_t>(entry.row_extent));
             if (zero_status != hipSuccess) {
               return zero_status;
             }
             continue;
           }
-          const hipError_t launch_status = launch_rns_modulus_gemm({
-              a_base + a_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(lda),
-              b_base + b_offset + static_cast<std::size_t>(entry.col_offset),
-              c_base + c_offset + static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
-                  static_cast<std::size_t>(entry.col_offset),
-              entry.row_extent,
-              entry.col_extent,
-              k,
-              lda,
-              ldb,
-              ldc,
-              kDefaultModuli[p],
-              p,
-              entry.selected_prefix});
+          const hipError_t launch_status = launch_rns_modulus_gemm(
+              {a_base + a_offset +
+                   static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(lda),
+               b_base + b_offset + static_cast<std::size_t>(entry.col_offset),
+               c_base + c_offset +
+                   static_cast<std::size_t>(entry.row_offset) * static_cast<std::size_t>(ldc) +
+                   static_cast<std::size_t>(entry.col_offset),
+               entry.row_extent, entry.col_extent, k, lda, ldb, ldc, kDefaultModuli[p], p,
+               entry.selected_prefix});
           if (launch_status != hipSuccess) {
             return launch_status;
           }
@@ -499,29 +421,22 @@ rns8_status hip_direct_gemm_rns_tiled_device(
 }
 
 rns8_status hip_direct_gemm_rns_tiled_device_schedule(
-    int device_id,
-    const void* device_a_residues,
-    const void* device_b_residues,
-    void* device_c_residues,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    int64_t lda,
-    int64_t ldb,
-    int64_t ldc,
-    const rns8_plan_tile_schedule_entry* host_entries,
-    const void* device_entries,
-    const void* active_device_entries,
-    const void* zero_a_rows,
-    const void* zero_b_cols,
-    const uint64_t* active_offsets,
-    const uint64_t* active_counts,
-    uint32_t active_prefix_count,
-    uint64_t entry_count) {
+    int device_id, const void* device_a_residues, const void* device_b_residues,
+    void* device_c_residues, int64_t m, int64_t n, int64_t k, int64_t lda, int64_t ldb, int64_t ldc,
+    const rns8_plan_tile_schedule_entry* host_entries, const void* device_entries,
+    const void* active_device_entries, const void* zero_a_rows, const void* zero_b_cols,
+    const uint64_t* active_offsets, const uint64_t* active_counts, uint32_t active_prefix_count,
+    uint64_t entry_count, const rns8_plan* immutable_plan) {
+  if (m > 0 && n > 0 && k > 0 && lda >= k && ldb >= n && ldc >= n &&
+      !rns8::detail::qualified_i32_gemm_address(m, n, k, lda, ldb, ldc,
+                                                RNS8_MAX_SUPPORTED_PREFIX)) {
+    return RNS8_UNSUPPORTED_BACKEND;
+  }
+
 #if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
   if (!device_a_residues || !device_b_residues || !device_c_residues || !host_entries ||
-      !active_offsets || !active_counts || active_prefix_count == 0 || entry_count == 0 ||
-      m <= 0 || n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
+      !active_offsets || !active_counts || active_prefix_count == 0 || entry_count == 0 || m <= 0 ||
+      n <= 0 || k <= 0 || lda < k || ldb < n || ldc < n) {
     return RNS8_INVALID_ARGUMENT;
   }
   if (m > std::numeric_limits<int>::max() || n > std::numeric_limits<int>::max() ||
@@ -530,18 +445,52 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
       entry_count > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
     return RNS8_INVALID_ARGUMENT;
   }
-  checked_tile_schedule schedule{};
-  if (!checked_tile_schedule_contract(host_entries, entry_count, m, n, &schedule)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  int max_tile_row_blocks = 0;
-  int max_tile_col_blocks = 0;
-  if (!scheduled_tile_block_shape(host_entries, entry_count, &max_tile_row_blocks, &max_tile_col_blocks)) {
-    return RNS8_INVALID_ARGUMENT;
-  }
-  int max_tile_elements = 0;
-  if (!scheduled_tile_max_elements(host_entries, entry_count, &max_tile_elements)) {
-    return RNS8_INVALID_ARGUMENT;
+  int max_tile_row_blocks = 0, max_tile_col_blocks = 0, max_tile_elements = 0;
+  uint32_t max_selected_prefix = 0, uniform_zero_selected_prefix = 0;
+  bool zero_output_tiles = false, zero_row_col_products = false;
+  uint64_t expected_counts[RNS8_MAX_SUPPORTED_PREFIX]{};
+  if (immutable_plan) {
+    // Bind the immutable seal to its own arrays. The public boundary already
+    // checked canonical workspace equivalence; pointer/hash identity is not
+    // being substituted for mathematical or structural validation.
+    if (!immutable_plan->validated_contract || immutable_plan->desc.m != m ||
+        immutable_plan->desc.n != n || immutable_plan->desc.k != k ||
+        host_entries != immutable_plan->tile_schedule.data() ||
+        entry_count != immutable_plan->tile_schedule.size())
+      return RNS8_INVALID_ARGUMENT;
+    const auto& seal = *immutable_plan->validated_contract;
+    const auto& launch = seal.launch;
+    if (!launch.i32_launch_qualified || launch.entry_count != entry_count)
+      return RNS8_INVALID_ARGUMENT;
+    ++api::plan_validation_work.backend_schedule_fast_submissions;
+    max_tile_row_blocks = static_cast<int>(launch.max_row_blocks);
+    max_tile_col_blocks = static_cast<int>(launch.max_col_blocks);
+    max_tile_elements = static_cast<int>(launch.max_elements);
+    max_selected_prefix = launch.max_selected_prefix;
+    uniform_zero_selected_prefix = launch.uniform_zero_selected_prefix;
+    zero_output_tiles = launch.zero_output_tiles;
+    zero_row_col_products = launch.zero_row_col_products;
+    std::copy(std::begin(seal.active_counts), std::end(seal.active_counts), expected_counts);
+  } else {
+    // The independent raw boundary still validates caller entries, coverage,
+    // flags, groups, shape and counts before issuing any device work.
+    ++api::plan_validation_work.backend_schedule_raw_submissions;
+    checked_tile_schedule schedule{};
+    if (!checked_tile_schedule_contract(host_entries, entry_count, m, n, &schedule) ||
+        !scheduled_tile_block_shape(host_entries, entry_count, &max_tile_row_blocks,
+                                    &max_tile_col_blocks) ||
+        !scheduled_tile_max_elements(host_entries, entry_count, &max_tile_elements))
+      return RNS8_INVALID_ARGUMENT;
+    max_selected_prefix = schedule.selected_prefix_groups.back();
+    for (uint64_t i = 0; i < entry_count; ++i)
+      if ((host_entries[i].flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0)
+        for (uint32_t p = 0; p < host_entries[i].selected_prefix; ++p)
+          ++expected_counts[p];
+    zero_output_tiles = schedule_has_zero_output_tiles(host_entries, entry_count);
+    zero_row_col_products = schedule_has_zero_row_col_products(host_entries, entry_count);
+    if (!schedule_all_zero_output_tiles_uniform_prefix(host_entries, entry_count,
+                                                       uniform_zero_selected_prefix))
+      uniform_zero_selected_prefix = 0;
   }
   const rns8_status device_status = set_hip_device(device_id);
   if (device_status != RNS8_SUCCESS) {
@@ -550,22 +499,16 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   const auto* a_base = static_cast<const int8_t*>(device_a_residues);
   const auto* b_base = static_cast<const int8_t*>(device_b_residues);
   auto* c_base = static_cast<int8_t*>(device_c_residues);
-  const auto* active_schedule_base = static_cast<const rns8_plan_tile_schedule_entry*>(active_device_entries);
+  const auto* active_schedule_base =
+      static_cast<const rns8_plan_tile_schedule_entry*>(active_device_entries);
   const auto* zero_a_rows_base = static_cast<const uint8_t*>(zero_a_rows);
   const auto* zero_b_cols_base = static_cast<const uint8_t*>(zero_b_cols);
-  const uint32_t max_selected_prefix = schedule.selected_prefix_groups.back();
   if (active_prefix_count != max_selected_prefix) {
     return RNS8_INVALID_ARGUMENT;
   }
   uint64_t running_offset = 0;
   for (uint32_t p = 0; p < max_selected_prefix; ++p) {
-    uint64_t expected_count = 0;
-    for (uint64_t entry_index = 0; entry_index < entry_count; ++entry_index) {
-      const auto& entry = host_entries[static_cast<std::size_t>(entry_index)];
-      if (entry.selected_prefix > p && (entry.flags & RNS8_TILE_SCHEDULE_ZERO_OUTPUT) == 0) {
-        ++expected_count;
-      }
-    }
+    const uint64_t expected_count = expected_counts[p];
     if (active_offsets[p] != running_offset || active_counts[p] != expected_count) {
       return RNS8_INVALID_ARGUMENT;
     }
@@ -577,14 +520,10 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   if (running_offset != 0 && !active_device_entries) {
     return RNS8_INVALID_ARGUMENT;
   }
-  const bool zero_output_tiles = schedule_has_zero_output_tiles(host_entries, entry_count);
-  const bool zero_row_col_products = schedule_has_zero_row_col_products(host_entries, entry_count);
   if (zero_row_col_products && (!zero_a_rows || !zero_b_cols)) {
     return RNS8_INVALID_ARGUMENT;
   }
-  uint32_t uniform_zero_selected_prefix = 0;
-  const bool uniform_all_zero_output_tiles =
-      schedule_all_zero_output_tiles_uniform_prefix(host_entries, entry_count, uniform_zero_selected_prefix);
+  const bool uniform_all_zero_output_tiles = uniform_zero_selected_prefix != 0;
   if (zero_output_tiles && !uniform_all_zero_output_tiles && !device_entries) {
     return RNS8_INVALID_ARGUMENT;
   }
@@ -602,16 +541,15 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
         if (plane_stride != 0 && uniform_zero_selected_prefix > max_bytes / plane_stride) {
           return hipErrorInvalidValue;
         }
-        const auto zero_bytes = static_cast<std::size_t>(uniform_zero_selected_prefix * plane_stride);
+        const auto zero_bytes =
+            static_cast<std::size_t>(uniform_zero_selected_prefix * plane_stride);
         const hipError_t memset_status = hipMemsetAsync(c_base, 0, zero_bytes, nullptr);
-        return memset_status == hipSuccess && synchronize_zero_fill ? hipDeviceSynchronize() : memset_status;
+        return memset_status == hipSuccess && synchronize_zero_fill ? hipDeviceSynchronize()
+                                                                    : memset_status;
       }
       const int code = rns8_hip_direct_zero_scheduled_residue_tiles_device(
-          c_base,
-          static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
-          static_cast<int>(entry_count),
-          max_tile_elements,
-          static_cast<int>(m),
+          c_base, static_cast<const rns8_plan_tile_schedule_entry*>(device_entries),
+          static_cast<int>(entry_count), max_tile_elements, static_cast<int>(m),
           static_cast<int>(ldc));
       if (code != static_cast<int>(hipSuccess)) {
         return static_cast<hipError_t>(code);
@@ -626,21 +564,9 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
     return RNS8_SUCCESS;
   }
   const hipError_t err = timed_hip_operation("rns_gemm_kernel_group", [&]() {
-    const hipError_t launch_status = launch_rns_grouped_active_schedule_gemm({
-        a_base,
-        b_base,
-        c_base,
-        active_schedule_base,
-        zero_a_rows_base,
-        zero_b_cols_base,
-        running_offset,
-        max_tile_row_blocks,
-        max_tile_col_blocks,
-        m,
-        k,
-        lda,
-        ldb,
-        ldc});
+    const hipError_t launch_status = launch_rns_grouped_active_schedule_gemm(
+        {a_base, b_base, c_base, active_schedule_base, zero_a_rows_base, zero_b_cols_base,
+         running_offset, max_tile_row_blocks, max_tile_col_blocks, m, k, lda, ldb, ldc});
     return launch_status == hipSuccess ? hipDeviceSynchronize() : launch_status;
   });
   return err == hipSuccess ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
@@ -664,6 +590,36 @@ rns8_status hip_direct_gemm_rns_tiled_device_schedule(
   (void)active_counts;
   (void)active_prefix_count;
   (void)entry_count;
+  (void)immutable_plan;
+  return RNS8_UNSUPPORTED_BACKEND;
+#endif
+}
+
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+extern "C" int rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(const int8_t*, const int8_t*,
+                                                                    int8_t*, int, int, int, int,
+                                                                    int, int, int, uint32_t, int,
+                                                                    void*);
+#endif
+rns8_status hip_direct_enqueue_finite_no_publish(const rns8_plan* plan, const rns8_matrix* a,
+                                                 const rns8_matrix* b, rns8_matrix* c,
+                                                 void* stream) {
+#if defined(RNS8_ENABLE_HIP) && RNS8_ENABLE_HIP
+  const auto modulus = static_cast<uint16_t>(plan->desc.finite_modulus);
+  const int code = rns8_hip_direct_finite_ring_gemm_i8_device_on_stream(
+      static_cast<const int8_t*>(a->hip_residues), static_cast<const int8_t*>(b->hip_residues),
+      static_cast<int8_t*>(c->hip_residues), static_cast<int>(plan->desc.m),
+      static_cast<int>(plan->desc.n), static_cast<int>(plan->desc.k),
+      static_cast<int>(a->desc.cols), static_cast<int>(b->desc.cols),
+      static_cast<int>(c->desc.cols), modulus, modulus_reciprocal_u32(modulus),
+      RNS8_SAFE_INT32_K_BLOCK, stream);
+  return code == int(hipSuccess) ? RNS8_SUCCESS : RNS8_BACKEND_FAILURE;
+#else
+  (void)plan;
+  (void)a;
+  (void)b;
+  (void)c;
+  (void)stream;
   return RNS8_UNSUPPORTED_BACKEND;
 #endif
 }

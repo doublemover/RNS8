@@ -1,0 +1,124 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "source_commit": "05f320341a5e4b12187c85ca83a06b8886a484bb",
+  "records": [
+    {
+      "name": "scalar-smokes",
+      "argv": {
+        "archived_json_pointer": "/records/0/argv",
+        "entries": 10
+      },
+      "exit_code": 8,
+      "seconds": 21.715468883514404
+    },
+    {
+      "name": "dot4-smokes",
+      "argv": {
+        "archived_json_pointer": "/records/1/argv",
+        "entries": 10
+      },
+      "exit_code": 8,
+      "seconds": 22.48388695716858
+    }
+  ],
+  "status": "failed",
+  "campaign_resumed": false,
+  "logical_exit_code": 0,
+  "reviewed_utc": "2026-10-26T05:51:10.462022+00:00",
+  "passed": 18,
+  "failed": 2,
+  "retry_number": 1,
+  "planned_timing_captures": 660,
+  "timing_captures_executed": 0,
+  "failure": "The new prefix1 scheduled fixture reaches a valid plan whose uniform tile schedule is deliberately folded away; calibrator assertion incorrectly required physical entries",
+  "repair": "Retain per-tile logical envelope ownership, record actual required/selected prefixes and effective dispatch, and separate folded-uniform observations from scheduled-kernel comparison axes",
+  "repair_validation": "Python syntax only; no third test attempt or timing collection has been run",
+  "files": [
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/scalar-ctest.log",
+      "sha256": "60c42aaad78e0a41dcfdffd8b6fe3f9e245b07ce9fe84ed89f53a478444035c0"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/scalar-ctest.xml",
+      "sha256": "f1661b1ebbfa8bb44ba898d44a3a2b5287e19e94c9859e7f2ae6f7e479d8afc1"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/dot4-ctest.log",
+      "sha256": "539250338586cdf2b8978c3532d3efade7f8939eade1d36799372a52d118e6cd"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/dot4-ctest.xml",
+      "sha256": "3d2c341e9c34c595b1c251ac553e5261c36c059571a7b63707d9a07fa2c83eaa"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/qualification-plan.json",
+      "sha256": "37a8f91d80604f06831ec5b201c9d99ebcc35d75065ded3f42ba0e9873113a3b"
+    },
+    {
+      "path": "temp/validation-20261026/residue-dot-study-retry/validation-launch.json",
+      "sha256": "a5311cd54a7900e967df1f229cb227109907474eae960e9b4dae9a16ebb6b342"
+    }
+  ],
+  "static_isa": {
+    "scalar": {
+      "schema": "rns8_residue_dot_static_isa_v1",
+      "compiled_source_commit": "05f320341a5e4b12187c85ca83a06b8886a484bb",
+      "arithmetic": "scalar",
+      "extraction": {
+        "schema": "rns8_residue_dot_code_membership_v1",
+        "arithmetic": "scalar",
+        "artifact": "build/validation-20261026-residue-scalar/rns8-residue-dot-calibrate.exe",
+        "artifact_sha256": "0b0a7d2da611f3e6d07f0242e8bf5ee4e11929580f314fc7c7545d90e475db4d",
+        "code_objects": {
+          "archived_json_pointer": "/static_isa/scalar/extraction/code_objects",
+          "entries": 1
+        },
+        "method": "exact embedded ELF64 EM_AMDGPU bytes extracted by checked section extents; not a rebuild",
+        "promotion_eligible": false
+      },
+      "target": "gfx1100",
+      "original_code_object_membership_verified": true,
+      "symbols": {
+        "archived_json_pointer": "/static_isa/scalar/symbols",
+        "entries": 15
+      },
+      "selection": "explicit source family inventory for public calibrator scheduler wrappers; not a dynamic profiler launch trace",
+      "limits": "static sites and HSA resources only; no achieved occupancy, dynamic instructions, hardware traffic or launch count inferred",
+      "promotion_eligible": false
+    },
+    "dot4": {
+      "schema": "rns8_residue_dot_static_isa_v1",
+      "compiled_source_commit": "05f320341a5e4b12187c85ca83a06b8886a484bb",
+      "arithmetic": "dot4",
+      "extraction": {
+        "schema": "rns8_residue_dot_code_membership_v1",
+        "arithmetic": "dot4",
+        "artifact": "build/validation-20261026-residue-dot4/rns8-residue-dot-calibrate.exe",
+        "artifact_sha256": "cd129ea75c1c3a22e2aacfba0c972640175688386e6d50c374c72d80fe9d67cd",
+        "code_objects": {
+          "archived_json_pointer": "/static_isa/dot4/extraction/code_objects",
+          "entries": 1
+        },
+        "method": "exact embedded ELF64 EM_AMDGPU bytes extracted by checked section extents; not a rebuild",
+        "promotion_eligible": false
+      },
+      "target": "gfx1100",
+      "original_code_object_membership_verified": true,
+      "symbols": {
+        "archived_json_pointer": "/static_isa/dot4/symbols",
+        "entries": 15
+      },
+      "selection": "explicit source family inventory for public calibrator scheduler wrappers; not a dynamic profiler launch trace",
+      "limits": "static sites and HSA resources only; no achieved occupancy, dynamic instructions, hardware traffic or launch count inferred",
+      "promotion_eligible": false
+    }
+  },
+  "original_schema": "rns8_residue_dot_validation_retry_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/residue-dot-validation-retry-20261026.json",
+    "sha256": "024735b9dfc545791d103adeaeafb4e0adc270b5163a7a39f0dd5298759dbc8b",
+    "bytes": 51734
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

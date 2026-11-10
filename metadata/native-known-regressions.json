@@ -1,0 +1,16 @@
+{
+  "schema": "rns8_native_known_regressions_v1",
+  "source": "https://rocm.docs.amd.com/en/docs-10.1.0/release/changelog.html#composable-kernel-1-3-0",
+  "component": "composable_kernel",
+  "reported_fixed_release": "1.3.0",
+  "reported_bundle": "ROCm 10.1.0",
+  "affected_release_range": null,
+  "qualification_inherited": false,
+  "records": [
+    {"id":"mx-asymmetric-packing","features":["mx_operands","asymmetric_packed_widths"],"reported_targets":null,"failure":"Mixed packed operand widths can disagree with the consumer layout."},
+    {"id":"fp4-preshuffle-granularity","features":["fp4_operands","weight_preshuffle"],"reported_targets":null,"failure":"Host and device packed-element granularities can disagree."},
+    {"id":"mx-double-buffer-lds-order","features":["mx_operands","double_buffered_lds"],"reported_targets":["gfx1250"],"failure":"A reused LDS stage needs the required read ordering."},
+    {"id":"async-wmma-validity","features":["ck_tile_async_wmma"],"reported_targets":null,"failure":"Asynchronous operand loads need element validity checks."},
+    {"id":"split-k-atomic-coherence","features":["atomic_split_k"],"reported_targets":["gfx1250"],"failure":"Atomic partial accumulation needs device coherence."}
+  ]
+}

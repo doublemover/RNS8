@@ -10,9 +10,9 @@ from pathlib import Path
 from isa_common import (
     FORBIDDEN_DIVIDE_RE,
     FORBIDDEN_INT32_GLOBAL_STORE_RE,
-    disassemble_code_object,
     extracted_device_code_object,
     forbidden_mnemonic_lines,
+    matrix_symbol_reports,
     parse_isa_tool_config,
     symbols_matching_markers,
 )
@@ -65,21 +65,37 @@ def scan_disassembly(
     matrix_count = 0
     forbidden_stores: list[str] = []
     forbidden_divides: list[str] = []
-    for symbol in symbols:
-        disassembly = disassemble_code_object(objdump, code_object, amdgpu_target, symbol)
-        matrix_count += sum(disassembly.count(mnemonic) for mnemonic in required)
-        forbidden_stores.extend(forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE))
-        forbidden_divides.extend(
-            f"{symbol}: {line}"
-            for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
-            if not allowed_ck_internal_divide_line(line, amdgpu_target)
+    reports = matrix_symbol_reports(objdump, code_object, amdgpu_target, symbols, required)
+    for report in reports:
+        symbol = report["symbol"]
+        if report["attribution_failures"]:
+            raise RuntimeError(symbol + ": " + ", ".join(report["attribution_failures"]))
+        print(
+            f"- {symbol}: {report['matrix_count']} attributed matrix instructions; {len(report['functions'])} function bodies"
         )
+        matrix_count += report["matrix_count"]
+        for function in report["functions"]:
+            disassembly = function["disassembly"]
+            origin = symbol + " -> " + function["symbol"]
+            forbidden_stores.extend(
+                f"{origin}: {line}"
+                for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_INT32_GLOBAL_STORE_RE)
+            )
+            forbidden_divides.extend(
+                f"{origin}: {line}"
+                for line in forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
+                if not allowed_ck_internal_divide_line(line, amdgpu_target)
+            )
     return matrix_count, forbidden_stores, forbidden_divides
 
 
 def main() -> int:
-    config = parse_isa_tool_config(__doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object")
-    with extracted_device_code_object(config, "rns8-ck-isa-", "ck_backend_kernels.fatbin") as code_object:
+    config = parse_isa_tool_config(
+        __doc__, "Compiled CK HIP host object containing .hip_fatbin", "CK HIP object"
+    )
+    with extracted_device_code_object(
+        config, "rns8-ck-isa-", "ck_backend_kernels.fatbin"
+    ) as code_object:
         symbols = ck_symbols(config.objdump, code_object, config.target)
         matrix_count, forbidden_stores, forbidden_divides = scan_disassembly(
             config.objdump,
@@ -89,7 +105,9 @@ def main() -> int:
         )
         required = required_matrix_mnemonics(config.target)
         if matrix_count <= 0:
-            raise RuntimeError(f"CK object does not contain required matrix instructions: {', '.join(required)}")
+            raise RuntimeError(
+                f"CK object does not contain required matrix instructions: {', '.join(required)}"
+            )
         if forbidden_divides:
             raise RuntimeError(
                 "CK object contains forbidden reciprocal/divide/remainder instructions:\n"
@@ -103,7 +121,9 @@ def main() -> int:
     print(f"- target matrix instructions: {matrix_count}")
     print(f"- global_store_dword/buffer_store_dword instructions: {len(forbidden_stores)}")
     if config.target.startswith("gfx9"):
-        print("- no data-path divide or remainder instructions; CK XDL block-map reciprocal is allowed")
+        print(
+            "- no data-path divide or remainder instructions; CK XDL block-map reciprocal is allowed"
+        )
     else:
         print("- no v/s reciprocal, divide, or remainder instructions")
     return 0
@@ -112,6 +132,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001 - command-line tool should print concise failure cause.
+    except Exception as exc:
         print(f"CK ISA check: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

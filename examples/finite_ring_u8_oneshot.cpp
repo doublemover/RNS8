@@ -32,6 +32,7 @@ int main() {
     }
   }
   std::cout << "finite ring u8 oneshot mod " << modulus << ": " << static_cast<int>(c[0]) << ' '
-            << static_cast<int>(c[1]) << ' ' << static_cast<int>(c[2]) << ' ' << static_cast<int>(c[3]) << '\n';
+            << static_cast<int>(c[1]) << ' ' << static_cast<int>(c[2]) << ' '
+            << static_cast<int>(c[3]) << '\n';
   return EXIT_SUCCESS;
 }

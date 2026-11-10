@@ -140,19 +140,19 @@ TEST_CASE("direct HIP ring GEMM reciprocal reduction matches CPU across supporte
     for (int64_t kk = 0; kk < k; ++kk) {
       const int pattern = static_cast<int>((row * 37 + kk * 19) % 11);
       const int mixed = static_cast<int>((row + 113 - (2 * kk) % 113) % 113);
-      A[static_cast<std::size_t>(row * lda + kk)] =
-          pattern == 0 ? static_cast<int8_t>(127)
-                       : pattern == 1 ? static_cast<int8_t>(-127)
-                                      : static_cast<int8_t>(mixed - 56);
+      A[static_cast<std::size_t>(row * lda + kk)] = pattern == 0 ? static_cast<int8_t>(127)
+                                                    : pattern == 1
+                                                        ? static_cast<int8_t>(-127)
+                                                        : static_cast<int8_t>(mixed - 56);
     }
   }
   for (int64_t kk = 0; kk < k; ++kk) {
     for (int64_t col = 0; col < n; ++col) {
       const int pattern = static_cast<int>((kk * 23 + col * 29) % 13);
       B[static_cast<std::size_t>(kk * ldb + col)] =
-          pattern == 0 ? static_cast<int8_t>(126)
-                       : pattern == 1 ? static_cast<int8_t>(-128)
-                                      : static_cast<int8_t>(((3 * kk + col) % 127) - 63);
+          pattern == 0   ? static_cast<int8_t>(126)
+          : pattern == 1 ? static_cast<int8_t>(-128)
+                         : static_cast<int8_t>(((3 * kk + col) % 127) - 63);
     }
   }
 
@@ -161,7 +161,8 @@ TEST_CASE("direct HIP ring GEMM reciprocal reduction matches CPU across supporte
     std::vector<int8_t> cpu(static_cast<std::size_t>(m * ldc), c_sentinel);
     std::vector<int8_t> gpu(static_cast<std::size_t>(m * ldc), c_sentinel);
 
-    rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, lda, ldb, ldc, modulus);
+    rns8::detail::ring_gemm_modulus(A.data(), B.data(), cpu.data(), m, n, k, lda, ldb, ldc,
+                                    modulus);
     run_resident_ring_gemm(A, B, gpu, m, n, k, lda, ldb, ldc, modulus, p, p + 1);
 
     for (int64_t row = 0; row < m; ++row) {
@@ -189,15 +190,7 @@ TEST_CASE("direct HIP ring GEMM covers centered correction boundaries") {
   const int64_t k = 2;
   const uint16_t modulus = 255;
   const std::vector<int8_t> A = {1, 1};
-  const std::vector<int8_t> B = {
-      64,
-      127,
-      127,
-      -64,
-      64,
-      0,
-      127,
-      -64};
+  const std::vector<int8_t> B = {64, 127, 127, -64, 64, 0, 127, -64};
   std::vector<int8_t> cpu(static_cast<std::size_t>(m * n), 0);
   std::vector<int8_t> gpu(static_cast<std::size_t>(m * n), 0);
 
@@ -252,42 +245,42 @@ TEST_CASE("direct HIP tiled ring GEMM covers shared-memory tile tails with padde
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t kk = 0; kk < k; ++kk) {
       switch ((row * 17 + kk * 5) % 7) {
-        case 0:
-          A[static_cast<std::size_t>(row * lda + kk)] = 127;
-          break;
-        case 1:
-          A[static_cast<std::size_t>(row * lda + kk)] = -126;
-          break;
-        case 2:
-          A[static_cast<std::size_t>(row * lda + kk)] = 64;
-          break;
-        case 3:
-          A[static_cast<std::size_t>(row * lda + kk)] = -63;
-          break;
-        default:
-          A[static_cast<std::size_t>(row * lda + kk)] = static_cast<int8_t>((row - kk) % 11);
-          break;
+      case 0:
+        A[static_cast<std::size_t>(row * lda + kk)] = 127;
+        break;
+      case 1:
+        A[static_cast<std::size_t>(row * lda + kk)] = -126;
+        break;
+      case 2:
+        A[static_cast<std::size_t>(row * lda + kk)] = 64;
+        break;
+      case 3:
+        A[static_cast<std::size_t>(row * lda + kk)] = -63;
+        break;
+      default:
+        A[static_cast<std::size_t>(row * lda + kk)] = static_cast<int8_t>((row - kk) % 11);
+        break;
       }
     }
   }
   for (int64_t kk = 0; kk < k; ++kk) {
     for (int64_t col = 0; col < n; ++col) {
       switch ((kk * 11 + col * 3) % 7) {
-        case 0:
-          B[static_cast<std::size_t>(kk * ldb + col)] = 126;
-          break;
-        case 1:
-          B[static_cast<std::size_t>(kk * ldb + col)] = -127;
-          break;
-        case 2:
-          B[static_cast<std::size_t>(kk * ldb + col)] = 63;
-          break;
-        case 3:
-          B[static_cast<std::size_t>(kk * ldb + col)] = -64;
-          break;
-        default:
-          B[static_cast<std::size_t>(kk * ldb + col)] = static_cast<int8_t>((kk + col) % 13 - 6);
-          break;
+      case 0:
+        B[static_cast<std::size_t>(kk * ldb + col)] = 126;
+        break;
+      case 1:
+        B[static_cast<std::size_t>(kk * ldb + col)] = -127;
+        break;
+      case 2:
+        B[static_cast<std::size_t>(kk * ldb + col)] = 63;
+        break;
+      case 3:
+        B[static_cast<std::size_t>(kk * ldb + col)] = -64;
+        break;
+      default:
+        B[static_cast<std::size_t>(kk * ldb + col)] = static_cast<int8_t>((kk + col) % 13 - 6);
+        break;
       }
     }
   }
@@ -305,4 +298,3 @@ TEST_CASE("direct HIP tiled ring GEMM covers shared-memory tile tails with padde
     }
   }
 }
-

@@ -72,8 +72,12 @@ def report_for_capture(path: Path) -> dict[str, Any]:
         "shape": {"m": data.get("m"), "n": data.get("n"), "k": data.get("k")},
         "repeats": data.get("repeats"),
         "gpu_event_timing": timing_enabled,
-        "gpu_event_timing_status": metadata.get("gpu_event_timing_status") if isinstance(metadata, dict) else None,
-        "gpu_event_timing_reason": metadata.get("gpu_event_timing_reason") if isinstance(metadata, dict) else None,
+        "gpu_event_timing_status": metadata.get("gpu_event_timing_status")
+        if isinstance(metadata, dict)
+        else None,
+        "gpu_event_timing_reason": metadata.get("gpu_event_timing_reason")
+        if isinstance(metadata, dict)
+        else None,
         "gpu_event_timing_source_scope": (
             metadata.get("gpu_event_timing_source_scope") if isinstance(metadata, dict) else None
         ),
@@ -120,7 +124,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("captures", type=Path, nargs="+", help="schema-v4 benchmark JSON captures")
     parser.add_argument("--json", action="store_true", help="emit machine-readable reports")
-    parser.add_argument("--top", type=int, default=20, help="number of ranked phases to print in text mode")
+    parser.add_argument(
+        "--top", type=int, default=20, help="number of ranked phases to print in text mode"
+    )
     parser.add_argument(
         "--fail-on-unavailable",
         "--require-events",
@@ -136,7 +142,11 @@ def main() -> int:
             reports.append(report_for_capture(path))
     except BenchmarkSchemaError as exc:
         if args.json:
-            print(json.dumps({"valid": False, "errors": str(exc).splitlines()}, indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    {"valid": False, "errors": str(exc).splitlines()}, indent=2, sort_keys=True
+                )
+            )
         else:
             print(str(exc))
         return 1

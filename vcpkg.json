@@ -4,7 +4,7 @@
   "version-string": "0.1.0",
   "description": "Exact integer GEMM with AMD GPU matrix engines, RNS, and CRT reconstruction.",
   "license": "MIT",
-  "builtin-baseline": "2979dbff1b38167a2a0d2b47b7c549c61273eabf",
+  "builtin-baseline": "b42e8ed051d17a7f95b9d2a3140c1f9296423712",
   "dependencies": [
     "boost-multiprecision",
     "catch2",
@@ -18,5 +18,34 @@
         "flint"
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "name": "boost-multiprecision",
+      "version": "1.92.0"
+    },
+    {
+      "name": "catch2",
+      "version": "3.16.1"
+    },
+    {
+      "name": "nlohmann-json",
+      "version": "3.12.0",
+      "port-version": 2
+    },
+    {
+      "name": "gmp",
+      "version": "6.3.0",
+      "port-version": 5
+    },
+    {
+      "name": "flint",
+      "version": "3.6.0"
+    },
+    {
+      "name": "mpfr",
+      "version": "4.2.2",
+      "port-version": 2
+    }
+  ]
 }

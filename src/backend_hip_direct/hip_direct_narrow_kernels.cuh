@@ -1,0 +1,139 @@
+__global__ void rns8_native_i64_abs_max_kernel(const uint64_t* source, int rows, int cols, int ld,
+                                               unsigned long long* maximum, bool signed_values) {
+  __shared__ unsigned long long partial[256];
+  const int lane = threadIdx.x;
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + lane;
+  uint64_t magnitude = 0;
+  if (cell < static_cast<int64_t>(rows) * cols) {
+    const uint64_t value = source[(cell / cols) * ld + cell % cols];
+    magnitude = signed_values && (value >> 63) ? uint64_t{0} - value : value;
+  }
+  partial[lane] = magnitude;
+  __syncthreads();
+  for (int stride = 128; stride; stride /= 2) {
+    if (lane < stride && partial[lane + stride] > partial[lane])
+      partial[lane] = partial[lane + stride];
+    __syncthreads();
+  }
+  if (lane == 0)
+    atomicMax(maximum, partial[0]);
+}
+
+// Flipping the sign bit maps signed order to unsigned order. Preserve the full
+// native extrema (including -128 versus +128) with two atomics per block.
+template <bool SignedValues, bool Contiguous>
+__global__ void rns8_native_domain_kernel(const uint64_t* source, int rows, int cols, int ld,
+                                          unsigned long long* extrema) {
+  __shared__ unsigned long long minimum[256], maximum[256];
+  const unsigned lane = threadIdx.x;
+  unsigned long long low = ~0ull, high = 0;
+  const int64_t count = int64_t(rows) * cols;
+  const int64_t step = int64_t(gridDim.x) * blockDim.x;
+  for (int64_t cell = int64_t(blockIdx.x) * blockDim.x + lane; cell < count; cell += step) {
+    const auto index = Contiguous ? cell : (cell / cols) * ld + cell % cols;
+    const unsigned long long key = source[index] ^ (SignedValues ? (UINT64_C(1) << 63) : 0);
+    low = key < low ? key : low;
+    high = key > high ? key : high;
+  }
+  minimum[lane] = low;
+  maximum[lane] = high;
+  __syncthreads();
+  for (unsigned stride = 128; stride; stride /= 2) {
+    if (lane < stride) {
+      minimum[lane] =
+          minimum[lane + stride] < minimum[lane] ? minimum[lane + stride] : minimum[lane];
+      maximum[lane] =
+          maximum[lane + stride] > maximum[lane] ? maximum[lane + stride] : maximum[lane];
+    }
+    __syncthreads();
+  }
+  if (lane == 0) {
+    atomicMin(extrema, minimum[0]);
+    atomicMax(extrema + 1, maximum[0]);
+  }
+}
+
+// Each block owns one output and K slab. No atomics or output-sized partials
+// per residue plane: the native partials are merged once before RNS encoding.
+template <bool Grouped = false>
+__global__ void
+rns8_native_narrow_split_partials_kernel(const int64_t* a, const int64_t* b, int64_t* partials,
+                                         int m, int n, int k, int lda, int ldb,
+                                         const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    a = static_cast<const int64_t*>(task.a);
+    b = static_cast<const int64_t*>(task.b);
+    partials = task.partials;
+  }
+  __shared__ int64_t sums[256];
+  const int64_t cells = int64_t(m) * n;
+  const int64_t cell = int64_t(blockIdx.x) % cells;
+  const int part = int(int64_t(blockIdx.x) / cells);
+  const int begin = part * rns8::detail::native_narrow_split_k;
+  const int end = min(k, begin + int(rns8::detail::native_narrow_split_k));
+  const int64_t row = cell / n, col = cell % n;
+  int64_t value = 0;
+  for (int q = begin + int(threadIdx.x); q < end; q += 256)
+    value += a[row * lda + q] * b[int64_t(q) * ldb + col];
+  sums[threadIdx.x] = value;
+  __syncthreads();
+  for (unsigned stride = 128; stride; stride /= 2) {
+    if (threadIdx.x < stride)
+      sums[threadIdx.x] += sums[threadIdx.x + stride];
+    __syncthreads();
+  }
+  if (!threadIdx.x)
+    partials[int64_t(part) * cells + cell] = sums[0];
+}
+
+template <bool Grouped = false>
+__global__ void
+rns8_native_narrow_split_encode_kernel(const int64_t* partials, int8_t* residues, int m, int n,
+                                       int parts, int prefix,
+                                       const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    partials = task.partials;
+    residues = task.c;
+  }
+  const int64_t cell = int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+  const int64_t cells = int64_t(m) * n;
+  if (cell >= cells)
+    return;
+  int64_t value = 0;
+  for (int part = 0; part < parts; ++part)
+    value += partials[int64_t(part) * cells + cell];
+  for (int p = 0; p < prefix; ++p)
+    residues[int64_t(p) * cells + cell] =
+        rns8_center_i64_device(value, rns8_default_moduli_device[p]);
+}
+
+template <bool Residues = false, bool Grouped = false>
+__global__ void
+rns8_native_i64_narrow_gemm_kernel(const int64_t* a, const int64_t* b, int64_t* c, int m, int n,
+                                   int k, int lda, int ldb, int ldc, int8_t* residues = nullptr,
+                                   int prefix = 0,
+                                   const rns8::detail::NativeNarrowTask* tasks = nullptr) {
+  if constexpr (Grouped) {
+    const auto& task = tasks[blockIdx.y];
+    a = static_cast<const int64_t*>(task.a);
+    b = static_cast<const int64_t*>(task.b);
+    residues = task.c;
+  }
+  const int64_t cell = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (cell >= static_cast<int64_t>(m) * n)
+    return;
+  const int64_t row = cell / n, col = cell % n;
+  int64_t value = 0;
+  // Host admission proves K*max_abs(A)*max_abs(B) <= INT64_MAX from the actual
+  // device inputs. Thus products and every intermediate sum are representable.
+  for (int q = 0; q < k; ++q)
+    value += a[row * lda + q] * b[static_cast<int64_t>(q) * ldb + col];
+  if constexpr (Residues) {
+    for (int p = 0; p < prefix; ++p)
+      residues[(int64_t(p) * m + row) * n + col] =
+          rns8_center_i64_device(value, rns8_default_moduli_device[p]);
+  } else
+    c[row * ldc + col] = value;
+}

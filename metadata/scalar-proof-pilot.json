@@ -1,0 +1,85 @@
+{
+  "schema": "rns8_scalar_bitvector_pilot_v1",
+  "cbmc_version": "6.8.0",
+  "cbmc_revision": "cdee49cb1a32c6d6703cebf6ae67161977264ad4",
+  "seeds": [
+    {
+      "id": "reversed_add_overflow",
+      "family": "checked",
+      "source": "src/backend_common/checked_arithmetic.hpp",
+      "source_sha256": "68d402c1c2fa214d63d0db5ea5935fea6cb743f2a36cab1206e3c5e349fbd833",
+      "anchor": "constexpr bool add(",
+      "before": "if (a > UINT64_MAX - b)",
+      "after": "if (a < UINT64_MAX - b)",
+      "intended_properties": [
+        "rns8.bv.checked.success_iff_fits"
+      ]
+    },
+    {
+      "id": "write_on_add_failure",
+      "family": "checked",
+      "source": "src/backend_common/checked_arithmetic.hpp",
+      "source_sha256": "68d402c1c2fa214d63d0db5ea5935fea6cb743f2a36cab1206e3c5e349fbd833",
+      "anchor": "constexpr bool add(",
+      "before": "if (a > UINT64_MAX - b)\n    return false;",
+      "after": "if (a > UINT64_MAX - b) {\n    output = 0;\n    return false;\n  }",
+      "intended_properties": [
+        "rns8.bv.checked.failure_preserves_output"
+      ]
+    },
+    {
+      "id": "deleted_reducer_correction",
+      "family": "reducer",
+      "source": "src/backend_common/finite_u8_reducer.hpp",
+      "source_sha256": "c59038e74dc307d2df55c81ac37e0356f23323e872b4e8845d6c4d4b520fce5e",
+      "anchor": "uint32_t reduce_u32_small_modulus(",
+      "before": "residue -= modulus & (0u - static_cast<uint32_t>(residue >= modulus));",
+      "after": "(void)modulus; // seeded deletion of the required correction",
+      "intended_properties": [
+        "rns8.bv.reducer.exact_modulo",
+        "rns8.bv.reducer.canonical_interval"
+      ]
+    },
+    {
+      "id": "wrong_native_signed_bias",
+      "family": "native",
+      "source": "src/backend_common/finite_u8_reducer.hpp",
+      "source_sha256": "c59038e74dc307d2df55c81ac37e0356f23323e872b4e8845d6c4d4b520fce5e",
+      "anchor": "int8_t center_native_i64(",
+      "before": "reducer.signed_bias * (value < 0)",
+      "after": "reducer.signed_bias * (value >= 0)",
+      "intended_properties": [
+        "rns8.bv.native.signed_center"
+      ]
+    },
+    {
+      "id": "wrong_native_center_threshold",
+      "family": "native",
+      "source": "src/backend_common/finite_u8_reducer.hpp",
+      "source_sha256": "c59038e74dc307d2df55c81ac37e0356f23323e872b4e8845d6c4d4b520fce5e",
+      "anchor": "int8_t center_native_i64(",
+      "before": "residue >= static_cast<int32_t>((reducer.modulus + 1) / 2)",
+      "after": "residue > static_cast<int32_t>((reducer.modulus + 1) / 2)",
+      "intended_properties": [
+        "rns8.bv.native.signed_center",
+        "rns8.bv.native.centered_interval"
+      ]
+    },
+    {
+      "id": "wrong_native_radix",
+      "family": "native",
+      "source": "src/backend_common/finite_u8_reducer.hpp",
+      "source_sha256": "c59038e74dc307d2df55c81ac37e0356f23323e872b4e8845d6c4d4b520fce5e",
+      "anchor": "Native64Reducer native64_reducer(",
+      "before": "kReciprocalScale - uint64_t{reciprocal} * modulus",
+      "after": "kReciprocalScale - uint64_t{reciprocal} * modulus + 1",
+      "intended_properties": [
+        "rns8.bv.native.unsigned_modulo",
+        "rns8.bv.native.radix",
+        "rns8.bv.native.signed_bias",
+        "rns8.bv.native.unsigned_center",
+        "rns8.bv.native.signed_center"
+      ]
+    }
+  ]
+}

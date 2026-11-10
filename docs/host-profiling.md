@@ -1,0 +1,729 @@
+# Host CPU and allocation diagnostics
+
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
+Host profiles explain a completed exact call; they do not replace its
+uninstrumented end-to-end measurements. Acquisition, native decoding, operation
+range selection, symbol/module association, loss assessment and production
+comparison are distinct evidence steps. The source adapters under
+[#105](https://github.com/doublemover/RNS8/issues/105) are written; their authored
+controls and native Windows/Linux acquisition, format, symbol and clock
+qualification
+follow the roadmap's execution scope and supported environments.
+Missing native identity, clock or causality remains unresolved in the report.
+
+## Native Linux CPU sample decoding
+
+The plan-only acquisition adapter reuses the existing bounded session runner
+and shared production-input admission. It requires a completed hook-disabled
+production observation, stable static executable identity and matching native
+ELF64 benchmark/perf/Python tools. It queries perf version, the selected
+interpreter's standalone native-module capability and compiled benchmark
+identity before process-scoped sampling. A permission/capability failure never
+lowers system security or enables an automatic fallback.
+
+Failed acquisition writes `host-profile.json` as a non-qualified failure record.
+It binds bounded manifest/result snapshots and preserves the first failed stage,
+return code and partial raw artifacts. Only a completed, nonzero recording with
+the specific upstream event-access or page-mapping diagnostics is classified as
+a reported permission block. These patterns come from upstream
+[event-open diagnostics](https://code.googlesource.com/linux/torvalds/linux/+/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/util/evsel.c)
+and [recording diagnostics](https://code.googlesource.com/linux/torvalds/linux/+/4edcdefd4083ae04b1a5656f4be6cd83ae919ef4/tools/perf/builtin-record.c).
+Generic permission text and policy warnings remain unclassified; interruptions,
+timeouts, capture/budget errors and failed startup have separate reasons.
+This is stderr attribution, not an observed syscall errno, proof of a particular
+sysctl setting, successful recording or profile qualification. No retry or system
+configuration change occurs. New denial/checkpoint controls are registered with the source batch.
+
+```sh
+python tools/host_profile_session.py --production temp/production.json --out temp/host-profile/session
+```
+
+Dependency discovery finds perf on PATH. An explicit `--perf` can select the
+actual native executable when the distribution exposes a launcher script;
+unsealed launcher scripts are rejected. Inspect the emitted commands, then
+explicitly add `--execute` to start acquisition. The maintained recipe requests
+software `cpu-clock:u` samples at 99 Hz, bounded DWARF callchains,
+`CLOCK_MONOTONIC` and a 64 MiB record limit. Actual CPU exposure comes from native sample periods;
+requested frequency is not proof of achieved sample rate. Record/runtime and
+decoded-artifact limits remain independent.
+
+Optional `--scheduling` adds the pinned perf
+[`--switch-events` option](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/tools/perf/Documentation/perf-record.txt)
+to the same owned-process recording. It does not request system-wide tracing,
+kernel probes or security changes. The raw file auditor retains actual per-thread
+SWITCH trailers, attribute identity, PID/TID, clock, CPU and preemption flag,
+alongside fork/exit/exec boundaries. CPU-wide switch records require a different
+scope and are rejected. Missing pairs, repeated outs, same-time ambiguity and
+task-generation boundaries remain unresolved rather than bridged.
+
+The bound report retains candidate off-CPU pairs and their durations conditional
+on no unobserved intervening switch or task reuse. The native preemption flag
+means TASK_RUNNING **at switch-out**; a nonpreempted switch does not identify a
+blocked wait. Exact blocked duration, wakeup-to-run delay, active-spin duration
+and complete scheduler coverage remain unavailable. Loss observations stay
+attached. With `--operation-ranges`, the same monotonic observations intersect
+exclusive same-thread measured phases using the shared bounded scope partition;
+foreign and ambiguous overlaps stay masked. These thread durations are not
+additive process wall time, CPU sampling exposure or GPU dependency costs.
+Native ABI and phase controls are registered.
+
+The adapter disables persistent build-ID cache writes and debuginfod downloads,
+isolates perf configuration, and retains partial data/logs on failure. The
+benchmark's native argv/environment witness includes `PERF_` variables. Artifact
+monitoring continues over the previously created capture directory during
+decode; it does not create or overlay a second recording. Finalization binds
+the benchmark's observed PID separately from perf's launcher PID, verifies
+numerical output, artifact/module identities, physical GPU and matching
+work/proof/output/reuse contract, and labels the bound capture externally
+instrumented. The file audit independently observes its event clock and optional
+resolution/wall-clock anchor. Cross-clock and selected-operation joins remain
+unbound; a single anchor does not establish calibration or an error bound. These source
+controls are registered; no new acquisition or attribution result is claimed.
+
+The explicit decoder consumes an existing `perf.data` through Linux perf's
+[standalone Python interface](https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/perf-script-python.txt),
+using `perf.session` and native sample objects. Upstream has removed the older
+embedded callback API; an incompatible or missing native module is an error.
+The module must match the selected Python interpreter's ABI. It is an optional
+profiling dependency, absent from ordinary RNS8 builds and consumers.
+The capability stage checks the exported `sample_event` attribute frontier,
+including native mapping and symbol/source accessors, before the workload stage.
+A module with only callable `session`/`data` is insufficient. Missing accessors
+report unsupported without constructing a native session or sampling workload.
+
+```sh
+python tools/host_profile_native.py --input temp/host-profile/perf.data --pid 1234 --output temp/host-profile/native-samples.json
+```
+
+Use the benchmark's actual recorded process ID, not the profiler launcher's PID.
+Decoding never launches a workload or changes profiler/security settings. It
+records native PID/TID, timestamp, CPU-clock period, leaf DSO build ID,
+symbol/source information and bounded callchains. CPU-clock periods describe
+sampled CPU exposure, not wall latency. Unresolved symbols/source locations stay
+missing; callchain paths alone do not establish module build identities.
+
+Leaf module custody is checked separately with a bounded ELF reader over the
+actual current file, using the [Linux ELF ABI](https://github.com/torvalds/linux/blob/47f05f71ad988c3180bdba807151e6e86ed75aa3/include/uapi/linux/elf.h).
+The reader accepts native little-endian x86-64/AArch64 executable/shared files,
+walks program/section notes (including extended section counts), rejects
+contradictory GNU build IDs and hashes complete file contents. Limits are 128
+module identities, 512MiB per file, 2GiB aggregate module-file bytes and bounded
+header/note extents. Files that fail format inspection consume the byte budget
+and are not repeatedly decoded. Earlier files and native path aliases are
+rechecked before publishing the inventory; the acquisition finalizer repeats
+the same binding and retains file references through its ordinary bookend.
+
+The report distinguishes matched, mismatched and unresolved leaf DSO identities,
+and counts symbolized/source-location samples within matched files separately
+from raw native location counts. Empty/missing IDs, deleted files and special
+DSOs stay unresolved. A [GNU build ID is not a content checksum](https://sourceware.org/binutils/docs/ld/Options.html#index-_002d_002dbuild_002did),
+so it is retained alongside SHA256. Matching the native ID to a current file does
+not establish transient loaded-image history or the source bytes used at
+compilation. Separate recorded-mapping and current-source checks below extend
+attribution without borrowing those claims from leaf build-ID coverage.
+The ELF/native integration controls are registered; no
+native profile, source-attributed bottleneck or performance benefit is claimed.
+
+Native sample schema v4 retains map start/end/file offset. Resolved maps
+must contain their sampled IP and fit the64-bit address ABI. ELF executable
+load segments provide a separate count of samples whose native map translates
+to an executable file extent. That count is distinct from build-ID coverage:
+an ID can match while mapping attribution stays unresolved. The native map
+observation is checked separately against raw-MMAP evidence where available;
+cross-clock joins remain open.
+
+The recording audit now preserves bounded native MMAP/MMAP2 and process
+address-space boundaries. A separate indexed join resolves leaf and callchain
+PID/IP/time observations only against unique recorded user mappings with an
+earlier timestamp in the same clock domain, executable protection and an actual
+recorded MMAP2 build ID. The acquisition recipe explicitly requests the upstream
+[build-ID mapping mode](https://github.com/torvalds/linux/blob/473f6c8f437b049f8ec015d57cd59bb983b1d85c/tools/perf/Documentation/perf-record.txt).
+Matching current ELF build ID and executable file extent are separate checks.
+Native names must agree with the address-selected map; a basename alone never
+selects an identity. Wrong processes, untimed or foreign-clock maps, inherited
+maps without their own records, missing IDs and address reuse remain unresolved.
+Any overlapping address reuse in the recording is conservatively ambiguous,
+even if a more complete temporal map history could resolve it. Lookup uses a
+sweep-built interval index and binary search; limits are8,192 mappings,4MiB of
+mapping records and500,000 leaf/caller observations. Raw unwind stacks are not
+independently replayed and complete transient loaded-image history is not claimed.
+
+The native producer also resolves source tuples for caller addresses through
+the upstream optional-address `srccode` interface. Bounded current first-party
+files are hashed once, requested lines are compared with the native text, and
+paths and bytes are rechecked before publication. Missing/relative/external
+locations, line mismatches and unavailable text retain distinct states. Limits
+are256 files,8MiB per file and64MiB total; files outside the repository are not
+opened by this check. These are current source snapshots and native debug-line
+observations, not compilation source checksums. Both mapping/ELF and source
+inventories are independently reconstructed by acquisition finalization, so
+editing and resealing their counts cannot supply missing evidence. Their binary,
+source, substitution and budget controls are authored; runtime execution
+status is recorded in the roadmap.
+
+The existing optional Linux ROCTx producer now adds a versioned host-clock
+extension to its range records: actual process/start-thread/stop-thread IDs and
+`CLOCK_MONOTONIC` timestamps bracketing each native ROCTx start/stop call. It
+records a missing timestamp explicitly if the clock query fails. Pending
+cross-thread ranges expose no unobserved stop fields; completion publishes them
+with the existing atomic outcome. These timestamps observe diagnostic host
+scopes, including observer cost, and do not certify GPU completion. The runtime
+disabled path takes no new timestamp/thread queries.
+
+`host_profile_session.py --operation-ranges` explicitly activates these existing
+scopes for the profiled child of the same ROCTx-enabled production binary. The
+baseline remains runtime-disabled. The finalizer first repeats raw recording,
+PID, sample and module custody, then joins samples to measured benchmark roots
+using their observed `CLOCK_MONOTONIC` brackets. It rejects dropped/unpublished
+records, unknown tags, invalid ancestry, child intervals outside their parent,
+crossing scopes and conflicting operation identities. Deepest same-thread host
+phases receive exclusive sample counts and CPU-clock period weights. Samples
+inside an observer bracket stay ambiguous; samples on unbound workers stay
+unbound. Cross-thread asynchronous completion ranges are not CPU-work intervals.
+
+The report separates sampled CPU exposure from the union, sum and span of
+observed host windows. Neither is exact CPU duration, GPU service or production
+latency. No selected samples is inconclusive rather than evidence of zero work.
+The default session retains process-total scope and an unbound operation field.
+
+Selected-operation CPU reports also retain leaf source sites by exclusive
+phase: native symbol/DSO, source path/line, sample count and sampled exposure.
+The 4,096-site budget has explicit overflow counts and exposure; absent symbols
+or source locations stay unresolved. Acquisition finalization links only actual
+leaf observations to the verified current first-party file snapshots and their
+SHA256 values. Callchain-only lines cannot supply missing leaf credit, and
+selected counts cannot exceed the recorded leaf population. Mixed native text
+observations remain visible. These links identify current source context rather
+than compilation-source contents, exact CPU duration, wait causes or a proven
+critical path. The controls are authored and follow the roadmap's execution
+scope. Scope/cross-thread and pure-join controls are registered. Active Linux
+compilation and integrated native acquisition retain their platform qualification gates.
+
+Input, sample, frame and decoded-document limits apply. Changes to the input or
+native module during decode reject the receipt. Existing outputs are not
+overwritten. `recording_sha256` identifies the same raw recording across file
+copies/renames; the decoder receipt itself does not authenticate acquisition or
+create an independent execution.
+
+The native session interface supplies symbols and DWARF; a bounded
+`PERFILE2` audit now supplies recorded event/clock, loss and sample custody.
+The v2 decoder and finalizer share that audit. The narrow initial contract is
+one user-only software CPU-clock sampling event, optionally accompanied by
+explicit software-dummy metadata tracking attributes, in a little-endian regular
+file. Attribute order does not select the sampling authority. Mixed attributes
+require sample identifiers; loss/read records use their owning event's ID,
+trailer layout and counter format. Shared IDs, foreign sampling events and
+ambiguous trailers are rejected. Tracking clocks that are missing or differ from
+the sampling clock remain an explicit partial-scope blocker.
+Compressed/AUX/stat/directory streams, unknown record types and incompatible
+event dialects are rejected explicitly. Every section/record extent and the
+sample fixed prefix is bounded before native decoding. Per-thread sample
+multisets bind PID/TID, timestamps, periods, IP and CPU directly to file bytes
+while allowing the native decoder to time-sort buffers. Finalization reconstructs
+these facts instead of trusting a resealed sample summary.
+
+Ring-loss events, lost-sample events and cumulative read-counter maxima remain
+separate; summing them would double-count overlapping observations. Reported
+loss or throttling marks sampling partial. A complete supported record walk
+with no known loss is not proof of a completely loss-free acquisition.
+The collector explicitly requests CPU, timestamp, period and identifier fields. Event clock
+IDs are read from `perf_event_attr`; the header's `CLOCKID` feature supplies
+resolution, and optional versioned `CLOCK_DATA` supplies one clock/wall anchor.
+The ABI owners are the pinned Linux sources recorded in
+`tools/perf_recording_contract.py`. Process totals still do not establish
+complete operation coverage, cross-clock attribution, production latency or
+performance eligibility. Offline synthetic file/API controls are registered; native
+Linux decoding remains unexecuted locally.
+
+## Windows acquisition boundary
+
+`tools/pe_symbol_identity.py` supplies bounded local symbol custody for the
+Windows adapter. It reads actual PE32+ RSDS and MSF7 PDB info records, requires
+matching GUID and age, retains complete file hashes and repeats content checks.
+Section/RVA/raw-file disagreement, contradictory CodeView records, unsupported
+legacy formats and missing info streams are errors. MSF directory/stream blocks
+must be bounded, disjoint, outside reserved pages and allocated in the active
+free-page map. Only documented 512/1,024/2,048/4,096-byte MSF blocks and the
+VC70 info layout are admitted; each file is limited to 512 MiB and directories
+to 8 MiB. GUID/age agreement identifies the selected symbol file; it does not
+establish usable function/source coverage or compilation-source checksums. Byte-layout,
+mismatch, extent, alias, format and hash controls are registered. Native Windows
+symbolization remains a separate qualification step.
+
+`tools/host_profile_windows.py` now authors the bounded acquisition/export path:
+
+```powershell
+python tools/host_profile_windows.py --production temp/production.json --pdb build/Release/rns8-bench.pdb --out temp/host-profile/windows
+```
+
+Plan-only reads source/artifact/symbol identities without launching a tool.
+Dependency discovery locates optional `wpr` and `wpaexporter` through PATH or
+the standard Windows Performance Toolkit installation. Explicit `--wpr` and
+`--wpaexporter` paths override discovery. The tools and benchmark require the
+same native PE architecture. No tool is installed and no GUI is launched.
+
+The Windows tools build also supplies `rns8-etl-inspect`. Build that target with
+the selected Windows SDK and pass `--etl-inspector` when it is outside the
+benchmark directory. The plan binds the native inspector's file and architecture;
+its identity query must report the exact compiled source hash before recording.
+CMake regenerates that definition when the reader changes. No current source
+hash is assigned to a stale reader binary merely because their paths match.
+
+Recording additionally requires both `--execute` and
+`--authorize-system-recording`: the short ETW window includes system CPU
+samples even though decoding selects the benchmark PID. No elevation is
+launched. The maintained WPR profile requests sampled stacks, process/thread
+and image records, with 128 KiB buffers, 64 buffers and a 128 MiB sequential trace
+cap. It does not change the global sampling interval, heap settings, registry,
+driver, service startup or security policy. Native help, profile listing and
+the actual benchmark build-identity query precede recording.
+
+Every run has a fresh random WPR instance name. The native absence HRESULT is
+required before arming ownership; an access error or partial query cannot stand
+in for absence. Microsoft requires `-instancename` last on all commands affecting
+that instance. Start, status, stop and cancellation retain that suffix. Failed
+or interrupted workload/start attempts still stop the owned instance; a failed
+stop attempts only its named cancellation. Cleanup retains a separate time
+reserve and can run after the artifact monitor's budget is exhausted. It never
+uses an unnamed stop/cancel or alters another recording. Partial files and the
+first failed native stage remain in the failure receipt; unconfirmed cleanup is
+reported explicitly. Native command contracts follow the
+[WPR reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/wpr-command-line-options)
+and [WPA exporter reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/exporter).
+
+The maintained WPA candidate uses CPU sampling table/column GUIDs inspected in
+the installed Toolkit's `Catalog/HtmlResponsivenessAnalysis.wpaprofile`.
+Local symbol search is explicit; no symbol server is configured. The decoder
+inventories exports through the shared link-free helper with the actual session
+root, confining its input to the owned export subtree. It
+accepts one English CSV with explicit seconds/milliseconds column units,
+individual sample counts, exact selected PID/image/thread and bounded rows,
+fields and bytes. It preserves foreign/idle row counts and native stack/module/
+function strings. Different headers, units, locale or aggregated table layouts
+are unsupported until reviewed; no conversion is guessed. Shared Linux/Windows
+admission preserves the full numerical, physical-device, work/proof/output/reuse,
+native argv and relevant environment relation to production.
+
+After owned stop, the inspector opens only the finalized ETL file through native
+`OpenTrace`/`ProcessTrace` and uses TDH's actual property names/types for classic
+process and image-loader records. It never opens a live logger or controls a recording. The
+native [log header](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-trace_logfile_header)
+supplies recorded clock/frequency and separate lost-event/lost-buffer counters;
+these overlapping observations are not summed. Native process records retain
+key, PID, parent, Start/End/rundown opcode and converted100ns FILETIME. A complete
+observed key needs one actual Start/End pair, the recording owner's parent PID
+and the benchmark's ASCII basename. Rundown alone cannot replace a lifetime.
+Missing/undecodable records, PID reuse, unknown image encoding and reported loss
+remain blockers. Zero header loss is not proof of loss-free acquisition.
+The reader bounds file, event, selected-record and TDH schema storage; failed
+schema lookups are cached. Exhausted event, selected-record or schema budgets
+stop native decoding at the next buffer boundary and prevent completed metadata;
+they cannot be downgraded to an unsupported-format count. The budget exception
+does not allocate. Genuine schema-format failures retain their separate partial
+classification. It emits no command lines or SIDs. Decoder/source/PID
+and ETL content bookends are checked before retaining its metadata alongside
+the WPA export. The late-bound inspector argument is the exact completed
+benchmark PID, not the profiler launcher's or a selected display name.
+
+The native [image-loader provider](https://learn.microsoft.com/en-us/windows/win32/etw/image-load)
+also supplies selected-PID Load/Unload/DCStart/DCEnd records with pointer-width
+checked base/size, checksum, native TimeDateStamp and validated UTF16-to-UTF8
+path. Process and image TDH schemas have separate cache identities. Image storage
+is bounded to4,096 selected records and1MiB of UTF8 path bytes, in addition to
+the existing file/event/schema limits. Unsupported loader formats stay partial;
+resource exhaustion stops decoding.
+
+`native-image-catalog.json` preserves observed load/unload generations at each
+base, native record indices and explicit lifetime intervals. Rundown records
+are snapshots, not invented load/free pairs. Reuse without unload, conflicting
+metadata, unmatched unloads and equal-timestamp order remain unresolved. This
+establishes native module observations rather than loaded file-byte or PDB
+identity; the WPA module/IP join remains unbound. Native decoder/typed-catalog
+and full synthetic publication controls are authored and await runtime validation.
+
+The Windows result remains partial: loaded file-byte/PDB identity and API/GPU
+clock alignment are not established by the current tables. Native CPU points
+can select same-file measured ETW windows; WPA-relative samples remain unbound.
+Current PE/PDB agreement cannot attest what bytes were loaded during capture.
+Ownership/cleanup/producer/unit/lifetime controls are registered. Native ETL/WPR/WPA
+compatibility and symbol attribution require separate qualification. The native
+reader passes a Windows C++17 frontend check, and WPR XML passes the installed
+SDK's schema, as source checks only. Linux allocation/source/phase adapters and the
+bounded dependency report are implemented. Missing clock alignment or causal edges
+preserve an unresolved or no-resolved-host-bottleneck result with a bounded resolving
+experiment. Real acquisition, clock compatibility and production-profile qualification
+remain separate gates.
+
+## Native Windows operation markers
+
+The optional Windows build switch `RNS8_ENABLE_ETW_RANGES=ON` compiles the same
+private RAII host scopes used by the Linux provider. Default builds retain empty
+inline scopes. The compiled option is part of the build manifest; acquisition
+with `--operation-ranges` requires a production control from that same binary
+with runtime markers disabled, then enables `RNS8_PROFILE_RANGES=1` only for the
+diagnostic child. Balanced exception and cross-thread completion controls cover
+both providers without exposing profiler types in the public ABI.
+
+The provider uses process-scoped
+[`EventRegister`](https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventregister)
+and fixed-size [`EventWrite`](https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nf-evntprov-eventwrite)
+payloads: a private versioned start/stop event carries one numeric snapshot slot.
+It installs no manifest, logger or service. Registration has an owned shutdown;
+failed writes are counted separately, and successful writes do not imply that
+a session recorded them. The bounded WPR profile subscribes to this provider;
+its XML passes the installed WPT schema check without running WPR.
+
+The file-only ETL decoder recognizes the exact provider/version/descriptor and
+eight-byte payload, preserving actual PID, TID, native record identity and
+converted FILETIME timestamps. The bound consumer matches start/stop slots and
+threads to the completed host snapshot and observed process lifetime. Duplicate,
+missing, pending or undecodable markers stay partial; contradictory identities
+or parent containment are rejected. Complete native windows feed the shared
+exclusive phase partition, retaining foreign/async scope exclusions and avoiding
+double-counted nested wall time. The private snapshot's QPC brackets remain a
+different clock: this step does not align QPC, WPA-relative sample times or GPU
+events. Native CPU points can instead join these windows within the same file,
+as described below; WPA sample clocks and source attribution remain separate.
+Raw traces and marker
+receipts never become production latency or loss-free qualification.
+
+The native provider/decoder and exception controls pass C++17 frontend checks;
+the typed association and full synthetic collector controls are registered. No provider,
+ETL fixture, WPR or WPA process ran.
+
+After acquisition, `python tools/host_profile_windows.py --review-plan
+temp/host-profile/session/plan.json` is the separate receipt-review path. It
+reopens source, executable, PDB, tools, bounded stage documents and raw exports,
+checks exact command order/outcomes and the recorded owner against the native
+process parent, and reconstructs all derived image/range/sample/capture
+documents without overwriting them. It then invokes only the bound file-only
+ETL inspector on the retained finalized trace, comparing every decoded field
+while permitting the decoder's own PID to change. Source/tool/data hashes are
+bookended around review. No WPR, exporter, workload, symbol server or recording
+configuration is invoked. The review has its own identity and does not create
+another production execution or resolve outstanding symbol/clock attribution.
+Rejection controls cover resealed stage commands/status, owner, derived samples,
+tool changes and disagreement with fresh native decoding. Their current execution scope
+follows the roadmap.
+
+## Native Windows CPU points
+
+The file-only inspector retains selected-PID TDH thread Start/End and rundown
+observations, then makes a bounded second walk for the pinned Microsoft
+[`SampledProfile` v2 format](https://github.com/microsoft/perfview/blob/4f3118c0fe7f624ae93a3249ae2ff7b6e1800e98/src/TraceEvent/Parsers/KernelTraceEventParser.cs).
+This avoids assigning samples online before late thread records are known.
+Known selected header PIDs can be retained directly. An absent native PID is
+admitted only inside one observed selected-thread Start/End window; neither a
+matching TID alone nor a rundown snapshot establishes process ownership.
+Known foreign PIDs are excluded. Both complete walks must agree on event count,
+clock/header and unchanged input. Native sample ordinals have a separate walk
+namespace from thread/image/marker records.
+
+The portable payload helper checks version, native width, exact length and null
+input before copying unaligned fields; rejection preserves its output. Reader
+identity includes both this header and the inspector source. The receipt keeps
+instruction addresses, native header IDs, processor-index mode and the packed
+count/flags/rank word. The consumer reconstructs these fields and actual thread
+generations, handling missing ends, reuse, same-time ambiguity, undecodable
+threads and loss explicitly. DPC/ISR and reserved-flag observations do not gain
+useful-process CPU credit. Unknown-PID filtering is conservative and does not
+prove complete selected-sample coverage.
+
+Resolved points can select exclusive measured native ETW phases without aligning
+WPA-relative time or QPC clocks. Native marker boundaries include unseparated
+provider-call overhead. Point counts are not CPU-seconds: actual weighted
+sampling exposure and CPU duration remain unavailable until interval semantics
+are bound. Raw addresses do not themselves establish source ownership. The Windows owner
+publishes and replays `native-cpu-observations.json` alongside the raw native
+metadata, using a bounded larger decoder-output allowance. Portable native-byte,
+typed thread/sample/phase and full synthetic publication controls are authored;
+no ETL, payload fixture, decoder, profiler or runtime test has executed.
+
+## File-only Windows PDB source lookup
+
+`tools/windows_cpu_symbols.py` plans source lookup against an existing retained
+Windows acquisition. Supply one explicit local PE/PDB pair per desired module
+and its recorded ETL path. Device paths require an explicit operator alias;
+the adapter does not invent a drive mapping. Plan-only mode reads bounded
+artifacts and symbols without launching a native command.
+
+```powershell
+python tools/windows_cpu_symbols.py --acquisition-plan temp/host-cpu/plan.json `
+  --symbolizer build/rns8-pdb-symbolize.exe `
+  --dbghelp C:/Windows/System32/dbghelp.dll `
+  --module C:/RNS8/app.exe C:/RNS8/app.pdb C:/RNS8/app.exe `
+  --out temp/host-cpu-source
+```
+
+`--execute` first replays the acquisition and freshly decodes its retained ETL.
+It starts no recording or benchmark. Samples join only one observed closed
+image generation and a matching path, PE SizeOfImage, checksum and timestamp.
+Missing/ambiguous generations and changed fingerprints stay unresolved. These
+fields provide a conditional association, not loaded-image byte attestation.
+
+The optional Windows tool `rns8-pdb-symbolize` loads the explicitly retained
+local DbgHelp DLL and PDB in an isolated single-threaded child. It uses a unique
+non-process symbol-session key, disables process invasion, environment symbol
+paths, image searches and symbol-server autodetection, and requests no source
+download. Direct PDB loading and line lookup follow Microsoft's
+[SymLoadModuleExW](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symloadmoduleexw)
+and [SymGetLineFromAddrW64](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symgetlinefromaddrw64)
+contracts. Missing/incompatible DbgHelp or symbols fail explicitly; the tool
+never installs a replacement.
+
+Each batch retains requested RVAs, the actual opened PDB path/GUID/age, loaded
+DbgHelp path, source identity, process receipt and lookup errors. The receiver
+checks all identities and address displacements. Repeated addresses share one
+lookup, while per-sample generation and measured-phase identities remain
+separate. Bounds cover modules, unique RVAs, overlap work, batch output,
+retained artifacts and elapsed time, including the fresh ETL review.
+
+The report provides conditional leaf and native-fragment symbols, source-line
+locations and phase-specific event/frame counts. It binds current first-party
+source snapshots through the shared source inventory; a PDB line does not attest
+compilation source bytes. Complete unwound/inlined callchains, CPU duration and
+cross-tool GPU causality remain unavailable. Native lookup and CLI/typed controls are registered; broader
+real-capture PDB compatibility remains unqualified; no profiling result or speedup is
+claimed.
+
+## Opt-in Windows scheduling observations
+
+Add `--scheduling` to the Windows host capture plan to select
+`metadata/host-profile-scheduling.wprp`. The separate profile requests CPU
+samples plus CSwitch/ReadyThread events and stacks; it retains the same bounded
+sequential recording and uniquely owned cleanup. Execution still requires
+explicit system-recording authorization. The default CPU recipe is unchanged.
+
+The file-only inspector decodes exact v2
+[CSwitch](https://learn.microsoft.com/en-us/windows/win32/etw/cswitch) and
+[ReadyThread](https://learn.microsoft.com/en-us/windows/win32/etw/readythread)
+payloads in the second native walk. It retains only records intersecting one
+observed selected-thread Start/End lifetime, preserving raw control bytes,
+wait fields, processor mode, record identity and original header IDs. A waker's
+header PID is not the awakened thread's PID. Candidate sample and scheduler
+storage share a65,536-row cap; unsupported formats remain counted separately.
+
+`native-schedule-observations.json` pairs observed switch-out/in records in
+timestamp order and keeps missing, reused, same-time and contradictory
+boundaries unresolved. Global undecoded thread/scheduler boundaries or
+incomplete process custody withhold duration credit. Off-CPU durations remain
+conditional on no unobserved intervening boundary. Known Ready/Standby at
+switch-out can support a conditional runnable interval. Waiting at switch-out
+plus one observed unswapped ReadyThread event can separate conditional waiting
+and runnable intervals. Missing, multiple, swapped, reserved or unknown
+transitions preserve off-CPU time without inventing that split.
+
+The shared host interval/phase helper intersects these states with native ETW
+measured windows, using exclusive nested phases and half-open intervals. Linux
+scheduling uses the same helper with its independently established monotonic
+clock. Thread durations are not additive process wall time. Wait reason codes
+do not establish a lock object/owner, and ReadyThread header IDs do not prove a
+waker or GPU dependency. Active spin and complete schedule coverage remain
+unavailable. Raw stack walking/source attribution and actual native capture
+compatibility are separate qualification work; byte, typed scheduling,
+phase and synthetic publication controls are registered.
+
+## Windows host allocation capture
+
+`--heap` selects `metadata/host-profile-heap.wprp` as a separate diagnostic role;
+it cannot be combined with `--scheduling`. The plan binds the same production
+contract, symbols, tools and process custody as CPU capture. Execution needs
+both `--authorize-system-recording` and
+`--authorize-image-heap-configuration`. IFEO activation surrounds only the owned
+workload, and both settings restoration and owned WPR stop run on failure.
+No elevation is launched. The trace covers the bounded system recording window;
+IFEO selects a basename, not a file path, while native decoding selects the
+actual owned PID. Other already-enabled image tracing can be present in raw ETL.
+
+The settings transaction is implemented in `tools/windows_heap_settings.py` against the
+documented [IFEO TracingFlags setting](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/recording-for-heap-analysis).
+Planning an executable basename opens no registry key. Runtime use requires
+explicit image-heap authorization; it never elevates or changes unrelated
+values. A global named mutex coordinates RNS8 leases across Windows sessions.
+The owner persists and flushes the exact prior value/type/presence before
+attempting a write, checks enabled readback, and restores on success, native
+write/flush failure, workload failure or interruption. Existing value1 is
+borrowed without mutation; unknown types/bits and observed concurrent changes
+block overwriting. Registry access denial remains a distinct native error.
+
+Immutable before/after journals support explicit recovery after an owner crash:
+
+```powershell
+python tools/windows_heap_settings.py --restore-journal temp/host-heap/heap-settings-before.json `
+  --out temp/host-heap-recovery --authorize-image-heap-configuration
+```
+
+Recovery takes the same cooperative mutex and checks the current value against
+the saved/owned states. It does not inspect or stop unrelated processes. An
+empty key container created by the lease is retained, with its presence
+reported separately: deleting it could erase values added concurrently by
+another writer. The tracing value is restored; an unchanged empty container is
+not reported as an exact restoration of prior container presence. These are
+observed state checks, not an atomic transaction with arbitrary registry
+writers. In-memory recovery/interruption controls are
+registered; live registry/mutex configuration retains its separate qualification gate.
+
+The file-only inspector retains native HeapTrace v0 Create/Alloc/ReAlloc/
+Destroy/Free records with exact version, pointer width and payload-size checks.
+Layouts follow the pinned Microsoft
+[HeapTrace parser](https://github.com/microsoft/perfview/blob/4f3118c0fe7f624ae93a3249ae2ff7b6e1800e98/src/TraceEvent/Parsers/KernelTraceEventParser.cs).
+Other versions and heap record kinds remain explicitly counted. Heap, CPU and
+scheduler observations share the bounded projection allowance. Known selected
+header PIDs or independently replayed unique owned-thread lifetimes select
+candidate records; the receiver also rejects aliasing across native record IDs.
+
+`native-heap-observations.json` preserves allocation and heap generations,
+pointer reuse, reallocations, explicit versus heap-destruction ends, native
+reported byte fields, size buckets and event-lifetime intervals. Null realloc
+outcomes preserve the old generation. Missing frees, conflicting size fields,
+replaced live pointers and same-time dependent events remain unresolved.
+Combined live boundary totals use the actual common timestamp sequence across
+heaps; independent per-heap maxima are never summed. The reported high-water
+and retained payload are conditional tracking observations, not an exact
+process peak or a zero-allocation proof. Preexisting heaps keep unknown heap
+generation identity. Native heap bytes remain separate from RSS, pinned and
+device storage.
+
+The CPU and allocation point adapters share native ETW measured-phase selection.
+Allocation/free phase identities and generations ending inside one measured
+operation remain explicit; a native event point does not measure allocator API
+duration. Header loss, unsupported/undecoded records, unbound thread phases and
+empty allocation projections retain their limits. Read-only receipt review
+reconstructs heap reports and validates saved settings journals without opening
+the registry. Native allocation stack/PDB/source integration is written; real
+version/capture compatibility remains pending qualification. All new byte, generation, identity,
+phase, journal and owned failure/publication controls are registered.
+
+## Native Windows stack association
+
+For a QPC-clock recording with selected CPU, scheduler or heap points, the
+inspector makes a third file-only native walk with
+[`PROCESS_TRACE_MODE_RAW_TIMESTAMP`](https://learn.microsoft.com/en-us/windows/win32/api/evntrace/ns-evntrace-event_trace_logfilew).
+It checks complete walk/header agreement and matches each retained original
+event's ordinal, normalized native header, processor context and exact payload
+against the converted-time walk. The replay cache uses a compact ordered vector
+and fixed-size payload storage, with no per-point lookup or payload allocation.
+Each source point retains both its native raw QPC time and converted FILETIME;
+no guessed affine conversion or QPC-to-WPA offset is introduced. Other clocks
+and captures with no selected native points have explicit unbound states.
+
+The bounded reader consumes the documented
+[StackWalk event prefix](https://learn.microsoft.com/en-us/windows/win32/etw/stackwalk-event)
+for descriptor versions0–2 and native32/64-bit frame widths. It preserves the
+original event timestamp, process/thread IDs, native frame order and actual
+descriptor version. Future/unsupported formats remain counted. Limits cover
+8,192 retained fragments,192 frames per fragment,64 fragments per original event
+and262,144 total addresses.
+
+`native-stack-observations.json` joins a fragment only to one observed original
+event matching PID/TID/raw QPC and a closed selected-thread generation. Stack
+arrival time and a context switch's header actor cannot substitute for original
+event identity. CPU/heap timestamp collisions, empty fragments, missing original
+events and undecoded source-family candidates remain unresolved. CPU, allocator,
+switch-out/in and ready-thread roles stay separate. Multiple fragments for one
+event retain their own record IDs and frame sequences; the adapter does not
+concatenate kernel/user fragments or claim complete unwind/inlined coverage.
+
+The Windows owner publishes and replays these associations alongside raw native
+metadata. The report retains bound original-event targets, aggregate missing-stack
+exposure by role and bounded collision candidates. Derived target IDs select
+measured phases through the shared point helper; original native event IDs keep
+their own namespace.
+
+The local PDB adapter resolves associated CPU, allocator and scheduler frame
+addresses using the same conditional native image join as leaves. Repeated
+addresses share a candidate only within an observed image-map epoch; every
+load/unload boundary starts another epoch. PDB requests deduplicate module/RVA
+pairs across leaves, fragments and epochs. Normalized address, fragment and
+lookup tables preserve native frame slots and module generations without
+duplicating symbol/line strings at every recursion or sample. Return addresses
+stay as recorded; no implicit PC subtraction changes their meaning.
+
+Frame reports distinguish event count, fragment count and frame-slot exposure,
+including recursion. CPU, allocator and scheduler roles and selected versus
+unbound phases stay separate. A missing leaf module does not discard valid
+conditional caller fragments. First-party source snapshot custody streams the
+normalized debug locations without constructing a complete concatenated callchain.
+
+The optional MSVC test build adds an optimized, non-installed source/PDB control
+with compiled source identity, an exported function RVA and a bounded source-line
+interval. The native CLI test can check the real PE/PDB GUID/age, DbgHelp lookup,
+symbol and source interval in addition to early request rejection. This control
+executes no benchmark and does not qualify production costs. The native PDB
+helper bounds fixed-array path termination, compares actual file identity across
+Windows path case, and admits both PDB engines only with opened-file identity
+checks.
+
+Payload/identity/collision/loss/clock/source controls and the optimized native PE/PDB
+CLI control are registered. Current local execution is recorded in the roadmap;
+raw/converted real-capture walk ordering, production StackWalk/PDB compatibility and
+native acquisition remain separate qualification gates.
+
+## Separate Linux host allocation capture
+
+`tools/host_heap_session.py` authors a bounded Linux recipe against an explicit
+native `libheaptrack_preload.so`. Its plan reads the existing admissible
+production observation, same optimized benchmark, ELF tuple and source/library
+hashes without launching or installing anything:
+
+```sh
+python tools/host_heap_session.py --production temp/production.json \
+  --preload /path/to/libheaptrack_preload.so --out temp/host-heap-candidate
+```
+
+`--execute` is reserved for the validation/diagnostic batch. The adapter launches
+the benchmark directly, first checking its compiled identity without injection,
+then supplying the explicit preload and owned raw output. This follows the
+upstream [preload producer](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/heaptrack_preload.cpp)
+without a shell wrapper, compressor, GUI, process attachment or persistent
+settings. The upstream library removes both injection variables before main;
+the actual native argv/environment, process PID, exact output and common
+work/proof/device/reuse contract must still match. Inherited heaptrack controls
+are cleared, and the production baseline cannot carry interception controls.
+The native environment witness and Python request policy share those key names.
+Missing output, failed process, changed library/source/capture or wrong native
+PID cannot publish a bound allocation result. Failure receipts preserve owned
+logs and partial files; elapsed time, output and artifacts are bounded.
+
+`tools/heaptrack_native.py` reads only the reviewed1.5.0 raw-format3
+[producer records](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/libheaptrack.cpp).
+It retains allocation pointer generations, parent trace nodes and module-cache
+generations at allocation as well as trace-node creation. A reused trace ID
+after a module reset cannot inherit its original image mapping. Matched frees
+recover requested size from their live allocation.
+The version-two allocation report includes normalized recorded stack frames and
+allocation-epoch root totals. Shared parents are stored once per epoch, with
+explicit links from leaf to caller. Module association uses the epoch active at
+allocation, not trace creation; overlapping modules and missing maps stay
+unresolved. A module snapshot cannot acquire more entries after its first stack
+or allocation. Segment lookup and expanded frame bindings have separate budgets.
+The [native trace tree](https://github.com/KDE/heaptrack/blob/v1.5.0/src/track/tracetree.h)
+reuses numeric trace paths across module resets. The recorded addresses already
+include the producer's one-byte adjustment and are not adjusted again. This
+projection reads no current module/debug files and proves no loaded-byte identity,
+function/source location, complete unwind or operation-clock association.
+Duplicate live pointers, future trace parents, mixed processes, unknown record
+formats, reversed clocks, truncated strings and exhausted budgets fail closed.
+Unmatched frees retain unknown pre-capture lifetime instead of subtracting zero.
+Unmatched frees and events after the last clock bracket are named partial
+observations. The native format has no complete-finalization marker; a valid
+record walk cannot prove complete allocator interception. Total retained module
+segments have their own budget in addition to file/record/trace/module limits.
+The summary includes count/size/trace distributions, observed live high water,
+retained requested payload and adjacent allocation/free pairs. Native free/new
+pairs do not identify a realloc call, so the realloc count stays unavailable.
+
+Timestamp records bracket groups of events at floored milliseconds. Allocation
+lifetime bounds include that uncertainty; no per-event nanosecond timestamp or
+operation/thread clock join is invented. RSS pages use the recorded page size
+and remain sampled RSS, separate from tracked payload and its observed peak.
+Neither quantity is an exact whole-process transient peak or leak proof. Device
+and pinned storage stay unobserved by this host-heap lane. Raw addresses and
+module records alone do not establish loaded symbols or source ownership.
+Operation/phase association, symbol attribution, complete interception and
+remaining native allocation stack/source integration remain source work. The native
+format controls and direct-child producer/consumer controls are authored and
+registered; no decoder, preload, fixture, benchmark or profiler has run in this
+source pass.

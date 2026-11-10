@@ -12,7 +12,10 @@ reference comparisons.
 
 - `docs/RNS8_RESEARCH_SPEC.md` is the architecture and roadmap source of
   truth.
-- `README.md` is the development setup source of truth.
+- `README.md` is the product introduction and quickstart. `docs/platform-windows.md`
+  and `docs/platform-linux.md` own setup commands; `third_party/README.md` owns
+  shared dependency requirements and pins. `CONTRIBUTING.md` owns developer tests,
+  sanitizers, packaging and documentation checks.
 - `docs/roadmap.md` contains current validation/release gates; `docs/archive/`
   preserves historical records and must not be treated as current qualification.
 - If implementation and docs disagree, do not silently choose one. Reconcile

@@ -7,9 +7,7 @@ struct DeviceBuffer {
   DeviceBuffer(const DeviceBuffer&) = delete;
   DeviceBuffer& operator=(const DeviceBuffer&) = delete;
 
-  ~DeviceBuffer() {
-    reset();
-  }
+  ~DeviceBuffer() { reset(); }
 
   void allocate(int device, std::size_t requested_bytes, const char* label) {
     reset();
@@ -76,15 +74,13 @@ void destroy_hip_graph_replay_state(HipGraphReplayState& state) {
 #endif
 }
 
-rns8_status capture_hip_graph_replay(
-    int device_id,
-    const std::function<rns8_status(void*)>& capture_body,
-    HipGraphReplayState& state,
-    uint64_t& capture_us,
-    uint64_t& instantiate_us,
-    std::string& error_text) {
+rns8_status capture_hip_graph_replay(int device_id,
+                                     const std::function<rns8_status(void*)>& capture_body,
+                                     HipGraphReplayState& state, double& capture_us,
+                                     double& instantiate_us, std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   destroy_hip_graph_replay_state(state);
+  const auto stream_prepare_start = std::chrono::steady_clock::now();
   const hipError_t device_status = hipSetDevice(device_id);
   if (device_status != hipSuccess) {
     error_text = hip_graph_error_text("hipSetDevice", static_cast<int>(device_status));
@@ -96,6 +92,7 @@ rns8_status capture_hip_graph_replay(
     return RNS8_BACKEND_FAILURE;
   }
 
+  state.stream_prepare_us = elapsed_us(stream_prepare_start, std::chrono::steady_clock::now());
   const auto capture_start = std::chrono::steady_clock::now();
   status = hipStreamBeginCapture(state.stream.get(), hipStreamCaptureModeGlobal);
   if (status != hipSuccess) {
@@ -113,7 +110,8 @@ rns8_status capture_hip_graph_replay(
     if (captured_graph) {
       (void)hipGraphDestroy(captured_graph);
     }
-    error_text = std::string("captured Direct-HIP graph body returned ") + rns8_status_string(body_status);
+    error_text =
+        std::string("captured Direct-HIP graph body returned ") + rns8_status_string(body_status);
     return body_status;
   }
   if (status != hipSuccess) {
@@ -146,7 +144,8 @@ rns8_status capture_hip_graph_replay(
 #endif
 }
 
-rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, std::string& error_text) {
+rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state,
+                                    std::string& error_text) {
 #if RNS8_CONFIGURED_HIP_ENABLED
   if (!state.executable) {
     error_text = "hip graph executable is not instantiated";
@@ -177,30 +176,30 @@ rns8_status launch_hip_graph_replay(int device_id, HipGraphReplayState& state, s
 #endif
 }
 
-template <typename T>
-uint64_t vector_alu_workspace_bytes(const Args& args) {
+template <typename T> uint64_t vector_alu_workspace_bytes(const Args& args) {
   const std::size_t a_bytes = checked_bytes(checked_elements(args.m, args.k, "A"), sizeof(T), "A");
   const std::size_t b_bytes = checked_bytes(checked_elements(args.k, args.n, "B"), sizeof(T), "B");
   const std::size_t c_bytes = checked_bytes(checked_elements(args.m, args.n, "C"), sizeof(T), "C");
   const std::size_t status_bytes = sizeof(uint32_t);
   const std::size_t ab_bytes = checked_add_bytes(a_bytes, b_bytes, "vector workspace A+B");
   const std::size_t abc_bytes = checked_add_bytes(ab_bytes, c_bytes, "vector workspace A+B+C");
-  const std::size_t total = checked_add_bytes(abc_bytes, status_bytes, "vector workspace A+B+C+status");
+  const std::size_t total =
+      checked_add_bytes(abc_bytes, status_bytes, "vector workspace A+B+C+status");
   return static_cast<uint64_t>(total);
 }
 
-double average(const std::vector<uint64_t>& values) {
+double average(const std::vector<double>& values) {
   if (values.empty()) {
     return 0.0;
   }
-  uint64_t sum = 0;
-  for (const uint64_t value : values) {
+  double sum = 0;
+  for (const double value : values) {
     sum += value;
   }
   return static_cast<double>(sum) / static_cast<double>(values.size());
 }
 
-double median(std::vector<uint64_t> values) {
+double median(std::vector<double> values) {
   if (values.empty()) {
     return 0.0;
   }
@@ -212,7 +211,7 @@ double median(std::vector<uint64_t> values) {
   return (static_cast<double>(values[middle - 1]) + static_cast<double>(values[middle])) / 2.0;
 }
 
-double percentile(std::vector<uint64_t> values, double p) {
+double percentile(std::vector<double> values, double p) {
   if (values.empty()) {
     return 0.0;
   }
@@ -242,4 +241,3 @@ double percentile_double(std::vector<double> values, double p) {
   const auto index = static_cast<std::size_t>(scaled + 0.999999);
   return values[index];
 }
-

@@ -9,6 +9,10 @@
 | finite u8 | Explicit modulus arithmetic over byte-sized rings or fields. |
 | prefix | Number of moduli selected from the default ladder for an RNS operation. Benchmark schema v4 keeps `prefix` as the requested max prefix and reports `selected_prefix` when execution uses fewer planes. |
 | prepack cache | Backend-owned reusable packed representation, currently limited and explicitly reported. |
+| modulus | Integer divisor defining one remainder channel. |
+| residue | Remainder modulo a specified modulus; RNS8 normally stores a centered signed-byte representative. |
+| reconstruct | Recover an integer representative from enough residues and the explicit signedness/range contract. |
+| resident | Retained in the current backend storage, usually GPU memory, for another operation without a host integer export. |
 | RNS | Residue number system matrix storage. |
 | rocWMMA | AMD rocWMMA-based opt-in matrix-engine backend. Public backend spelling is `rocwmma`. |
 | strict wrap64 | Multiplication modulo `2^64` using byte-limb semantics, not odd-modulus CRT. |

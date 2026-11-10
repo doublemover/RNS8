@@ -1,0 +1,11 @@
+{
+  "schema": "rns8_research_evidence_archive_v1",
+  "source_commit": "9caadaf73ca8cb6f3018da1dbe6ccbcffbdb7777",
+  "release": "https://github.com/doublemover/RNS8/releases/tag/sdk101-followup-20261026",
+  "url": "https://github.com/doublemover/RNS8/releases/download/sdk101-followup-20261026/replay-extension-20261027-9caadaf-b5cdc10c7623.zip",
+  "bytes": 874515,
+  "sha256": "b5cdc10c76230d49a8b54240f523188a9f7994931119c00b6f2be2126bb4e9e1",
+  "index_member": "archive-index.json",
+  "scope": "October27 replay/basis/reference extension: 98 indexed files; final JUnit, builds, manifests, captures, reference data, inputs, helper scripts and earlier scoped failure logs. No compiled binaries or SDKs.",
+  "restore_command": "python tools/research_evidence.py --manifest metadata/replay-extension-archive-20261027.json --output temp/restored-replay-extension"
+}

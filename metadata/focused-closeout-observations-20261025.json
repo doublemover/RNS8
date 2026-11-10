@@ -1,0 +1,144 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "compiled_source_commit": "6ce489b865a4f5bd749d8501fecbf669be789bf9",
+  "runtime_checkout": "e17c6c7c9b399c63c05127b124eccbbadd80e7b0",
+  "shared_host_authorized": true,
+  "nu_larry_active": true,
+  "old_campaign_resumed": false,
+  "total_captures": 400,
+  "public_captures": 280,
+  "materialization_captures": 120,
+  "independent_processes_per_cell": 5,
+  "sustained_aggregation": "Sum burst durations divided by sum completed calls within each process, then median/min/max across five independent processes.",
+  "source_timing": "C++ std::chrono::steady_clock, completed synchronous API boundaries; independent integer oracle outside repeated/sustained timing.",
+  "public": {
+    "archived_json_pointer": "/public",
+    "entries": 28
+  },
+  "materialization": [
+    {
+      "side": 256,
+      "depth": 3,
+      "topology": "chain",
+      "unsigned_inputs": false,
+      "modes": {
+        "archived_json_pointer": "/materialization/0/modes",
+        "entries": 6
+      },
+      "comparisons": {
+        "archived_json_pointer": "/materialization/0/comparisons",
+        "entries": 3
+      }
+    },
+    {
+      "side": 17,
+      "depth": 3,
+      "topology": "chain",
+      "unsigned_inputs": false,
+      "modes": {
+        "archived_json_pointer": "/materialization/1/modes",
+        "entries": 6
+      },
+      "comparisons": {
+        "archived_json_pointer": "/materialization/1/comparisons",
+        "entries": 3
+      }
+    },
+    {
+      "side": 32,
+      "depth": 4,
+      "topology": "diamond",
+      "unsigned_inputs": true,
+      "modes": {
+        "archived_json_pointer": "/materialization/2/modes",
+        "entries": 6
+      },
+      "comparisons": {
+        "archived_json_pointer": "/materialization/2/comparisons",
+        "entries": 3
+      }
+    },
+    {
+      "side": 128,
+      "depth": 3,
+      "topology": "chain",
+      "unsigned_inputs": false,
+      "modes": {
+        "archived_json_pointer": "/materialization/3/modes",
+        "entries": 6
+      },
+      "comparisons": {
+        "archived_json_pointer": "/materialization/3/comparisons",
+        "entries": 3
+      }
+    }
+  ],
+  "recorded_utc": "2026-10-25T15:01:18.734268+00:00",
+  "capture_manifest": {
+    "archived_json_pointer": "/capture_manifest",
+    "entries": 400
+  },
+  "collection_receipts": {
+    "public": {
+      "source_commit": "e17c6c7c9b399c63c05127b124eccbbadd80e7b0",
+      "argv": {
+        "archived_json_pointer": "/collection_receipts/public/argv",
+        "entries": 12
+      },
+      "exit_code": 0,
+      "seconds": 230.71626377105713,
+      "nu_larry_quiet_before": false,
+      "nu_larry_quiet_after": false,
+      "shared_host_authorized": true,
+      "old_campaign_resumed": false,
+      "output": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\closeout-remaining-20261025\\focused-public"
+    },
+    "materialization": {
+      "source_commit": "e17c6c7c9b399c63c05127b124eccbbadd80e7b0",
+      "argv": {
+        "archived_json_pointer": "/collection_receipts/materialization/argv",
+        "entries": 35
+      },
+      "exit_code": 0,
+      "seconds": 218.94048404693604,
+      "nu_larry_quiet_before": false,
+      "nu_larry_quiet_after": false,
+      "shared_host_authorized": true,
+      "old_campaign_resumed": false,
+      "output": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\closeout-remaining-20261025\\focused-materialization"
+    }
+  },
+  "compiled_config": "Full-feature GPU RelWithDebInfo profile in metadata/materialization-validation-20261025.json; both measured executables were built at clean6ce489b.",
+  "public_contract": {
+    "m": 8,
+    "n": 7,
+    "k": 512,
+    "prefix": 20,
+    "limbs": 3,
+    "output_ld_padding": 3,
+    "seed": 7373,
+    "warmups": 3,
+    "repeats": 9,
+    "independent_processes_per_case_and_instrumentation": 5,
+    "production_sustained_bursts": 3,
+    "minimum_calls": 16,
+    "minimum_duration_us": 250000,
+    "maximum_calls": 4096,
+    "matched_checksum_distribution_and_magnitude_summaries": true
+  },
+  "conclusions": {
+    "new_beneficial_rows": "Full-prefix compiled DAG at128 and256 compared with the same-prefix manual public resident sequence; both sustained and100-call setup projections have separated observed process ranges.",
+    "packed_b": "No tested cohort has a lower packed-B median than its plain full-prefix compiled recipe; keep it out of the gains table and do not promote it.",
+    "model": "Analytical prices are unqualified and select slower routes here. Measured stage calibration and held-out validation remain open.",
+    "public_magnitude": "Genuine90/134-bit constant results and mixed signed/unsigned fixtures pass all-limb numerical checks on both backends; tiny GPU calls remain slower than CPU in these observations.",
+    "qualification": "Shared-host observations explicitly authorized by the user; no uncontended peak, causal instrumentation overhead, planner-rate export or AUTO promotion is established."
+  },
+  "original_schema": "rns8_focused_closeout_observations_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/focused-closeout-observations-20261025.json",
+    "sha256": "32e6c4be0f8be8ee582d74622376b44d579a8dbb90c33374edf4fdeb778dbe3c",
+    "bytes": 846831
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

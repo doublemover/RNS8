@@ -24,7 +24,8 @@ inline rns8_context_options cpu_context_options() {
   return options;
 }
 
-inline rns8_gemm_desc base_gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind, int64_t m, int64_t n, int64_t k) {
+inline rns8_gemm_desc base_gemm_desc(rns8_semantics semantics, rns8_bound_kind bound_kind,
+                                     int64_t m, int64_t n, int64_t k) {
   rns8_gemm_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;
@@ -37,12 +38,8 @@ inline rns8_gemm_desc base_gemm_desc(rns8_semantics semantics, rns8_bound_kind b
   return desc;
 }
 
-inline rns8_matrix_desc row_major_matrix_desc(
-    int64_t rows,
-    int64_t cols,
-    rns8_semantics semantics,
-    rns8_bound_kind bound_kind,
-    uint32_t max_prefix) {
+inline rns8_matrix_desc row_major_matrix_desc(int64_t rows, int64_t cols, rns8_semantics semantics,
+                                              rns8_bound_kind bound_kind, uint32_t max_prefix) {
   rns8_matrix_desc desc{};
   desc.struct_size = sizeof(desc);
   desc.abi_version = RNS8_ABI_VERSION;

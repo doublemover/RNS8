@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/jgdumas/plinopt",
+  "commit": "7c2006504a67caf3071ed4bd34ed772f6ed1a1a6",
+  "paper": "https://arxiv.org/abs/2609.12027v2",
+  "scope": "Pinned mathematical coefficient matrices and canonical linear-program artifacts; imported through a strict arithmetic parser, never executed as upstream code.",
+  "files": {
+    "4x4x4_48_204_L.sms": {
+      "sha256": "acd034de1ccd02570d41b098827666f062346eccc8eceea9b352e292391d05fa",
+      "git_blob": "d69264df6c7dded94d137437fa0c8df85d0bb94d"
+    },
+    "4x4x4_48_204_R.sms": {
+      "sha256": "bde98dc3051e8109bf1c2de5c30dbd671345d39acd6c5c2d1cc3c7c1256777b8",
+      "git_blob": "1fb28b4ca27a25c210d7f848a7b937514f06c458"
+    },
+    "4x4x4_48_204_P.sms": {
+      "sha256": "fcd97838986bf12d7704723335a1cc72effe337dfede46ed9558ed094d772a0d",
+      "git_blob": "cd39ea30886a7536f2a674a455b245e1fde3ab4c"
+    },
+    "Licence_CeCILL-B_V1-en.txt": {
+      "sha256": "014e062e7d6b3b9e686bb8cb642479d6cc8bb775d8ee185908b669b8daaf5f2f",
+      "git_blob": "da418978d4e89266df4fc6ea19c6424c879a9bd8"
+    },
+    "4x4x4_48_204_L.slp": {
+      "sha256": "b021b1d260e9b01e6970c1c704684aa8d5fb7fb3d9ab7ac23e361786b129c49d",
+      "source_path": "data/4x4x4_48_204_L.slp"
+    },
+    "4x4x4_48_204_P.slp": {
+      "sha256": "9e0ffdf3bfebe86f6a3cd427ba469d59d67d82f4f897fe0cab6366c1f402cefd",
+      "source_path": "data/4x4x4_48_204_P.slp"
+    },
+    "4x4x4_48_204_R.slp": {
+      "sha256": "3a152ea5e41f2ff04f31357aca7fc08000c0a0733b1acda0207e67bf6c4cf434",
+      "source_path": "data/4x4x4_48_204_R.slp"
+    }
+  }
+}

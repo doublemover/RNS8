@@ -1,0 +1,212 @@
+{
+  "schema": "rns8_reviewed_evidence_summary_v1",
+  "identity": {
+    "build_manifest": {
+      "configuration": {
+        "archived_json_pointer": "/identity/build_manifest/configuration"
+      },
+      "dependency_digest": "952ee30a1f0276bf7ab5ba957f1764a4158920b9b966f324c17eee7ba2dbbab7",
+      "external_dependencies": {
+        "archived_json_pointer": "/identity/build_manifest/external_dependencies",
+        "entries": 9
+      },
+      "identity_scope": "source-config-and-external-headers",
+      "linkage": "static-rns8",
+      "source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+      "source_digest": "0810dfed69faf339f53fae6e7854e8af7356d1fcefe016ae3f63941833cfaa1e",
+      "source_dirty": false,
+      "version": 2
+    },
+    "device": "AMD Radeon RX 7900 XTX",
+    "target": "gfx1100",
+    "runtime_version": 71260602
+  },
+  "launch": {
+    "command": {
+      "archived_json_pointer": "/launch/command",
+      "entries": 18
+    },
+    "compiled_source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+    "collector_profile_source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+    "executable_sha256": "ac3902d03b0e9d20da54870d4d7a4831fcd829330f0b9dbd89ce19e05b76e39b",
+    "cases_sha256": "ac1138b99e55fbb46a1be8404072c0cf5372af8945e585943984d42c42f95191",
+    "requested_processes": 425,
+    "started_unix": 1792980863.998705,
+    "cases": 85,
+    "runs": 5,
+    "warmups": 3,
+    "repeats": 9,
+    "gain_gate": "five independent processes, disjoint observed ranges and <=10% (max-min)/median spread in both compared modes; uncensored sustained interval",
+    "environment": {
+      "OMP_NUM_THREADS": "3",
+      "HIP_VISIBLE_DEVICES": null,
+      "ROCR_VISIBLE_DEVICES": null,
+      "HIP_FORCE_DEV_KERNARG": null
+    },
+    "controlled_clock_policy": "not_changed",
+    "shared_host_measurements_authorized": true,
+    "campaign_resumed": false,
+    "exit_code": 0,
+    "seconds": 795.0620212554932,
+    "executable_unchanged": true,
+    "cases_unchanged": true
+  },
+  "completed_numeric_captures": 425,
+  "qualification": false,
+  "promotion_eligible": false,
+  "finding": "The three-limb unsigned device-output helper enqueues without a status readback/fence. Raw resident benchmark timing ended before verification waited; all raw resident comparisons are quarantined. Public and cold readbacks already completed inside timing.",
+  "repair": "v5 fences every raw resident invocation inside the interval and validates its completion counter; the next complete artifact also includes separately authored native-moment optimization requiring fresh correctness/performance qualification.",
+  "affected_regressions": {
+    "compiled_source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+    "records": [
+      {
+        "name": "gpu-smokes",
+        "command": {
+          "archived_json_pointer": "/affected_regressions/records/0/command",
+          "entries": 10
+        },
+        "exit_code": 0,
+        "seconds": 60.682050466537476
+      },
+      {
+        "name": "asan-cli",
+        "command": {
+          "archived_json_pointer": "/affected_regressions/records/1/command",
+          "entries": 4
+        },
+        "exit_code": 0,
+        "seconds": 0.7866332530975342
+      }
+    ],
+    "gpu_tests": {
+      "archived_json_pointer": "/affected_regressions/gpu_tests",
+      "entries": 45
+    },
+    "asan_cli_tests": 2
+  },
+  "builds": {
+    "gpu": {
+      "source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+      "lane": "gpu",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/0/command",
+            "entries": 37
+          },
+          "exit_code": 0,
+          "seconds": 22.507943391799927
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/gpu/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 194.03758430480957
+        }
+      ],
+      "old_qualified_benchmark_sha256": "e386bfa13bb228842fb457df1b9205593c53b030721fca98a5e497521c7f16b1",
+      "targets": [
+        "rns8-crt-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    },
+    "asan": {
+      "source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+      "lane": "asan",
+      "records": [
+        {
+          "name": "configure",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/0/command",
+            "entries": 26
+          },
+          "exit_code": 0,
+          "seconds": 5.479016065597534
+        },
+        {
+          "name": "build",
+          "command": {
+            "archived_json_pointer": "/builds/asan/records/1/command",
+            "entries": 10
+          },
+          "exit_code": 0,
+          "seconds": 71.34490776062012
+        }
+      ],
+      "old_qualified_benchmark_sha256": "fe5e7b1ebab2b12ef4814200f4d0ca727f1e9e34cdeb78ae03799feea9a32377",
+      "targets": [
+        "rns8-crt-calibrate"
+      ],
+      "old_benchmark_unchanged": true
+    }
+  },
+  "initial_failed_attempt": "metadata/conversion-closeout-initial-attempt-20261025.json",
+  "selected_isa": {
+    "schema": "rns8_conversion_selected_isa_v1",
+    "compiled_source_commit": "eec122f81ceaa34b0cf5be59e38ebe155ad28c90",
+    "extraction": {
+      "artifact": "build\\validation-20261025-gpu\\rns8-crt-calibrate.exe",
+      "artifact_sha256": "ac3902d03b0e9d20da54870d4d7a4831fcd829330f0b9dbd89ce19e05b76e39b",
+      "code_objects": [
+        {
+          "path": "temp\\closeout-remaining-20261025\\conversion-retry-artifact-isa\\code-0.hsaco",
+          "offset": 4523008,
+          "bytes": 7905968,
+          "sha256": "9eb9b69a11812a3753d51065d76f9fcaa451c9e3bf715723535dfe0f6a2fd6b0",
+          "markers": {
+            "archived_json_pointer": "/selected_isa/extraction/code_objects/0/markers",
+            "entries": 3
+          }
+        }
+      ],
+      "method": "extract exact ELF64 EM_AMDGPU bytes from measured PE executable using checked ELF section extents; not a recompiled object",
+      "target_verification": "pending llvm-readobj",
+      "promotion_eligible": false
+    },
+    "target": "gfx1100",
+    "original_code_object_membership_verified": true,
+    "symbols": {
+      "archived_json_pointer": "/selected_isa/symbols",
+      "entries": 10
+    },
+    "selection": "source-bound calibrator candidate wrappers; runtime prefix arguments or fixed <prefix,3> unsigned quad specializations; not a dynamic profiler trace",
+    "fp_mode_reference": "https://llvm.org/docs/AMDGPUUsage.html#kernel-descriptor",
+    "fp_mode_decode": "HSA 64-byte kernel descriptor compute_pgm_rsrc1 at byte48; F32 rounding bits13:12=0 RNE, denorm bits17:16; mode writes inspected separately",
+    "limits": "static instruction sites/resources/descriptor modes; no achieved occupancy, dynamic instruction counts, launches or hardware traffic",
+    "promotion_eligible": false
+  },
+  "observations": {
+    "archived_json_pointer": "/observations",
+    "entries": 425
+  },
+  "collector_schema": "rns8_crt_microcase_v4",
+  "campaign_resumed": false,
+  "python_contracts": {
+    "command": [
+      "python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tools",
+      "-p",
+      "test_*crt*.py"
+    ],
+    "tests": 17,
+    "passed": 15,
+    "skipped": 2,
+    "skipped_explanation": "compiled CLI absent from this discovery command; both explicit CPU-ASan CLI checks and the GPU CTest CLI entry subsequently pass"
+  },
+  "original_schema": "rns8_conversion_completion_audit_v1",
+  "full_record": {
+    "archive_manifest": "research-evidence-20261026.json",
+    "member": "metadata/conversion-completion-audit-20261025.json",
+    "sha256": "6894d663a76d72f05ce53cdea49738f5959b9f6c34c4ab4592da1d4a4e06d2c6",
+    "bytes": 1041316
+  },
+  "summary_format": "Large arrays, diagnostic output and nested payloads are replaced by JSON pointers into the byte-exact archived record. No measurements were recomputed."
+}

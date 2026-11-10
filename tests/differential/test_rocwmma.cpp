@@ -6,24 +6,33 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <type_traits>
+#include "core/hip_resources.hpp"
 
 #include "backend_rocwmma/rocwmma_backend.hpp"
+#include "backend_rocwmma/rocwmma_packing_policy.hpp"
+#include <array>
+#include "backend_hip_direct/hip_backend.hpp"
+#include <boost/multiprecision/cpp_int.hpp>
 #include "backend_wrap64/wrap64_hip.hpp"
 #include "core/internal.hpp"
 #include "../support/currentness_test_helpers.hpp"
 #include "rns8/rns8.h"
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
-#  include <hip/hip_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #endif
 
 namespace {
 #include "test_rocwmma_support.inc"
 
-}  // namespace
+} // namespace
 
 #if defined(RNS8_ENABLE_ROCWMMA) && RNS8_ENABLE_ROCWMMA
 #include "test_rocwmma_bounded_reuse_cases.inc"
 #include "test_rocwmma_adaptive_exact_finite_cases.inc"
 #include "test_rocwmma_finite_wrap64_cases.inc"
+#include "test_rocwmma_epilogue_cases.inc"
+#include "test_rocwmma_native_pack_cases.inc"
+#include "test_rocwmma_packing_cases.inc"
 #endif

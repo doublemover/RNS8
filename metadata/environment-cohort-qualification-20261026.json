@@ -1,0 +1,913 @@
+{
+  "schema": "rns8_environment_cohort_qualification_v1",
+  "issue": 27,
+  "implementation_commit": "8fbbf27",
+  "source_checkpoint": "15ce33393a1ad0c300fa998db88eff9e8bf0f18c",
+  "scope": "Canonical recorded-environment identity and same-cohort independent-run admission; synthetic timings only. C++/GPU implementation remains at 287737d.",
+  "environment_schema": "rns8_relevant_environment_v1",
+  "request_wire_schema": "rns8_benchmark_request_v1",
+  "invariants": [
+    "Actual recorded environment object and explicit override provenance, never a claimed standalone environment digest.",
+    "Complete request seal and executable binding checked; arguments/report paths validate but do not split cohorts.",
+    "Missing/malformed/tampered request evidence remains descriptive and cannot contribute independent runs.",
+    "Observation aggregation/comparison and variance/ledger gates use the shared identity; unavailable None cohorts never certify a forged ready entry.",
+    "Existing statistical estimators, thresholds, duplicate-ID policy and installed-cache routing semantics remain unchanged."
+  ],
+  "validation": {
+    "real_emitter_integration": {
+      "tests": 6,
+      "passed": 6,
+      "skipped": 0
+    },
+    "diagnostic_companion": {
+      "tests": 5,
+      "passed": 5,
+      "skipped": 0
+    },
+    "configured_python_self_tests": {
+      "passed": 111,
+      "skipped": 0,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "stream_capacity_collector_contracts",
+          "seconds": 0.963401,
+          "state": "passed"
+        },
+        {
+          "name": "stream_capacity_fixture_contracts",
+          "seconds": 0.19483,
+          "state": "passed"
+        },
+        {
+          "name": "large_address_collector_contracts",
+          "seconds": 0.356142,
+          "state": "passed"
+        },
+        {
+          "name": "residue_dot_collector_contracts",
+          "seconds": 0.353822,
+          "state": "passed"
+        },
+        {
+          "name": "queue_calibration_contracts",
+          "seconds": 0.251661,
+          "state": "passed"
+        },
+        {
+          "name": "hipblaslt_metadata_contracts",
+          "seconds": 0.269429,
+          "state": "passed"
+        },
+        {
+          "name": "rocwmma_packing_contracts",
+          "seconds": 0.309086,
+          "state": "passed"
+        },
+        {
+          "name": "host_transfer_collector_contracts",
+          "seconds": 0.513724,
+          "state": "passed"
+        },
+        {
+          "name": "streaming_measurement_contracts",
+          "seconds": 0.241433,
+          "state": "passed"
+        },
+        {
+          "name": "public_measurement_contracts",
+          "seconds": 0.202209,
+          "state": "passed"
+        },
+        {
+          "name": "wide_magnitude_receipts",
+          "seconds": 0.134259,
+          "state": "passed"
+        },
+        {
+          "name": "ci_benchmark_smoke",
+          "seconds": 0.389595,
+          "state": "passed"
+        },
+        {
+          "name": "observation_cohorts",
+          "seconds": 0.429052,
+          "state": "passed"
+        },
+        {
+          "name": "finite_distribution_report_self_test",
+          "seconds": 0.262468,
+          "state": "passed"
+        },
+        {
+          "name": "rns_chain_report_self_test",
+          "seconds": 0.168077,
+          "state": "passed"
+        },
+        {
+          "name": "measurement_evidence_contracts",
+          "seconds": 0.380431,
+          "state": "passed"
+        },
+        {
+          "name": "tooling_contract_regressions",
+          "seconds": 0.416669,
+          "state": "passed"
+        },
+        {
+          "name": "dependency_policy_self_test",
+          "seconds": 0.796223,
+          "state": "passed"
+        },
+        {
+          "name": "documentation_self_test",
+          "seconds": 6.36125,
+          "state": "passed"
+        },
+        {
+          "name": "dependency_resolution_self_test",
+          "seconds": 6.12996,
+          "state": "passed"
+        },
+        {
+          "name": "locality_schedule_self_test",
+          "seconds": 0.285538,
+          "state": "passed"
+        },
+        {
+          "name": "calibration_manifest_self_test",
+          "seconds": 0.216166,
+          "state": "passed"
+        },
+        {
+          "name": "narrow_public_collector_self_test",
+          "seconds": 0.246896,
+          "state": "passed"
+        },
+        {
+          "name": "int4_public_collector_self_test",
+          "seconds": 0.268978,
+          "state": "passed"
+        },
+        {
+          "name": "public_epilogue_collector_self_test",
+          "seconds": 0.262658,
+          "state": "passed"
+        },
+        {
+          "name": "native_calibration_collector_self_test",
+          "seconds": 6.06906,
+          "state": "passed"
+        },
+        {
+          "name": "finite_verify_collector_self_test",
+          "seconds": 1.01616,
+          "state": "passed"
+        },
+        {
+          "name": "block_sparse_collector_self_test",
+          "seconds": 2.31462,
+          "state": "passed"
+        },
+        {
+          "name": "wrap64_calibration_collector_self_test",
+          "seconds": 1.23878,
+          "state": "passed"
+        },
+        {
+          "name": "arithmetic_composition_self_test",
+          "seconds": 0.10374,
+          "state": "passed"
+        },
+        {
+          "name": "modulus_generator_self_test",
+          "seconds": 0.29968,
+          "state": "passed"
+        },
+        {
+          "name": "native_wmma_generator_self_test",
+          "seconds": 1.68013,
+          "state": "passed"
+        },
+        {
+          "name": "block_gemm_research_self_test",
+          "seconds": 0.257344,
+          "state": "passed"
+        },
+        {
+          "name": "cpu_amx_collector_self_test",
+          "seconds": 0.462326,
+          "state": "passed"
+        },
+        {
+          "name": "native_integrity_collector_self_test",
+          "seconds": 0.318845,
+          "state": "passed"
+        },
+        {
+          "name": "native_interop_collector_self_test",
+          "seconds": 0.355001,
+          "state": "passed"
+        },
+        {
+          "name": "lift_recipe_collector_self_test",
+          "seconds": 0.327198,
+          "state": "passed"
+        },
+        {
+          "name": "product_stage_collector_self_test",
+          "seconds": 0.371272,
+          "state": "passed"
+        },
+        {
+          "name": "bilinear_collector_self_test",
+          "seconds": 0.23574,
+          "state": "passed"
+        },
+        {
+          "name": "rank23_october55_self_test",
+          "seconds": 0.190478,
+          "state": "passed"
+        },
+        {
+          "name": "rank23_slp_self_test",
+          "seconds": 2.21993,
+          "state": "passed"
+        },
+        {
+          "name": "residue_integrity_self_test",
+          "seconds": 0.111593,
+          "state": "passed"
+        },
+        {
+          "name": "analytical_planner_self_test",
+          "seconds": 0.328755,
+          "state": "passed"
+        },
+        {
+          "name": "planning_recipe_self_test",
+          "seconds": 0.139217,
+          "state": "passed"
+        },
+        {
+          "name": "modulus_scheme_optimizer_self_test",
+          "seconds": 0.170184,
+          "state": "passed"
+        },
+        {
+          "name": "encoding_catalogue_self_test",
+          "seconds": 4.81522,
+          "state": "passed"
+        },
+        {
+          "name": "instruction_roof_collector_self_test",
+          "seconds": 1.89172,
+          "state": "passed"
+        },
+        {
+          "name": "split_k_collector_self_test",
+          "seconds": 0.962632,
+          "state": "passed"
+        },
+        {
+          "name": "ragged_collector_self_test",
+          "seconds": 3.99988,
+          "state": "passed"
+        },
+        {
+          "name": "stream_panel_collector_self_test",
+          "seconds": 1.23302,
+          "state": "passed"
+        },
+        {
+          "name": "word_mod_calibration_collector_self_test",
+          "seconds": 4.33609,
+          "state": "passed"
+        },
+        {
+          "name": "crt_calibration_collector_self_test",
+          "seconds": 30.5609,
+          "state": "passed"
+        },
+        {
+          "name": "crt_research_self_test",
+          "seconds": 0.130104,
+          "state": "passed"
+        },
+        {
+          "name": "floating_rewrite_oracle_self_test",
+          "seconds": 0.340899,
+          "state": "passed"
+        },
+        {
+          "name": "arithmetic_certificate_self_test",
+          "seconds": 3.24907,
+          "state": "passed"
+        },
+        {
+          "name": "build_manifest_self_test",
+          "seconds": 2.14024,
+          "state": "passed"
+        },
+        {
+          "name": "performance_dashboard_self_test",
+          "seconds": 0.1984,
+          "state": "passed"
+        },
+        {
+          "name": "gpu_qualification_self_test",
+          "seconds": 1.16536,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_self_test",
+          "seconds": 0.244744,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_execution_modes_self_test",
+          "seconds": 0.139208,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_contract_metadata_self_test",
+          "seconds": 0.151116,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_helper_metadata_self_test",
+          "seconds": 0.147551,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_backend_metadata_self_test",
+          "seconds": 0.134895,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_semantic_contracts_self_test",
+          "seconds": 0.130325,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_reuse_timing_self_test",
+          "seconds": 0.130617,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_gpu_events_self_test",
+          "seconds": 0.133391,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_schema_output_policies_self_test",
+          "seconds": 0.128415,
+          "state": "passed"
+        },
+        {
+          "name": "metadata_registry_self_test",
+          "seconds": 0.11299,
+          "state": "passed"
+        },
+        {
+          "name": "claim_validation_self_test",
+          "seconds": 0.165659,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_sweep_self_test",
+          "seconds": 1.29513,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_sweep_failure_summary_self_test",
+          "seconds": 0.386624,
+          "state": "passed"
+        },
+        {
+          "name": "evidence_database_self_test",
+          "seconds": 0.243535,
+          "state": "passed"
+        },
+        {
+          "name": "gpu_counter_report_self_test",
+          "seconds": 0.2599,
+          "state": "passed"
+        },
+        {
+          "name": "gpu_isa_report_self_test",
+          "seconds": 0.178613,
+          "state": "passed"
+        },
+        {
+          "name": "amd_matrix_instruction_report_self_test",
+          "seconds": 1.57642,
+          "state": "passed"
+        },
+        {
+          "name": "target_validation_report_self_test",
+          "seconds": 0.191291,
+          "state": "passed"
+        },
+        {
+          "name": "cdna_env_summary_self_test",
+          "seconds": 0.332752,
+          "state": "passed"
+        },
+        {
+          "name": "cdna_scripts_self_test",
+          "seconds": 0.180088,
+          "state": "passed"
+        },
+        {
+          "name": "report_capture_inputs_self_test",
+          "seconds": 0.230694,
+          "state": "passed"
+        },
+        {
+          "name": "tile_shape_report_self_test",
+          "seconds": 0.237714,
+          "state": "passed"
+        },
+        {
+          "name": "starfoundry_report_self_test",
+          "seconds": 0.294805,
+          "state": "passed"
+        },
+        {
+          "name": "adaptive_grouped_scheduler_report_self_test",
+          "seconds": 0.343879,
+          "state": "passed"
+        },
+        {
+          "name": "perf_variance_report_self_test",
+          "seconds": 0.369363,
+          "state": "passed"
+        },
+        {
+          "name": "error_detection_policy_report_self_test",
+          "seconds": 0.295281,
+          "state": "passed"
+        },
+        {
+          "name": "fhe_workload_report_self_test",
+          "seconds": 0.602477,
+          "state": "passed"
+        },
+        {
+          "name": "cpu_small_shape_selector_report_self_test",
+          "seconds": 0.29067,
+          "state": "passed"
+        },
+        {
+          "name": "incremental_result_cache_report_self_test",
+          "seconds": 0.307221,
+          "state": "passed"
+        },
+        {
+          "name": "shape_family_shadow_report_self_test",
+          "seconds": 0.16632,
+          "state": "passed"
+        },
+        {
+          "name": "autotune_cache_install_self_test",
+          "seconds": 0.310808,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_reuse_packed_inputs_smoke",
+          "seconds": 1.89487,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_exact_wide_smoke",
+          "seconds": 0.476289,
+          "state": "passed"
+        },
+        {
+          "name": "dependency_checker_self_test",
+          "seconds": 1.50227,
+          "state": "passed"
+        },
+        {
+          "name": "release_tree_self_test",
+          "seconds": 0.164712,
+          "state": "passed"
+        },
+        {
+          "name": "bootstrap_rocm_accelerators_dry_run_self_test",
+          "seconds": 0.601827,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_backend_smoke",
+          "seconds": 0.643735,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_hit_hipblaslt",
+          "seconds": 1.8959,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_exact_wide_hit_hipblaslt",
+          "seconds": 1.97641,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_finite_field_hit_hipblaslt",
+          "seconds": 1.84163,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_hit_ck",
+          "seconds": 1.6252,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_exact_wide_hit_ck",
+          "seconds": 1.68367,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_finite_ring_hit_ck",
+          "seconds": 1.62816,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_rocwmma_wrap64_candidate_smoke",
+          "seconds": 1.82279,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_hit_rocwmma",
+          "seconds": 1.62896,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_exact_wide_hit_rocwmma",
+          "seconds": 1.67623,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_auto_default_cache_finite_field_hit_rocwmma",
+          "seconds": 1.62289,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_vector_alu_baseline_smoke",
+          "seconds": 1.19127,
+          "state": "passed"
+        },
+        {
+          "name": "benchmark_result_compare_self_test",
+          "seconds": 0.229234,
+          "state": "passed"
+        },
+        {
+          "name": "inspect_cli_hard_cut_diagnostics",
+          "seconds": 0.706884,
+          "state": "passed"
+        },
+        {
+          "name": "workload_report_tooling",
+          "seconds": 5.37598,
+          "state": "passed"
+        },
+        {
+          "name": "workload_installed_public_consumer",
+          "seconds": 25.4829,
+          "state": "passed"
+        },
+        {
+          "name": "workload_installed_public_gpu_consumer",
+          "seconds": 28.699,
+          "state": "passed"
+        }
+      ]
+    },
+    "execution_receipt": {
+      "schema": "rns8_environment_identity_validation_v1",
+      "source_commit": "15ce33393a1ad0c300fa998db88eff9e8bf0f18c",
+      "scope": "Shared request/environment/cohort and synthetic-fixture change: real-emitter and diagnostic integration plus all configured Python self-tests, including small compiled-CLI correctness smokes. No C++ rebuild, performance campaign or logical-proof rerun.",
+      "selected_ctest_names": [
+        "stream_capacity_collector_contracts",
+        "stream_capacity_fixture_contracts",
+        "large_address_collector_contracts",
+        "residue_dot_collector_contracts",
+        "queue_calibration_contracts",
+        "hipblaslt_metadata_contracts",
+        "rocwmma_packing_contracts",
+        "host_transfer_collector_contracts",
+        "streaming_measurement_contracts",
+        "public_measurement_contracts",
+        "wide_magnitude_receipts",
+        "ci_benchmark_smoke",
+        "observation_cohorts",
+        "finite_distribution_report_self_test",
+        "rns_chain_report_self_test",
+        "measurement_evidence_contracts",
+        "tooling_contract_regressions",
+        "dependency_policy_self_test",
+        "documentation_self_test",
+        "dependency_resolution_self_test",
+        "locality_schedule_self_test",
+        "calibration_manifest_self_test",
+        "narrow_public_collector_self_test",
+        "int4_public_collector_self_test",
+        "public_epilogue_collector_self_test",
+        "native_calibration_collector_self_test",
+        "finite_verify_collector_self_test",
+        "block_sparse_collector_self_test",
+        "wrap64_calibration_collector_self_test",
+        "arithmetic_composition_self_test",
+        "modulus_generator_self_test",
+        "native_wmma_generator_self_test",
+        "block_gemm_research_self_test",
+        "cpu_amx_collector_self_test",
+        "native_integrity_collector_self_test",
+        "native_interop_collector_self_test",
+        "lift_recipe_collector_self_test",
+        "product_stage_collector_self_test",
+        "bilinear_collector_self_test",
+        "rank23_october55_self_test",
+        "rank23_slp_self_test",
+        "residue_integrity_self_test",
+        "analytical_planner_self_test",
+        "planning_recipe_self_test",
+        "modulus_scheme_optimizer_self_test",
+        "encoding_catalogue_self_test",
+        "instruction_roof_collector_self_test",
+        "split_k_collector_self_test",
+        "ragged_collector_self_test",
+        "stream_panel_collector_self_test",
+        "word_mod_calibration_collector_self_test",
+        "crt_calibration_collector_self_test",
+        "crt_research_self_test",
+        "floating_rewrite_oracle_self_test",
+        "arithmetic_certificate_self_test",
+        "build_manifest_self_test",
+        "performance_dashboard_self_test",
+        "gpu_qualification_self_test",
+        "benchmark_schema_self_test",
+        "benchmark_schema_execution_modes_self_test",
+        "benchmark_schema_contract_metadata_self_test",
+        "benchmark_schema_helper_metadata_self_test",
+        "benchmark_schema_backend_metadata_self_test",
+        "benchmark_schema_semantic_contracts_self_test",
+        "benchmark_schema_reuse_timing_self_test",
+        "benchmark_schema_gpu_events_self_test",
+        "benchmark_schema_output_policies_self_test",
+        "metadata_registry_self_test",
+        "claim_validation_self_test",
+        "benchmark_sweep_self_test",
+        "benchmark_sweep_failure_summary_self_test",
+        "evidence_database_self_test",
+        "gpu_counter_report_self_test",
+        "gpu_isa_report_self_test",
+        "amd_matrix_instruction_report_self_test",
+        "target_validation_report_self_test",
+        "cdna_env_summary_self_test",
+        "cdna_scripts_self_test",
+        "report_capture_inputs_self_test",
+        "tile_shape_report_self_test",
+        "starfoundry_report_self_test",
+        "adaptive_grouped_scheduler_report_self_test",
+        "perf_variance_report_self_test",
+        "error_detection_policy_report_self_test",
+        "fhe_workload_report_self_test",
+        "cpu_small_shape_selector_report_self_test",
+        "incremental_result_cache_report_self_test",
+        "shape_family_shadow_report_self_test",
+        "autotune_cache_install_self_test",
+        "benchmark_reuse_packed_inputs_smoke",
+        "benchmark_exact_wide_smoke",
+        "dependency_checker_self_test",
+        "release_tree_self_test",
+        "bootstrap_rocm_accelerators_dry_run_self_test",
+        "benchmark_auto_backend_smoke",
+        "benchmark_auto_default_cache_hit_hipblaslt",
+        "benchmark_auto_default_cache_exact_wide_hit_hipblaslt",
+        "benchmark_auto_default_cache_finite_field_hit_hipblaslt",
+        "benchmark_auto_default_cache_hit_ck",
+        "benchmark_auto_default_cache_exact_wide_hit_ck",
+        "benchmark_auto_default_cache_finite_ring_hit_ck",
+        "benchmark_rocwmma_wrap64_candidate_smoke",
+        "benchmark_auto_default_cache_hit_rocwmma",
+        "benchmark_auto_default_cache_exact_wide_hit_rocwmma",
+        "benchmark_auto_default_cache_finite_field_hit_rocwmma",
+        "benchmark_vector_alu_baseline_smoke",
+        "benchmark_result_compare_self_test",
+        "inspect_cli_hard_cut_diagnostics",
+        "workload_report_tooling",
+        "workload_installed_public_consumer",
+        "workload_installed_public_gpu_consumer"
+      ],
+      "selected_scripts": [
+        "test_adaptive_grouped_scheduler_report.py",
+        "test_amd_matrix_instruction_report.py",
+        "test_analytical_planner.py",
+        "test_arithmetic_certificate.py",
+        "test_arithmetic_composition.py",
+        "test_autotune_cache_install.py",
+        "test_benchmark_auto_backend.py",
+        "test_benchmark_auto_default_cache.py",
+        "test_benchmark_exact_wide.py",
+        "test_benchmark_reuse_packed_inputs.py",
+        "test_benchmark_rocwmma_wrap64_candidate.py",
+        "test_benchmark_schema.py",
+        "test_benchmark_schema_backend_metadata.py",
+        "test_benchmark_schema_contract_metadata.py",
+        "test_benchmark_schema_execution_modes.py",
+        "test_benchmark_schema_gpu_events.py",
+        "test_benchmark_schema_helper_metadata.py",
+        "test_benchmark_schema_output_policies.py",
+        "test_benchmark_schema_reuse_timing.py",
+        "test_benchmark_schema_semantic_contracts.py",
+        "test_benchmark_sweep.py",
+        "test_benchmark_sweep_failure_summary.py",
+        "test_block_gemm_research.py",
+        "test_bootstrap_rocm_accelerators.py",
+        "test_build_manifest.py",
+        "test_calibration_manifest.py",
+        "test_cdna_env_summary.py",
+        "test_cdna_scripts.py",
+        "test_check_dependencies.py",
+        "test_check_release_tree.py",
+        "test_ci_benchmark_smoke.py",
+        "test_claim_validation.py",
+        "test_collect_bilinear_calibration.py",
+        "test_collect_block_sparse.py",
+        "test_collect_cpu_amx.py",
+        "test_collect_crt_calibration.py",
+        "test_collect_epilogue_calibration.py",
+        "test_collect_finite_verify.py",
+        "test_collect_host_transfers.py",
+        "test_collect_instruction_roof.py",
+        "test_collect_int4_calibration.py",
+        "test_collect_lift_recipe.py",
+        "test_collect_narrow_public_calibration.py",
+        "test_collect_native_calibration.py",
+        "test_collect_native_integrity.py",
+        "test_collect_native_interop.py",
+        "test_collect_product_stages.py",
+        "test_collect_queue_calibration.py",
+        "test_collect_ragged.py",
+        "test_collect_residue_dot.py",
+        "test_collect_split_k.py",
+        "test_collect_stream_capacity.py",
+        "test_collect_stream_panels.py",
+        "test_collect_word_mod_calibration.py",
+        "test_collect_wrap64.py",
+        "test_cpu_small_shape_selector_report.py",
+        "test_crt_research.py",
+        "test_dependency_policy.py",
+        "test_dependency_resolution.py",
+        "test_documentation.py",
+        "test_encoding_catalogue.py",
+        "test_error_detection_policy_report.py",
+        "test_evidence_database.py",
+        "test_fhe_workload_report.py",
+        "test_finite_distribution_report.py",
+        "test_floating_rewrite_oracle.py",
+        "test_generate_modulus_kernels.py",
+        "test_generate_native_wmma.py",
+        "test_gpu_counter_report.py",
+        "test_gpu_isa_report.py",
+        "test_gpu_qualification.py",
+        "test_hipblaslt_metadata.py",
+        "test_incremental_result_cache_report.py",
+        "test_inspect_cli.py",
+        "test_locality_schedule.py",
+        "test_measurement_evidence_contracts.py",
+        "test_metadata_registry.py",
+        "test_modulus_scheme_optimizer.py",
+        "test_observation_cohorts.py",
+        "test_perf_variance_report.py",
+        "test_performance_dashboard.py",
+        "test_planning_recipe.py",
+        "test_public_measurement_contracts.py",
+        "test_qualify_large_addresses.py",
+        "test_rank23_october55.py",
+        "test_rank23_slp.py",
+        "test_report_capture_inputs.py",
+        "test_residue_integrity.py",
+        "test_result_compare.py",
+        "test_rns_chain_report.py",
+        "test_rocwmma_packing.py",
+        "test_shape_family_shadow_report.py",
+        "test_starfoundry_reports.py",
+        "test_stream_capacity_fixture.py",
+        "test_streaming_measurement.py",
+        "test_target_validation_report.py",
+        "test_tile_shape_report.py",
+        "test_tooling_contracts.py",
+        "test_vector_alu_baseline.py",
+        "test_wide_magnitude.py",
+        "test_workload_examples.py",
+        "test_workload_install.py"
+      ],
+      "supplemental_scripts": [
+        "test_execution_environment_identity.py",
+        "test_diagnostic_companion.py"
+      ],
+      "records": [
+        {
+          "name": "test_execution_environment_identity.py",
+          "command": [
+            "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+            "tools/test_execution_environment_identity.py",
+            "-v"
+          ],
+          "exit_code": 0,
+          "seconds": 0.7032275199890137,
+          "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\test_execution_environment_identity.py.log"
+        },
+        {
+          "name": "test_diagnostic_companion.py",
+          "command": [
+            "C:/Users/sneak/AppData/Local/RNS8/dependencies/python.3.15.1/tools/python.exe",
+            "tools/test_diagnostic_companion.py",
+            "-v"
+          ],
+          "exit_code": 0,
+          "seconds": 0.391559362411499,
+          "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\test_diagnostic_companion.py.log"
+        },
+        {
+          "name": "configured-python-self-tests",
+          "command": [
+            "C:\\Users\\sneak\\AppData\\Local\\RNS8\\dependencies\\python.3.15.1\\tools\\Scripts\\ctest.exe",
+            "--test-dir",
+            "build/validation-20261025-gpu",
+            "-R",
+            "^(stream_capacity_collector_contracts|stream_capacity_fixture_contracts|large_address_collector_contracts|residue_dot_collector_contracts|queue_calibration_contracts|hipblaslt_metadata_contracts|rocwmma_packing_contracts|host_transfer_collector_contracts|streaming_measurement_contracts|public_measurement_contracts|wide_magnitude_receipts|ci_benchmark_smoke|observation_cohorts|finite_distribution_report_self_test|rns_chain_report_self_test|measurement_evidence_contracts|tooling_contract_regressions|dependency_policy_self_test|documentation_self_test|dependency_resolution_self_test|locality_schedule_self_test|calibration_manifest_self_test|narrow_public_collector_self_test|int4_public_collector_self_test|public_epilogue_collector_self_test|native_calibration_collector_self_test|finite_verify_collector_self_test|block_sparse_collector_self_test|wrap64_calibration_collector_self_test|arithmetic_composition_self_test|modulus_generator_self_test|native_wmma_generator_self_test|block_gemm_research_self_test|cpu_amx_collector_self_test|native_integrity_collector_self_test|native_interop_collector_self_test|lift_recipe_collector_self_test|product_stage_collector_self_test|bilinear_collector_self_test|rank23_october55_self_test|rank23_slp_self_test|residue_integrity_self_test|analytical_planner_self_test|planning_recipe_self_test|modulus_scheme_optimizer_self_test|encoding_catalogue_self_test|instruction_roof_collector_self_test|split_k_collector_self_test|ragged_collector_self_test|stream_panel_collector_self_test|word_mod_calibration_collector_self_test|crt_calibration_collector_self_test|crt_research_self_test|floating_rewrite_oracle_self_test|arithmetic_certificate_self_test|build_manifest_self_test|performance_dashboard_self_test|gpu_qualification_self_test|benchmark_schema_self_test|benchmark_schema_execution_modes_self_test|benchmark_schema_contract_metadata_self_test|benchmark_schema_helper_metadata_self_test|benchmark_schema_backend_metadata_self_test|benchmark_schema_semantic_contracts_self_test|benchmark_schema_reuse_timing_self_test|benchmark_schema_gpu_events_self_test|benchmark_schema_output_policies_self_test|metadata_registry_self_test|claim_validation_self_test|benchmark_sweep_self_test|benchmark_sweep_failure_summary_self_test|evidence_database_self_test|gpu_counter_report_self_test|gpu_isa_report_self_test|amd_matrix_instruction_report_self_test|target_validation_report_self_test|cdna_env_summary_self_test|cdna_scripts_self_test|report_capture_inputs_self_test|tile_shape_report_self_test|starfoundry_report_self_test|adaptive_grouped_scheduler_report_self_test|perf_variance_report_self_test|error_detection_policy_report_self_test|fhe_workload_report_self_test|cpu_small_shape_selector_report_self_test|incremental_result_cache_report_self_test|shape_family_shadow_report_self_test|autotune_cache_install_self_test|benchmark_reuse_packed_inputs_smoke|benchmark_exact_wide_smoke|dependency_checker_self_test|release_tree_self_test|bootstrap_rocm_accelerators_dry_run_self_test|benchmark_auto_backend_smoke|benchmark_auto_default_cache_hit_hipblaslt|benchmark_auto_default_cache_exact_wide_hit_hipblaslt|benchmark_auto_default_cache_finite_field_hit_hipblaslt|benchmark_auto_default_cache_hit_ck|benchmark_auto_default_cache_exact_wide_hit_ck|benchmark_auto_default_cache_finite_ring_hit_ck|benchmark_rocwmma_wrap64_candidate_smoke|benchmark_auto_default_cache_hit_rocwmma|benchmark_auto_default_cache_exact_wide_hit_rocwmma|benchmark_auto_default_cache_finite_field_hit_rocwmma|benchmark_vector_alu_baseline_smoke|benchmark_result_compare_self_test|inspect_cli_hard_cut_diagnostics|workload_report_tooling|workload_installed_public_consumer|workload_installed_public_gpu_consumer)$",
+            "--output-on-failure",
+            "-j",
+            "1",
+            "--output-junit",
+            "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\ctest.xml"
+          ],
+          "exit_code": 0,
+          "seconds": 188.9247829914093,
+          "log": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\configured-python-self-tests.log"
+        }
+      ],
+      "campaign_resumed": false
+    },
+    "receipt_sha256": "c4710c524105237ae50b5145401b3cf889320217dc0d79697c14843161d4d0bb",
+    "xml_sha256": "5739fc2973c252076d4b15123a4dd8606c714563f6ef57c57134a4b9e3abf9d4",
+    "logs": [
+      {
+        "name": "test_execution_environment_identity.py",
+        "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\test_execution_environment_identity.py.log",
+        "sha256": "d37ded806f2929316d39f9a022b27b2b2ef2be81bb92551025b04177febde430"
+      },
+      {
+        "name": "test_diagnostic_companion.py",
+        "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\test_diagnostic_companion.py.log",
+        "sha256": "7bdd659906137748ff06236cff41036ea518fa33c8c802f8f9553afe88707812"
+      },
+      {
+        "name": "configured-python-self-tests",
+        "path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\worktrees\\correlation-range-20261011\\temp\\validation-20261026\\environment-identity-pass\\configured-python-self-tests.log",
+        "sha256": "a903e5d4064c8c8d12a7a1277260d2a48032b308d8c93a52b1d9c98466bdbaad"
+      }
+    ],
+    "inventory_preflight": {
+      "tests_executed": 0,
+      "reason": "Detected unregistered diagnostic suite before execution; preserved preflight and added direct coverage plus CTest registration."
+    },
+    "scope_clarification": "Configured Python self-tests include small compiled-CLI correctness smokes. No C++ rebuild, performance campaign or unchanged logical-proof rerun was performed.",
+    "receipt_normalization": "Only scope wording is clarified here; the original ignored execution receipt is preserved and identified by receipt_sha256."
+  },
+  "source_files": [
+    {
+      "path": "tools/benchmark_request.py",
+      "sha256": "2dc366ba4f9cd76c8e8a4bd8fca977641d66c88c47adf0259225dfa4be0a1fbe"
+    },
+    {
+      "path": "tools/perf_variance_report.py",
+      "sha256": "075138db283be7250c1febad06273e1c81b115b9d67d0782b818710cf5e008f9"
+    },
+    {
+      "path": "tools/observation_cohorts.py",
+      "sha256": "548f1bcf5ec52332ced7ac6869561c0bd5955118020f69aa0a0731b36bf131e2"
+    },
+    {
+      "path": "tools/promotion_ledger.py",
+      "sha256": "533ad2f13abb31d74915161c6d2facdc1eb12c51b45a9036b8189ac1cf2c69a2"
+    },
+    {
+      "path": "tools/test_capture_identity_support.py",
+      "sha256": "962a98d09b129103344bc2819583f0daad57846f12e673123a8f9903e32d18af"
+    },
+    {
+      "path": "tools/test_execution_environment_identity.py",
+      "sha256": "e3748e7e0722352c015f98e832f06330d7c09d3cccde22d4503e5b1cd96c4ecf"
+    }
+  ],
+  "cpp_kernel_sources_unchanged_since": "287737d917d412fc8daf777189a146182a359d67",
+  "campaign_resumed": false,
+  "hardware_performance_claimed": false
+}

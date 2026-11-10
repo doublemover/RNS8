@@ -1,0 +1,5 @@
+# Included after project() so compiler probes remain independent of target instrumentation.
+add_compile_options(/fsanitize=address)
+add_compile_definitions(_DISABLE_STL_ANNOTATION _DISABLE_STRING_ANNOTATION _DISABLE_VECTOR_ANNOTATION)
+link_libraries("@RNS8_CLANG_ASAN_LIB@" "@RNS8_CLANG_ASAN_THUNK_LIB@")
+add_link_options("/wholearchive:@RNS8_CLANG_ASAN_THUNK_LIB@")

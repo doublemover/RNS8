@@ -4,23 +4,21 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     return run_exact_wide_signed_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<int64_t> dist(-16, 16);
   std::vector<int64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<int64_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
-  std::vector<uint64_t> C(
-      output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
+  std::vector<uint64_t> C(output_limb_elements(args, args.exact_wide_limb_count, "C"),
+                          UINT64_C(0x5a5a5a5a5a5a5a5a));
   const bool compact_d2h_export_candidate =
       args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
-  const bool tree_crt_export_candidate =
-      args.export_variant == "tree-crt-export-candidate" && args.reconstruction_variant == "tree_crt_candidate";
   std::vector<uint64_t> compact_export_C(
       compact_d2h_export_candidate
-          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide signed export")
+          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count,
+                                  "compact exact-wide signed export")
           : 0,
       UINT64_C(0x5a5a5a5a5a5a5a5a));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_exact_wide_benchmark_input(args, A, rng);
+  fill_exact_wide_benchmark_input(args, B, rng);
   if (args.sparse_a_4_to_2) {
     fill_sparse_a_4_to_2_bounded_i64_input(args, A, rng);
   }
@@ -30,7 +28,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -41,7 +40,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_workspace", status);
   capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
@@ -54,26 +54,46 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   rns8_prepack_cache* b_prepack_cache = nullptr;
   rns8_result_cache* result_cache = nullptr;
   std::vector<rns8_dirty_region> result_cache_dirty_regions;
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  admit_exact_wide_benchmark_input(args, A, B, matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
+  if (residue_chain_independent_final_export_requested(args)) {
+    const auto product = rns8::detail::modulus_product(matrix_prefix);
+    result.chain_intermediate_prefix = matrix_prefix;
+    result.chain_intermediate_basis_product = product.str();
+    result.chain_intermediate_limb_count =
+        rns8::bench::exact_wide_materialization_limb_count(product);
+  }
+  std::vector<uint64_t> intermediate_C(
+      result.chain_intermediate_limb_count != 0
+          ? checked_limb_elements(args.m, args.n, result.chain_intermediate_limb_count,
+                                  "independent chain intermediate")
+          : 0);
+  result.chain_intermediate_host_bytes =
+      checked_bytes(intermediate_C.size(), sizeof(uint64_t), "independent chain intermediate");
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   if (use_sparse_a_4_to_2) {
     rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
     status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_sparse_matrix(A)", status);
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(A)", status);
   }
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(C)", status);
   if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(chain scratch)", status);
   }
   if (incremental_result_cache_runtime_candidate_requested(args, selected_backend)) {
     result_cache = create_benchmark_result_cache(ctx, plan);
@@ -84,23 +104,29 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_sparse_a_4_to_2) {
-      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
-      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
-      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      const std::vector<uint8_t> sparse_planes =
+          make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(),
+                                                   args.k, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
       return;
     }
     status = rns8_pack_i64(ctx, a_matrix, A.data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(A)", status);
   };
   const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_i64(ctx, b_matrix, B.data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
-    const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    const PackOperandTiming setup_pack_timing =
+        pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -110,50 +136,38 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       setup_runtime_cache_us = elapsed_us(cache_start, cache_end);
     }
     const auto prepack_end = std::chrono::steady_clock::now();
-    record_prepack_setup_timing(
-        result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, setup_runtime_cache_us);
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing,
+                                setup_runtime_cache_us);
   }
 
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
+  const auto export_signed_view = [&](rns8_matrix* matrix, uint64_t* output, int64_t output_ld,
+                                      uint32_t limbs, const char* label) {
+    status = export_exact_wide_benchmark_view(ctx, plan, matrix, args, selected_backend, true,
+                                              output, output_ld, limbs);
+    if (status != RNS8_SUCCESS)
+      fail_status(label, status);
+  };
   const auto export_signed_limbs = [&](rns8_matrix* matrix, const char* label) {
-    if (tree_crt_export_candidate && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
-      status = rns8::detail::hip_direct_export_exact_wide_signed_tree_crt_limbs_device(
-          matrix->hip_device_id,
-          matrix->hip_residues,
-          &matrix->hip_export_buffer,
-          &matrix->hip_export_bytes,
-          &matrix->hip_status_buffer,
-          &matrix->hip_status_bytes,
-          args.m,
-          args.n,
-          matrix->prefix,
-          C.data(),
-          ldc,
-          args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status(label, status);
-      return;
-    }
     if (compact_d2h_export_candidate) {
-      status = rns8_export_exact_wide_signed_limbs(
-          ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status(label, status);
-      copy_compact_limb_output(
-          compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count, "compact exact-wide signed export");
-      return;
+      export_signed_view(matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count,
+                         label);
+      copy_compact_limb_output(compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count,
+                               "compact exact-wide signed export");
+    } else {
+      export_signed_view(matrix, C.data(), ldc, args.exact_wide_limb_count, label);
     }
-    status = rns8_export_exact_wide_signed_limbs(ctx, plan, matrix, C.data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status(label, status);
   };
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -166,7 +180,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
         phase_start = std::chrono::steady_clock::now();
-        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr,
+                                                    c_matrix, workspace);
         if (status != RNS8_SUCCESS) {
           fail_status("rns8_gemm_rns(exact-wide signed independent final-output chain)", status);
         }
@@ -174,19 +189,26 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
         gemm_total_us += elapsed_us(phase_start, phase_end);
 
         phase_start = std::chrono::steady_clock::now();
-        export_signed_limbs(c_matrix, "rns8_export_exact_wide_signed_limbs(independent final-output chain)");
+        if (chain_index + 1 == args.residue_chain_length) {
+          export_signed_limbs(c_matrix, "exact-wide signed final chain export");
+        } else {
+          export_signed_view(c_matrix, intermediate_C.data(), args.n,
+                             result.chain_intermediate_limb_count,
+                             "exact-wide signed intermediate chain export");
+        }
         phase_end = std::chrono::steady_clock::now();
         export_total_us += elapsed_us(phase_start, phase_end);
 
         if (chain_index + 1 < args.residue_chain_length) {
           phase_start = std::chrono::steady_clock::now();
-          status = pack_exact_wide_limbs_as_rns(
-              ctx, a_matrix, C.data(), ldc, args.exact_wide_limb_count, true, source_version + chain_index + 2);
+          status = pack_exact_wide_limbs_as_rns(ctx, a_matrix, intermediate_C.data(), args.n,
+                                                result.chain_intermediate_limb_count, true,
+                                                source_version + chain_index + 2);
           if (status != RNS8_SUCCESS) {
             fail_status("pack_exact_wide_signed_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }
@@ -217,7 +239,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -236,27 +259,19 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       const uint32_t dirty_region_count =
           result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
       if (use_sparse_a_4_to_2) {
-        status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+        status =
+            rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
       } else {
         status = run_rns_gemm_with_optional_b_cache(
-            ctx,
-            plan,
-            lhs_matrix,
-            b_matrix,
-            b_prepack_cache,
-            out_matrix,
-            workspace,
-            result_cache,
-            dirty_regions,
-            dirty_region_count);
+            ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace, result_cache,
+            dirty_regions, dirty_region_count);
       }
       if (status != RNS8_SUCCESS) {
-        fail_status(
-            use_sparse_a_4_to_2
-                ? "rns8_gemm_rns_sparse_a"
-                : result_cache ? "rns8_gemm_rns_incremental"
-                               : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
-            status);
+        fail_status(use_sparse_a_4_to_2 ? "rns8_gemm_rns_sparse_a"
+                    : result_cache
+                        ? "rns8_gemm_rns_incremental"
+                        : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+                    status);
       }
       final_output_matrix = out_matrix;
       lhs_matrix = out_matrix;
@@ -267,7 +282,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
       if (result_cache) {
         collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
       } else {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events,
+                                    b_prepack_cache != nullptr);
       }
     }
     end_gpu_event_phase(collect_gpu_events);
@@ -287,7 +303,8 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
     }
 
     if (samples) {
-      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0
+                                                                : elapsed_us(pack_start, pack_end));
       record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
@@ -296,30 +313,37 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
   };
 
   if (hip_graph_replay_full_exact_wide_pack_export_requested(args)) {
-    run_hip_graph_replay_exact_wide_pack_gemm_export(
-        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, latest_output_matrix);
+    run_hip_graph_replay_exact_wide_pack_gemm_export(args, result, plan, a_matrix, b_matrix,
+                                                     c_matrix, A, B, C, latest_output_matrix);
   } else if (hip_graph_replay_requested(args)) {
-    run_hip_graph_replay_resident_chain(
-        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+    run_hip_graph_replay_resident_chain(args, result, plan, a_matrix, b_matrix, c_matrix,
+                                        scratch_matrix, latest_output_matrix);
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+    run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
-    export_signed_limbs(latest_output_matrix, "rns8_export_exact_wide_signed_limbs(final chain checksum)");
+    export_signed_limbs(latest_output_matrix,
+                        "rns8_export_exact_wide_signed_limbs(final chain checksum)");
   }
+  verify_exact_wide_benchmark_output(args, A, B, C, result);
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
     pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
-    const rns8_status stale_status =
-        rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    const rns8_status stale_status = rns8_gemm_rns_incremental(
+        ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
     if (stale_status == RNS8_SUCCESS) {
       fail_status("rns8_gemm_rns_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
     }
@@ -328,11 +352,13 @@ BenchmarkResult run_exact_wide_signed(rns8_context* ctx, const Args& args, uint6
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
-    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_destroy_prepack_cache(B)", status);
   }
   if (result_cache) {
     status = rns8_destroy_result_cache(result_cache);
-    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_destroy_result_cache", status);
   }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);
@@ -356,23 +382,21 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     return run_exact_wide_unsigned_host_api_batch(ctx, args, bound);
   }
   std::mt19937_64 rng(args.seed);
-  std::uniform_int_distribution<uint64_t> dist(0, 16);
   std::vector<uint64_t> A(checked_elements(args.m, args.k, "A"));
   std::vector<uint64_t> B(checked_elements(args.k, args.n, "B"));
   const int64_t ldc = output_logical_ld(args);
-  std::vector<uint64_t> C(
-      output_limb_elements(args, args.exact_wide_limb_count, "C"), UINT64_C(0x5a5a5a5a5a5a5a5a));
+  std::vector<uint64_t> C(output_limb_elements(args, args.exact_wide_limb_count, "C"),
+                          UINT64_C(0x5a5a5a5a5a5a5a5a));
   const bool compact_d2h_export_candidate =
       args.export_variant == "compact-d2h-export-candidate" && args.output_ld_padding > 0;
-  const bool tree_crt_export_candidate =
-      args.export_variant == "tree-crt-export-candidate" && args.reconstruction_variant == "tree_crt_candidate";
   std::vector<uint64_t> compact_export_C(
       compact_d2h_export_candidate
-          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count, "compact exact-wide unsigned export")
+          ? checked_limb_elements(args.m, args.n, args.exact_wide_limb_count,
+                                  "compact exact-wide unsigned export")
           : 0,
       UINT64_C(0x5a5a5a5a5a5a5a5a));
-  for (auto& value : A) value = dist(rng);
-  for (auto& value : B) value = dist(rng);
+  fill_exact_wide_benchmark_input(args, A, rng);
+  fill_exact_wide_benchmark_input(args, B, rng);
   if (args.sparse_a_4_to_2) {
     fill_sparse_a_4_to_2_bounded_u64_input(args, A, rng);
   }
@@ -382,7 +406,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -393,7 +418,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   result.gpu_events.requested = gpu_event_capture_requested(args, selected_backend);
   rns8_workspace* workspace = nullptr;
   status = rns8_create_workspace(ctx, plan, &workspace);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_workspace", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_workspace", status);
   capture_workspace_arena_info(workspace, result);
   const auto plan_end = std::chrono::steady_clock::now();
   result.plan_us = elapsed_us(plan_start, plan_end);
@@ -406,26 +432,46 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   rns8_prepack_cache* b_prepack_cache = nullptr;
   rns8_result_cache* result_cache = nullptr;
   std::vector<rns8_dirty_region> result_cache_dirty_regions;
-  const auto alloc_start = std::chrono::steady_clock::now();
   const uint32_t matrix_prefix = selected_execution_prefix(args, result);
+  admit_exact_wide_benchmark_input(args, A, B, matrix_prefix, result);
+  const auto alloc_start = std::chrono::steady_clock::now();
+  if (residue_chain_independent_final_export_requested(args)) {
+    const auto product = rns8::detail::modulus_product(matrix_prefix);
+    result.chain_intermediate_prefix = matrix_prefix;
+    result.chain_intermediate_basis_product = product.str();
+    result.chain_intermediate_limb_count =
+        rns8::bench::exact_wide_materialization_limb_count(product);
+  }
+  std::vector<uint64_t> intermediate_C(
+      result.chain_intermediate_limb_count != 0
+          ? checked_limb_elements(args.m, args.n, result.chain_intermediate_limb_count,
+                                  "independent chain intermediate")
+          : 0);
+  result.chain_intermediate_host_bytes =
+      checked_bytes(intermediate_C.size(), sizeof(uint64_t), "independent chain intermediate");
   auto a_desc = matrix_desc(args.m, args.k, args, matrix_prefix);
   auto b_desc = matrix_desc(args.k, args.n, args, matrix_prefix);
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   if (use_sparse_a_4_to_2) {
     rns8_sparse_matrix_desc sparse_desc = sparse_a_4_to_2_rns_desc(args, matrix_prefix);
     status = rns8_create_sparse_matrix(ctx, &sparse_desc, &sparse_a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_sparse_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_sparse_matrix(A)", status);
   } else {
     status = rns8_create_matrix(ctx, &a_desc, &a_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(A)", status);
   }
   status = rns8_create_matrix(ctx, &b_desc, &b_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(B)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(B)", status);
   status = rns8_create_matrix(ctx, &c_desc, &c_matrix);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(C)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_matrix(C)", status);
   if (rns_residue_chain_requested(args)) {
     status = rns8_create_matrix(ctx, &c_desc, &scratch_matrix);
-    if (status != RNS8_SUCCESS) fail_status("rns8_create_matrix(chain scratch)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_create_matrix(chain scratch)", status);
   }
   if (incremental_result_cache_runtime_candidate_requested(args, selected_backend)) {
     result_cache = create_benchmark_result_cache(ctx, plan);
@@ -436,23 +482,29 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
   const auto pack_a_input = [&](uint64_t source_version) {
     if (use_sparse_a_4_to_2) {
-      const std::vector<uint8_t> sparse_planes = make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
-      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(), args.k, source_version);
-      if (status != RNS8_SUCCESS) fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
+      const std::vector<uint8_t> sparse_planes =
+          make_sparse_a_4_to_2_rns_planes(args, matrix_prefix, A);
+      status = rns8_pack_sparse_a_4_to_2_matrix_u8(ctx, sparse_a_matrix, sparse_planes.data(),
+                                                   args.k, source_version);
+      if (status != RNS8_SUCCESS)
+        fail_status("rns8_pack_sparse_a_4_to_2_matrix_u8(A)", status);
       return;
     }
     status = rns8_pack_u64(ctx, a_matrix, A.data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(A)", status);
   };
   const auto pack_b_input = [&](uint64_t source_version) {
     status = rns8_pack_u64(ctx, b_matrix, B.data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(B)", status);
   };
   if (args.reuse_packed_inputs) {
     const auto prepack_start = std::chrono::steady_clock::now();
     result.prepack_reuse_strategy = PrepackReuseStrategy::PersistentMatrixResidency;
-    const PackOperandTiming setup_pack_timing = pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
-    uint64_t setup_runtime_cache_us = 0;
+    const PackOperandTiming setup_pack_timing =
+        pack_preused_inputs_timed(args, 1, pack_a_input, pack_b_input);
+    double setup_runtime_cache_us = 0;
     if (should_probe_reusable_b_prepack_cache(args, selected_backend)) {
       const auto cache_start = std::chrono::steady_clock::now();
       if (maybe_create_reusable_b_prepack_cache(ctx, plan, b_matrix, &b_prepack_cache, result)) {
@@ -462,50 +514,38 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       setup_runtime_cache_us = elapsed_us(cache_start, cache_end);
     }
     const auto prepack_end = std::chrono::steady_clock::now();
-    record_prepack_setup_timing(
-        result, elapsed_us(prepack_start, prepack_end), setup_pack_timing, setup_runtime_cache_us);
+    record_prepack_setup_timing(result, elapsed_us(prepack_start, prepack_end), setup_pack_timing,
+                                setup_runtime_cache_us);
   }
 
   rns8_matrix* latest_output_matrix = c_matrix;
   const bool chain_residue_output = residue_current_output_mode(args);
+  const auto export_unsigned_view = [&](rns8_matrix* matrix, uint64_t* output, int64_t output_ld,
+                                        uint32_t limbs, const char* label) {
+    status = export_exact_wide_benchmark_view(ctx, plan, matrix, args, selected_backend, false,
+                                              output, output_ld, limbs);
+    if (status != RNS8_SUCCESS)
+      fail_status(label, status);
+  };
   const auto export_unsigned_limbs = [&](rns8_matrix* matrix, const char* label) {
-    if (tree_crt_export_candidate && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
-      status = rns8::detail::hip_direct_export_exact_wide_unsigned_tree_crt_limbs_device(
-          matrix->hip_device_id,
-          matrix->hip_residues,
-          &matrix->hip_export_buffer,
-          &matrix->hip_export_bytes,
-          &matrix->hip_status_buffer,
-          &matrix->hip_status_bytes,
-          args.m,
-          args.n,
-          matrix->prefix,
-          C.data(),
-          ldc,
-          args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status(label, status);
-      return;
-    }
     if (compact_d2h_export_candidate) {
-      status = rns8_export_exact_wide_unsigned_limbs(
-          ctx, plan, matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count);
-      if (status != RNS8_SUCCESS) fail_status(label, status);
-      copy_compact_limb_output(
-          compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count, "compact exact-wide unsigned export");
-      return;
+      export_unsigned_view(matrix, compact_export_C.data(), args.n, args.exact_wide_limb_count,
+                           label);
+      copy_compact_limb_output(compact_export_C, C, args.m, args.n, ldc, args.exact_wide_limb_count,
+                               "compact exact-wide unsigned export");
+    } else {
+      export_unsigned_view(matrix, C.data(), ldc, args.exact_wide_limb_count, label);
     }
-    status = rns8_export_exact_wide_unsigned_limbs(ctx, plan, matrix, C.data(), ldc, args.exact_wide_limb_count);
-    if (status != RNS8_SUCCESS) fail_status(label, status);
   };
 
   const auto run_iteration = [&](uint64_t source_version, TimingSamples* samples) {
     const bool collect_gpu_events = samples != nullptr && result.gpu_events.requested;
     const auto repeat_start = std::chrono::steady_clock::now();
     if (residue_chain_independent_final_export_requested(args)) {
-      uint64_t pack_total_us = 0;
+      double pack_total_us = 0;
       PackOperandTiming pack_operand_timing{};
-      uint64_t gemm_total_us = 0;
-      uint64_t export_total_us = 0;
+      double gemm_total_us = 0;
+      double export_total_us = 0;
       begin_gpu_event_phase(collect_gpu_events);
 
       auto phase_start = std::chrono::steady_clock::now();
@@ -518,7 +558,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
       for (uint32_t chain_index = 0; chain_index < args.residue_chain_length; ++chain_index) {
         phase_start = std::chrono::steady_clock::now();
-        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr, c_matrix, workspace);
+        status = run_rns_gemm_with_optional_b_cache(ctx, plan, a_matrix, b_matrix, nullptr,
+                                                    c_matrix, workspace);
         if (status != RNS8_SUCCESS) {
           fail_status("rns8_gemm_rns(exact-wide unsigned independent final-output chain)", status);
         }
@@ -526,19 +567,26 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
         gemm_total_us += elapsed_us(phase_start, phase_end);
 
         phase_start = std::chrono::steady_clock::now();
-        export_unsigned_limbs(c_matrix, "rns8_export_exact_wide_unsigned_limbs(independent final-output chain)");
+        if (chain_index + 1 == args.residue_chain_length) {
+          export_unsigned_limbs(c_matrix, "exact-wide unsigned final chain export");
+        } else {
+          export_unsigned_view(c_matrix, intermediate_C.data(), args.n,
+                               result.chain_intermediate_limb_count,
+                               "exact-wide unsigned intermediate chain export");
+        }
         phase_end = std::chrono::steady_clock::now();
         export_total_us += elapsed_us(phase_start, phase_end);
 
         if (chain_index + 1 < args.residue_chain_length) {
           phase_start = std::chrono::steady_clock::now();
-          status = pack_exact_wide_limbs_as_rns(
-              ctx, a_matrix, C.data(), ldc, args.exact_wide_limb_count, false, source_version + chain_index + 2);
+          status = pack_exact_wide_limbs_as_rns(ctx, a_matrix, intermediate_C.data(), args.n,
+                                                result.chain_intermediate_limb_count, false,
+                                                source_version + chain_index + 2);
           if (status != RNS8_SUCCESS) {
             fail_status("pack_exact_wide_unsigned_limbs_as_rns(intermediate chain output)", status);
           }
           phase_end = std::chrono::steady_clock::now();
-          const uint64_t intermediate_pack_us = elapsed_us(phase_start, phase_end);
+          const double intermediate_pack_us = elapsed_us(phase_start, phase_end);
           pack_operand_timing.a_us += intermediate_pack_us;
           pack_total_us += intermediate_pack_us;
         }
@@ -569,7 +617,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       }
     } else {
       begin_gpu_event_phase(collect_gpu_events);
-      pack_operand_timing = pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
+      pack_operand_timing =
+          pack_per_repeat_inputs_timed(args, source_version, pack_a_input, pack_b_input);
       if (collect_gpu_events) {
         collect_pack_gpu_events(args, selected_backend, result.gpu_events);
       }
@@ -588,27 +637,19 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       const uint32_t dirty_region_count =
           result_cache ? static_cast<uint32_t>(result_cache_dirty_regions.size()) : 0;
       if (use_sparse_a_4_to_2) {
-        status = rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
+        status =
+            rns8_gemm_rns_sparse_a(ctx, plan, sparse_a_matrix, b_matrix, out_matrix, workspace);
       } else {
         status = run_rns_gemm_with_optional_b_cache(
-            ctx,
-            plan,
-            lhs_matrix,
-            b_matrix,
-            b_prepack_cache,
-            out_matrix,
-            workspace,
-            result_cache,
-            dirty_regions,
-            dirty_region_count);
+            ctx, plan, lhs_matrix, b_matrix, b_prepack_cache, out_matrix, workspace, result_cache,
+            dirty_regions, dirty_region_count);
       }
       if (status != RNS8_SUCCESS) {
-        fail_status(
-            use_sparse_a_4_to_2
-                ? "rns8_gemm_rns_sparse_a"
-                : result_cache ? "rns8_gemm_rns_incremental"
-                               : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
-            status);
+        fail_status(use_sparse_a_4_to_2 ? "rns8_gemm_rns_sparse_a"
+                    : result_cache
+                        ? "rns8_gemm_rns_incremental"
+                        : (b_prepack_cache ? "rns8_gemm_rns_prepacked_b" : "rns8_gemm_rns"),
+                    status);
       }
       final_output_matrix = out_matrix;
       lhs_matrix = out_matrix;
@@ -619,7 +660,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
       if (result_cache) {
         collect_incremental_result_cache_gemm_gpu_events(args, result.gpu_events);
       } else {
-        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events, b_prepack_cache != nullptr);
+        collect_rns_gemm_gpu_events(args, selected_backend, result, result.gpu_events,
+                                    b_prepack_cache != nullptr);
       }
     }
     end_gpu_event_phase(collect_gpu_events);
@@ -639,7 +681,8 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
     }
 
     if (samples) {
-      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0 : elapsed_us(pack_start, pack_end));
+      samples->pack_us.push_back(reuses_all_packed_inputs(args) ? 0
+                                                                : elapsed_us(pack_start, pack_end));
       record_pack_operand_timing(samples, pack_operand_timing);
       samples->gemm_us.push_back(elapsed_us(gemm_start, gemm_end));
       samples->export_us.push_back(elapsed_us(export_start, export_end));
@@ -648,30 +691,37 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
   };
 
   if (hip_graph_replay_full_exact_wide_pack_export_requested(args)) {
-    run_hip_graph_replay_exact_wide_pack_gemm_export(
-        args, result, plan, a_matrix, b_matrix, c_matrix, A, B, C, latest_output_matrix);
+    run_hip_graph_replay_exact_wide_pack_gemm_export(args, result, plan, a_matrix, b_matrix,
+                                                     c_matrix, A, B, C, latest_output_matrix);
   } else if (hip_graph_replay_requested(args)) {
-    run_hip_graph_replay_resident_chain(
-        args, result, plan, a_matrix, b_matrix, c_matrix, scratch_matrix, latest_output_matrix);
+    run_hip_graph_replay_resident_chain(args, result, plan, a_matrix, b_matrix, c_matrix,
+                                        scratch_matrix, latest_output_matrix);
   } else {
     for (uint32_t r = 0; r < args.warmups; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::warmup, r);
       run_iteration(static_cast<uint64_t>(r) + 1, nullptr);
     }
     record_allocation_after_warmups(result);
     for (uint32_t r = 0; r < args.repeats; ++r) {
+      [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+          rns8::detail::trace::Role::measured, r);
       run_iteration(static_cast<uint64_t>(args.warmups) + r + 1, &result.samples);
     }
     record_allocation_after_repeats(result);
+    run_public_sustained(args, result, [&](uint64_t version) { run_iteration(version, nullptr); });
   }
   if (chain_residue_output) {
-    export_unsigned_limbs(latest_output_matrix, "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");
+    export_unsigned_limbs(latest_output_matrix,
+                          "rns8_export_exact_wide_unsigned_limbs(final chain checksum)");
   }
+  verify_exact_wide_benchmark_output(args, A, B, C, result);
   result.checksum = checksum_limb_matrix(C, args.m, args.n, ldc, args.exact_wide_limb_count, "C");
   if (result_cache) {
     capture_incremental_result_cache_info(result, result_cache, result_cache_dirty_regions, true);
     pack_a_input(static_cast<uint64_t>(args.warmups) + static_cast<uint64_t>(args.repeats) + 1001u);
-    const rns8_status stale_status =
-        rns8_gemm_rns_incremental(ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
+    const rns8_status stale_status = rns8_gemm_rns_incremental(
+        ctx, plan, a_matrix, b_matrix, c_matrix, workspace, result_cache, nullptr, 0);
     if (stale_status == RNS8_SUCCESS) {
       fail_status("rns8_gemm_rns_incremental(expected stale rejection)", RNS8_INVALID_ARGUMENT);
     }
@@ -680,11 +730,13 @@ BenchmarkResult run_exact_wide_unsigned(rns8_context* ctx, const Args& args, uin
 
   if (b_prepack_cache) {
     status = rns8_destroy_prepack_cache(b_prepack_cache);
-    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_prepack_cache(B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_destroy_prepack_cache(B)", status);
   }
   if (result_cache) {
     status = rns8_destroy_result_cache(result_cache);
-    if (status != RNS8_SUCCESS) fail_status("rns8_destroy_result_cache", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_destroy_result_cache", status);
   }
   if (scratch_matrix) {
     rns8_destroy_matrix(scratch_matrix);

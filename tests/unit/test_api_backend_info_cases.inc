@@ -37,26 +37,22 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
   plan.desc.n = 64;
   plan.desc.k = 64;
   plan.backend_target_id = "gfx942";
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1");
 
   plan.desc.m = 128;
   plan.desc.n = 128;
   plan.desc.k = 128;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_centered_epilogue_v1");
 
   plan.backend_target_id = "gfx1100";
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_rdna3_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
 
   plan.backend_target_id = "gfx1201";
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_centered_epilogue_v1");
 
   plan.desc.semantics = RNS8_FINITE_FIELD_U8;
   plan.desc.finite_modulus = 251;
@@ -64,24 +60,21 @@ TEST_CASE("AMDGPU builtins plan kernel identity follows target and shape") {
   plan.desc.m = 64;
   plan.desc.n = 64;
   plan.desc.k = 64;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_finite_u8_epilogue_v1");
 
   plan.desc.m = 128;
   plan.desc.n = 128;
   plan.desc.k = 128;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_cdna3_mfma_i32_32x32x16_i8_finite_u8_epilogue_v1");
 
   plan.backend_target_id = "gfx1201";
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "amdgpu_builtin_rdna4_wmma_i32_16x16x16_iu8_finite_u8_epilogue_v1");
 }
 
-TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
+TEST_CASE("Explicit direct-HIP parallel skinny plans report their actual selected-prefix route") {
   rns8_plan plan{};
   plan.backend = RNS8_BACKEND_HIP_DIRECT;
   plan.prefix = RNS8_DEFAULT_BOUNDED_PREFIX;
@@ -89,57 +82,47 @@ TEST_CASE("Direct HIP bounded skinny plans report GEMV route metadata") {
   plan.desc.m = 512;
   plan.desc.n = 1;
   plan.desc.k = 512;
+  plan.desc.flags = RNS8_PLAN_DIRECT_RNS_PARALLEL;
 
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_n1_i64_v1");
-  CHECK(
-      rns8::detail::api::epilogue_mode_for_plan(plan) ==
-      "resident_rns_gemv_n1_centered_residue_then_crt_export");
-  CHECK(
-      rns8::detail::api::workspace_mode_for_plan(plan) ==
-      "resident_rns_inputs_skinny_n1_output");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_rns_gemv_n1_v1");
+  CHECK(rns8::detail::api::epilogue_mode_for_plan(plan) ==
+        "resident_rns_gemv_n1_centered_residue_then_crt_export");
+  CHECK(rns8::detail::api::workspace_mode_for_plan(plan) == "resident_rns_inputs_skinny_n1_output");
 
   plan.desc.semantics = RNS8_BOUNDED_U64;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_n1_u64_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_rns_gemv_n1_v1");
 
   plan.desc.n = 2;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_u64_v1");
-  CHECK(
-      rns8::detail::api::epilogue_mode_for_plan(plan) ==
-      "resident_rns_gemv_small_n_centered_residue_then_crt_export");
-  CHECK(
-      rns8::detail::api::workspace_mode_for_plan(plan) ==
-      "resident_rns_inputs_skinny_n_le8_output");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_rns_gemv_small_n_v1");
+  CHECK(rns8::detail::api::epilogue_mode_for_plan(plan) ==
+        "resident_rns_gemv_small_n_centered_residue_then_crt_export");
+  CHECK(rns8::detail::api::workspace_mode_for_plan(plan) ==
+        "resident_rns_inputs_skinny_n_le8_output");
 
   plan.desc.semantics = RNS8_BOUNDED_I64;
   plan.desc.n = 4;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_rns_gemv_small_n_v1");
 
   plan.desc.n = 8;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_rns_gemv_small_n_i64_v1");
-  CHECK(
-      rns8::detail::api::workspace_mode_for_plan(plan) ==
-      "resident_rns_inputs_skinny_n_le8_output");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_rns_gemv_small_n_v1");
+  CHECK(rns8::detail::api::workspace_mode_for_plan(plan) ==
+        "resident_rns_inputs_skinny_n_le8_output");
 
   plan.desc.n = 9;
-  CHECK(
-      rns8::detail::api::selected_kernel_for_plan(plan) ==
-      "direct_hip_prefix9_grouped_rns_gemm_v1");
+  CHECK(rns8::detail::api::selected_kernel_for_plan(plan) ==
+        "direct_hip_selected_prefix_grouped_rns_gemm_v1");
   CHECK(rns8::detail::api::workspace_mode_for_plan(plan) == "resident_device_buffers");
 }
 
 TEST_CASE("malformed accelerator plan descriptors fail before unsupported routing") {
   rns8_context* ctx = create_cpu_context();
-  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA, RNS8_BACKEND_AMDGPU_BUILTINS};
+  const rns8_backend_kind backends[] = {RNS8_BACKEND_CK, RNS8_BACKEND_ROCWMMA,
+                                        RNS8_BACKEND_AMDGPU_BUILTINS};
 
   for (const rns8_backend_kind backend : backends) {
     rns8_gemm_desc desc{};
@@ -181,7 +164,7 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   CHECK(cpu.is_accelerator == 0);
   CHECK(cpu.is_correctness_backend == 1);
   CHECK(cpu.compiled_kernel_available == 1);
-  CHECK(cpu.exact_differential_validated == 1);
+  CHECK(cpu.exact_differential_validated == 0);
   CHECK(cpu.performance_validated == 0);
   CHECK(std::string(cpu.status) == "implemented_correctness_backend");
   CHECK(std::string(cpu.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -212,16 +195,14 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_baseline_backend");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2");
+      CHECK(std::string(capability.selected_kernel) ==
+            "hipblaslt_int8_i32_scratch_reduce_specialized_251_255_256_v2");
       CHECK(std::string(capability.epilogue_mode) == "separate_i32_scratch_residue_reduce");
-      CHECK(
-          std::string(capability.isa_evidence) ==
-          "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256");
+      CHECK(std::string(capability.isa_evidence) ==
+            "hipblaslt_library_int8_matmul_specialized_reduce_251_255_256");
       continue;
     }
 #endif
@@ -232,20 +213,16 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_ck_backend");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3");
+      CHECK(std::string(capability.selected_kernel) ==
+            rns8::detail::compiled_ck_implementation().selected_kernel());
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue");
-#if RNS8_CK_USE_XDL
       CHECK(std::string(capability.workspace_mode) ==
-            "resident_device_buffers_with_ck_centered_pack_workspace");
-#else
-      CHECK(std::string(capability.workspace_mode) ==
-            "resident_device_buffers_with_ck_canonical_pack_workspace");
-#endif
+            (rns8::detail::compiled_ck_implementation().signed_operands
+                 ? "resident_device_buffers_with_ck_centered_pack_workspace"
+                 : "resident_device_buffers_with_ck_canonical_pack_workspace"));
       CHECK(std::string(capability.isa_evidence) == "ck_cshuffle_int8_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
@@ -261,14 +238,14 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_rocwmma_backend");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
+      CHECK(std::string(capability.selected_kernel) ==
+            "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2");
       CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_with_rocwmma_pack_workspace");
       CHECK(std::string(capability.isa_evidence) == "rocwmma_i8_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
@@ -284,16 +261,15 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
       CHECK(capability.enable_flag_fail_fast == 0);
       CHECK(capability.candidate_evidence_only == 0);
       CHECK(capability.compiled_kernel_available == 1);
-      CHECK(capability.exact_differential_validated == 1);
+      CHECK(capability.exact_differential_validated == 0);
       CHECK(capability.performance_validated == 0);
       CHECK(std::string(capability.status) == "implemented_opt_in_amdgpu_builtin_backend");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "amdgpu_builtin_matrix_core_target_family_runtime_dispatch_v1");
-      CHECK(
-          std::string(capability.epilogue_mode) ==
-          "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace");
+      CHECK(std::string(capability.selected_kernel) ==
+            "amdgpu_builtin_matrix_core_target_family_runtime_dispatch_v1");
+      CHECK(std::string(capability.epilogue_mode) ==
+            "amdgpu_builtin_fused_i32_to_centered_residue_then_chained_crt_export");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace");
       CHECK(std::string(capability.isa_evidence) == "amdgpu_builtin_matrix_isa_gate_no_divide");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
@@ -312,33 +288,35 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
     CHECK(std::string(capability.isa_evidence) == "not_validated");
     if (backend == RNS8_BACKEND_CK) {
       CHECK(std::string(capability.status) == "not_enabled_in_this_build");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3_disabled");
+      CHECK(std::string(capability.selected_kernel) ==
+            "ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3_disabled");
       CHECK(std::string(capability.epilogue_mode) == "ck_fused_i32_to_centered_residue_disabled");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_ck_pack_workspace_disabled");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_with_ck_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
     } else if (backend == RNS8_BACKEND_ROCWMMA) {
       CHECK(std::string(capability.status) == "not_enabled_in_this_build");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2_disabled");
-      CHECK(std::string(capability.epilogue_mode) == "rocwmma_fused_i32_to_centered_residue_disabled");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_with_rocwmma_pack_workspace_disabled");
+      CHECK(std::string(capability.selected_kernel) ==
+            "rocwmma_i8_i32_signed_mod251_255_256_hot_residue_v2_disabled");
+      CHECK(std::string(capability.epilogue_mode) ==
+            "rocwmma_fused_i32_to_centered_residue_disabled");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_with_rocwmma_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
       CHECK(capability.supports_wrap64 == 0);
     } else if (backend == RNS8_BACKEND_AMDGPU_BUILTINS) {
       CHECK(std::string(capability.status) == "not_compiled_in_this_build");
-      CHECK(
-          std::string(capability.selected_kernel) ==
-          "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled");
-      CHECK(std::string(capability.epilogue_mode) == "amdgpu_builtin_fused_i32_to_centered_residue_disabled");
-      CHECK(std::string(capability.workspace_mode) == "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace_disabled");
+      CHECK(std::string(capability.selected_kernel) ==
+            "amdgpu_builtin_cdna3_mfma_i32_16x16x32_i8_centered_epilogue_v1_disabled");
+      CHECK(std::string(capability.epilogue_mode) ==
+            "amdgpu_builtin_fused_i32_to_centered_residue_disabled");
+      CHECK(std::string(capability.workspace_mode) ==
+            "resident_device_buffers_direct_matrix_core_no_dense_pack_workspace_disabled");
       CHECK(capability.supports_bounded_rns == 1);
       CHECK(capability.supports_exact_wide_rns == 1);
       CHECK(capability.supports_finite_u8 == 1);
@@ -352,12 +330,14 @@ TEST_CASE("public backend capability info separates correctness and accelerator 
   rns8_backend_capability_info bad_abi{};
   bad_abi.struct_size = sizeof(bad_abi) - 1;
   bad_abi.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_backend_capability_info(RNS8_BACKEND_CPU_REFERENCE, &bad_abi) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_backend_capability_info(RNS8_BACKEND_CPU_REFERENCE, &bad_abi) ==
+        RNS8_INVALID_ARGUMENT);
 
   rns8_backend_capability_info unknown{};
   unknown.struct_size = sizeof(unknown);
   unknown.abi_version = RNS8_ABI_VERSION;
-  CHECK(rns8_get_backend_capability_info(static_cast<rns8_backend_kind>(999), &unknown) == RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_get_backend_capability_info(static_cast<rns8_backend_kind>(999), &unknown) ==
+        RNS8_INVALID_ARGUMENT);
 }
 
 TEST_CASE("public plan backend info exposes selected kernel and autotune contract") {
@@ -387,7 +367,7 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(info.is_correctness_backend == 1);
     CHECK(info.is_matrix_engine_backend == 0);
     CHECK(info.compiled_kernel_available == 1);
-    CHECK(info.exact_differential_validated == 1);
+    CHECK(info.exact_differential_validated == 0);
     CHECK(info.performance_validated == 0);
     CHECK(info.workspace_required_bytes == 0);
     CHECK(std::string(info.selected_kernel) == "cpu_reference_scalar_rns_gemm_v1");
@@ -408,11 +388,16 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.accumulator_type) == "int32");
     CHECK(std::string(info.accumulator_modulus_policy) == "selected_rns_modulus_ladder");
     CHECK(std::string(info.accumulator_safety_status) == "safe_int32_k_block_split");
-    CHECK(std::string(info.autotune_key).find("backend=cpu-reference;implementation_revision=4;target_id=cpu;semantics=bounded_u64") == 0);
+    CHECK(
+        std::string(info.autotune_key)
+            .find(
+                "backend=cpu-reference;implementation_revision=8;target_id=cpu;semantics=bounded_u64") ==
+        0);
     CHECK(std::string(info.autotune_key).find(";accumulator_type=int32;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_size=4;") != std::string::npos);
     CHECK(std::string(info.autotune_key).find(";k_block_cap=65536;") != std::string::npos);
-    CHECK(std::string(info.autotune_key).find(";kernel=cpu_reference_scalar_rns_gemm_v1;") != std::string::npos);
+    CHECK(std::string(info.autotune_key).find(";kernel=cpu_reference_scalar_rns_gemm_v1;") !=
+          std::string::npos);
 
     rns8_plan_backend_info bad_abi{};
     bad_abi.struct_size = sizeof(bad_abi) - 1;
@@ -456,7 +441,8 @@ TEST_CASE("public plan backend info exposes selected kernel and autotune contrac
     CHECK(std::string(info.accumulator_modulus_policy) == "mod_2_64_wraparound_byte_limb");
     CHECK(std::string(info.accumulator_safety_status) == "exact_mod_2_64_byte_limb_no_int32_k_cap");
     CHECK(std::string(info.autotune_key).find("semantics=wrap_u64_mod_2_64") != std::string::npos);
-    CHECK(std::string(info.autotune_key).find(";accumulator_type=uint64_wraparound_byte_limb;") != std::string::npos);
+    CHECK(std::string(info.autotune_key).find(";accumulator_type=uint64_wraparound_byte_limb;") !=
+          std::string::npos);
 
     rns8_destroy_plan(plan);
   }
@@ -486,7 +472,7 @@ TEST_CASE("public grouped dispatch contract info reports explicit grouped requir
   CHECK(info.same_shape_required == 1);
   CHECK(info.same_semantics_required == 1);
   CHECK(info.compact_row_major_required == 1);
-  CHECK(info.unique_matrix_handles_required == 1);
+  CHECK(info.unique_matrix_handles_required == 0);
   CHECK(info.unique_workspace_handles_required == 1);
   CHECK(info.same_plan_fingerprint_required == 1);
   CHECK(info.same_device_required == 1);
@@ -506,12 +492,16 @@ TEST_CASE("public grouped dispatch contract info reports explicit grouped requir
   CHECK(std::string(info.bucket_policy) == "single_same_shape_bucket");
   CHECK(std::string(info.source_version_policy) == "per_task_monotonic_source_version_repack");
   CHECK(std::string(info.workspace_policy) == "one_workspace_per_task_shared_plan");
-  CHECK(std::string(info.matrix_ownership_policy) == "caller_owns_unique_task_triplets_until_grouped_call_returns");
-  CHECK(std::string(info.descriptor_reuse_policy) == "reuse_after_shape_workspace_source_validation");
-  CHECK(std::string(info.stride_policy) == "matrix_ld_matches_logical_shape_host_output_ld_explicit");
+  CHECK(std::string(info.matrix_ownership_policy) ==
+        "caller_owns_unique_task_triplets_until_grouped_call_returns");
+  CHECK(std::string(info.descriptor_reuse_policy) ==
+        "reuse_after_shape_workspace_source_validation");
+  CHECK(std::string(info.stride_policy) ==
+        "matrix_ld_matches_logical_shape_host_output_ld_explicit");
   CHECK(std::string(info.output_currentness_policy) ==
         "device_residue_current_after_grouped_gemm_host_output_after_export");
-  CHECK(std::string(info.lifetime_policy) == "task_matrices_and_workspaces_valid_until_grouped_call_returns");
+  CHECK(std::string(info.lifetime_policy) ==
+        "task_matrices_and_workspaces_valid_until_grouped_call_returns");
   CHECK(std::string(info.checksum_policy) == "combined_per_task_checksum_u64");
   CHECK(std::string(info.status_policy) == "fail_fast_per_task_operation_status");
   CHECK(std::string(info.device_descriptor_policy) == "device_pointer_tables_and_compact_slabs");

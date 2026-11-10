@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .config import INPUT_PROFILES, SweepCase
 
+
 def parse_int(text: str, label: str) -> int:
     try:
         value = int(text, 10)
@@ -30,7 +31,9 @@ def parse_case(value: str, *, adaptive: bool = False, promotable: bool = True) -
     tile_n = parse_int(parts[4], "tile_n") if adaptive else 128
     input_profile = parts[5] if adaptive and len(parts) == 6 else "uniform-small"
     if input_profile not in INPUT_PROFILES:
-        raise SystemExit(f"adaptive input profile must be one of {sorted(INPUT_PROFILES)}, got {input_profile!r}")
+        raise SystemExit(
+            f"adaptive input profile must be one of {sorted(INPUT_PROFILES)}, got {input_profile!r}"
+        )
     if not name:
         prefix = "adaptive" if adaptive else "shape"
         name = f"{prefix}-{m}x{n}x{k}"
@@ -46,5 +49,3 @@ def parse_case(value: str, *, adaptive: bool = False, promotable: bool = True) -
         require_adaptive=adaptive,
         promotable=promotable,
     )
-
-

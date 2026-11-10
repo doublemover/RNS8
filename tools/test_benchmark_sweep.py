@@ -1,34 +1,50 @@
-#!/usr/bin/env python3
-"""Self-test benchmark sweep review and promotion helpers."""
+"""Aggregate independently runnable sweep contract tests."""
 
 from __future__ import annotations
 
-from pathlib import Path
+import unittest
+import test_benchmark_sweep_case_scenarios
+import test_benchmark_sweep_case_command_matrix
+import test_benchmark_sweep_case_large_resume
+import test_benchmark_sweep_case_chain_adaptive
+import test_benchmark_sweep_case_cli_review
+import test_benchmark_sweep_case_review_metadata
+import test_benchmark_sweep_case_cache_wrap_exact
 
-from test_benchmark_sweep_support import *  # noqa: F401,F403 - compatibility re-export
-
-_CASE_FRAGMENTS = [
-    "test_benchmark_sweep_case_scenarios.py",
-    "test_benchmark_sweep_case_command_matrix.py",
-    "test_benchmark_sweep_case_large_resume.py",
-    "test_benchmark_sweep_case_chain_adaptive.py",
-    "test_benchmark_sweep_case_cli_review.py",
-    "test_benchmark_sweep_case_review_metadata.py",
-    "test_benchmark_sweep_case_cache_wrap_exact.py",
-]
+import inspect
+import typing
+from benchmark_sweep_lib import commands, reports
 
 
-def _run_case_fragment(name: str, state: dict) -> None:
-    source = (Path(__file__).resolve().with_name(name)).read_text(encoding="utf-8")
-    exec(compile(source, name, "exec"), state, state)
+class RuntimeAnnotations(unittest.TestCase):
+    def test_public_helpers_support_runtime_type_hints(self) -> None:
+        for module in (commands, reports):
+            for _, function in inspect.getmembers(module, inspect.isfunction):
+                if function.__module__ == module.__name__:
+                    typing.get_type_hints(function)
+
+
+def load_tests(loader, tests, pattern):
+    suite = unittest.TestSuite([tests])
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_scenarios))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_command_matrix))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_large_resume))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_chain_adaptive))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_cli_review))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_review_metadata))
+    suite.addTests(loader.loadTestsFromModule(test_benchmark_sweep_case_cache_wrap_exact))
+    if suite.countTestCases() != 8:
+        raise RuntimeError("aggregate contract test inventory changed or became empty")
+    return suite
 
 
 def main() -> int:
-    state = dict(globals())
-    for fragment in _CASE_FRAGMENTS:
-        _run_case_fragment(fragment, state)
-    print("benchmark sweep self-test: PASS")
-    return 0
+    if not __debug__:
+        raise RuntimeError("contract assertions require non-optimized Python")
+    result = unittest.TextTestRunner(verbosity=2).run(
+        unittest.defaultTestLoader.loadTestsFromName(__name__)
+    )
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":

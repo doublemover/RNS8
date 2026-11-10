@@ -1,0 +1,21 @@
+{
+  "schema": "rns8_word_mod_cases_v1",
+  "cases": [
+    {"device": 0, "method": "baseline", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496},
+    {"device": 0, "method": "packed_dot4", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496, "left_digits": 2, "right_digits": 3, "slab_k": 17},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496, "left_digits": 3, "right_digits": 2, "slab_k": 17},
+    {"device": 0, "method": "baseline", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496},
+    {"device": 0, "method": "packed_dot4", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496, "left_digits": 2, "right_digits": 3, "slab_k": 17},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "ring", "modulus": 4503599627370496, "left_digits": 3, "right_digits": 2, "slab_k": 17},
+    {"device": 0, "method": "baseline", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521},
+    {"device": 0, "method": "packed_dot4", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521, "left_digits": 1, "right_digits": 2, "slab_k": 17},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "resident", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521, "left_digits": 2, "right_digits": 1, "slab_k": 17},
+    {"device": 0, "method": "baseline", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521},
+    {"device": 0, "method": "packed_dot4", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521, "left_digits": 1, "right_digits": 2, "slab_k": 17},
+    {"device": 0, "method": "asymmetric_binary64", "scope": "cold", "m": 3, "n": 5, "k": 17, "domain": "prime_field", "modulus": 65521, "left_digits": 2, "right_digits": 1, "slab_k": 17}
+  ]
+}

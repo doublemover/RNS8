@@ -10,6 +10,7 @@
 #include "backend_hip_direct/hip_backend.hpp"
 #include "core/internal.hpp"
 #include "rns8/rns8.h"
+#include "tool_common/build_identity.hpp"
 
 namespace {
 #include "rns8_verify_support.inc"
@@ -17,6 +18,9 @@ namespace {
 #include "rns8_verify_cpu_cases.inc"
 #include "rns8_verify_hip_smoke.inc"
 int main(int argc, char** argv) {
+  const int identity_status = rns8::tools::emit_build_identity(argc, argv, std::cout);
+  if (identity_status >= 0)
+    return identity_status;
   bool hip_smoke = false;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -40,7 +44,8 @@ int main(int argc, char** argv) {
     if (!verify_hip_smoke()) {
       return 1;
     }
-    std::cout << "Direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM, finite u8, and wrap64 smoke: PASS\n";
+    std::cout
+        << "Direct HIP pack, ring, bounded GEMM, adaptive bounded GEMM, finite u8, and wrap64 smoke: PASS\n";
   }
 
   return 0;

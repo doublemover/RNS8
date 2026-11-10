@@ -130,7 +130,9 @@ def load_review_index(review_reports: list[Path]) -> dict[str, dict[str, Any]]:
     return pending_validation.load_review_index(review_reports, repo_root=REPO_ROOT)
 
 
-def run_post_reports(captures: list[Path], out_dir: Path, shape_cache: Path | None) -> list[dict[str, Any]]:
+def run_post_reports(
+    captures: list[Path], out_dir: Path, shape_cache: Path | None
+) -> list[dict[str, Any]]:
     return pending_validation.run_post_reports(CONFIG, captures, out_dir, shape_cache)
 
 
@@ -140,7 +142,9 @@ def write_summary(
     captures: list[Path],
     report_results: list[dict[str, Any]],
 ) -> dict[str, str]:
-    return pending_validation.write_summary(CONFIG, out_dir, command_results, captures, report_results)
+    return pending_validation.write_summary(
+        CONFIG, out_dir, command_results, captures, report_results
+    )
 
 
 def previous_command_results(out_dir: Path) -> list[dict[str, Any]]:

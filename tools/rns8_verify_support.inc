@@ -25,4 +25,3 @@ rns8_context* create_wrap64_context() {
   rns8_context* ctx = nullptr;
   return rns8_create_context(-1, &options, &ctx) == RNS8_SUCCESS ? ctx : nullptr;
 }
-

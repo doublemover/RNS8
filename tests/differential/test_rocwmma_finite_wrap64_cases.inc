@@ -18,12 +18,12 @@ TEST_CASE("rocWMMA finite u8 K-split preserves signed centered accumulation") {
   auto hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, 256);
   auto rocwmma_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_ROCWMMA, 256);
 
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), n, cpu_out.data(), n) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, 256, A.data(), k, B.data(), n, hip_out.data(), n) ==
-          RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(rocwmma, &rocwmma_desc, 256, A.data(), k, B.data(), n, rocwmma_out.data(), n) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(cpu, &cpu_desc, 256, A.data(), k, B.data(), n,
+                                           cpu_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(hip, &hip_desc, 256, A.data(), k, B.data(), n,
+                                           hip_out.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_ring_u8_oneshot(rocwmma, &rocwmma_desc, 256, A.data(), k, B.data(), n,
+                                           rocwmma_out.data(), n) == RNS8_SUCCESS);
   CHECK(hip_out == cpu_out);
   CHECK(rocwmma_out == cpu_out);
 
@@ -32,7 +32,8 @@ TEST_CASE("rocWMMA finite u8 K-split preserves signed centered accumulation") {
   rns8_destroy_context(cpu);
 }
 
-#if defined(RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS) && RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS
+#if defined(RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS) &&                                         \
+    RNS8_ENABLE_ROCWMMA_WRAP64_CANDIDATE_TESTS
 TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP and CPU oracle across tails") {
   if (!rocwmma_available()) {
     SKIP("rocWMMA backend is not available on this device");
@@ -64,7 +65,8 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate enforces K boundary") {
   HipBuffer b_limbs(8);
   HipBuffer c_limbs(8);
   CHECK(rns8::detail::rocwmma_wrap64_gemm_byte_limbs_candidate_device(
-            device_id, a_limbs.get(), b_limbs.get(), c_limbs.get(), 1, 1, 32769) == RNS8_INVALID_ARGUMENT);
+            device_id, a_limbs.get(), b_limbs.get(), c_limbs.get(), 1, 1, 32769) ==
+        RNS8_INVALID_ARGUMENT);
 }
 
 TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP on large release shapes") {
@@ -73,8 +75,10 @@ TEST_CASE("rocWMMA wrap64 byte-GEMM36 candidate matches direct HIP on large rele
   }
 
   const std::vector<Wrap64CandidateShape> cases = {
-      {"release-shape 512x512x512 full direct-HIP output", 512, 512, 512, 0, 0, 0, 0x3531327835313278ull},
-      {"release-shape 1024x1024x1024 full direct-HIP output", 1024, 1024, 1024, 0, 0, 0, 0x3130323478313032ull},
+      {"release-shape 512x512x512 full direct-HIP output", 512, 512, 512, 0, 0, 0,
+       0x3531327835313278ull},
+      {"release-shape 1024x1024x1024 full direct-HIP output", 1024, 1024, 1024, 0, 0, 0,
+       0x3130323478313032ull},
   };
   for (const auto& candidate_case : cases) {
     require_wrap64_rocwmma_candidate_matches_direct_hip_and_oracle(candidate_case, false);

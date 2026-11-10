@@ -34,6 +34,6 @@ inline void configure_noninteractive_errors() {
 #endif
 #endif
 }
-}  // namespace rns8_example
+} // namespace rns8_example
 
 #endif

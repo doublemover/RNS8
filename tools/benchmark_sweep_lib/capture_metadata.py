@@ -2,8 +2,21 @@ from __future__ import annotations
 
 import argparse
 from typing import Any
+import json
+from measurement_contract import (
+    exact_proof_policy,
+    host_batch_contract,
+    host_instrumentation,
+    output_completion_boundary,
+    host_observation_contract,
+)
 
-from .config import PHASES, PLACEHOLDER_TARGET_IDS, WRAP64_ROCWMMA_CANDIDATE_BACKEND
+from .config import (
+    PLACEHOLDER_TARGET_IDS,
+    WRAP64_ROCWMMA_CANDIDATE_BACKEND,
+    CORRECTNESS_ANCHOR_REFERENCE_BACKENDS,
+)
+
 
 def capture_contract_key(capture: dict[str, Any]) -> str:
     tile_bounds = capture.get("tile_bounds_u64")
@@ -21,8 +34,15 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
     if residue_output_mode == "host_export":
         next_op_contract = "host_export"
     else:
-        next_op_contract = requested_next_op.get("resolved") if isinstance(requested_next_op, dict) else None
+        next_op_contract = (
+            requested_next_op.get("resolved") if isinstance(requested_next_op, dict) else None
+        )
     parts = [
+        f"exact_proof_policy={exact_proof_policy(capture)}",
+        f"host_instrumentation_state={host_instrumentation(capture)}",
+        f"host_observation_contract={json.dumps(host_observation_contract(capture), sort_keys=True)}",
+        f"output_completion_boundary={output_completion_boundary(capture)}",
+        f"host_batch_contract={json.dumps(host_batch_contract(capture), sort_keys=True)}",
         f"scenario_identity={capture_scenario_identity(capture)}",
         f"checksum_policy={capture_checksum_policy(capture)}",
         f"host_api_batch_size={capture_host_api_batch_size(capture)}",
@@ -49,6 +69,7 @@ def capture_contract_key(capture: dict[str, Any]) -> str:
         f"residue_output_mode={residue_output_mode}",
         f"seed={capture.get('seed')}",
         f"input_distribution={capture.get('input_distribution')}",
+        f"input_profile={capture.get('input_profile', 'uniform-small')}",
         f"reuse_packed_inputs={capture.get('reuse_packed_inputs') is True}",
         f"pack_mode={capture_pack_mode(capture)}",
         f"next_op_contract={next_op_contract}",
@@ -90,7 +111,9 @@ def capture_checksum_policy(capture: dict[str, Any]) -> str:
     grouped = capture.get("grouped_dispatch")
     if isinstance(grouped, dict):
         task_contract = grouped.get("task_descriptor_contract")
-        if isinstance(task_contract, dict) and isinstance(task_contract.get("checksum_policy"), str):
+        if isinstance(task_contract, dict) and isinstance(
+            task_contract.get("checksum_policy"), str
+        ):
             return task_contract["checksum_policy"]
     host_batch = capture.get("host_api_batch")
     if isinstance(host_batch, dict) and isinstance(host_batch.get("checksum_policy"), str):
@@ -139,6 +162,9 @@ def capture_reconstruction_variant_name(capture: dict[str, Any]) -> str:
 
 
 def median_phase(capture: dict[str, Any], phase: str) -> float | None:
+    aggregate = capture.get("_observation_aggregate")
+    if isinstance(aggregate, dict):
+        return aggregate.get("phase_medians_us", {}).get(phase)
     summary = capture.get("timing_summary_us")
     if not isinstance(summary, dict):
         return None
@@ -256,7 +282,10 @@ def capture_execution_mode(capture: dict[str, Any]) -> str:
         return mode
     if capture.get("backend_requested") == WRAP64_ROCWMMA_CANDIDATE_BACKEND:
         return "internal_wrap64_rocwmma_candidate"
-    if capture.get("benchmark") in {"rns8_bounded_gemm_public_oneshot", "rns8_finite_u8_public_oneshot"}:
+    if capture.get("benchmark") in {
+        "rns8_bounded_gemm_public_oneshot",
+        "rns8_finite_u8_public_oneshot",
+    }:
         return "public_oneshot_transient_native_inputs"
     return "persistent_resident_matrices"
 
@@ -383,13 +412,7 @@ def candidate_source_metadata(capture: dict[str, Any]) -> dict[str, Any]:
 
 def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
     source_items = [candidate_source_metadata(item) for item in items]
-    targets = sorted(
-        {
-            str(item.get("target_id"))
-            for item in source_items
-            if item.get("target_id")
-        }
-    )
+    targets = sorted({str(item.get("target_id")) for item in source_items if item.get("target_id")})
     hip_versions = sorted(
         {
             str(item.get("hip_sdk_or_rocm_version"))
@@ -440,15 +463,29 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
         "hip_runtime_versions": runtime_versions,
         "hip_driver_versions": driver_versions,
         "compilers": compilers,
-        "git_commits": sorted({str(item.get("git_commit")) for item in items if item.get("git_commit")}),
-        "seeds": sorted({int(item.get("seed")) for item in items if isinstance(item.get("seed"), int)}),
-        "warmups": sorted({int(item.get("warmups")) for item in items if isinstance(item.get("warmups"), int)}),
-        "repeats": sorted({int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}),
-        "reuse_packed_inputs": sorted({bool(item.get("reuse_packed_inputs") is True) for item in items}),
+        "git_commits": sorted(
+            {str(item.get("git_commit")) for item in items if item.get("git_commit")}
+        ),
+        "seeds": sorted(
+            {int(item.get("seed")) for item in items if isinstance(item.get("seed"), int)}
+        ),
+        "warmups": sorted(
+            {int(item.get("warmups")) for item in items if isinstance(item.get("warmups"), int)}
+        ),
+        "repeats": sorted(
+            {int(item.get("repeats")) for item in items if isinstance(item.get("repeats"), int)}
+        ),
+        "reuse_packed_inputs": sorted(
+            {bool(item.get("reuse_packed_inputs") is True) for item in items}
+        ),
         "benchmark_execution_modes": sorted({capture_execution_mode(item) for item in items}),
         "pack_modes": sorted({capture_pack_mode(item) for item in items}),
-        "prepack_reuse_strategies": sorted({capture_prepack_reuse_strategy(item) for item in items}),
-        "prepack_reuse_operands": sorted({"/".join(capture_prepack_reuse_operands(item)) or "none" for item in items}),
+        "prepack_reuse_strategies": sorted(
+            {capture_prepack_reuse_strategy(item) for item in items}
+        ),
+        "prepack_reuse_operands": sorted(
+            {"/".join(capture_prepack_reuse_operands(item)) or "none" for item in items}
+        ),
         "event_sources": sorted(
             {
                 str(capture_timing_metadata(item).get("gpu_event_timing_source") or "unavailable")
@@ -458,3 +495,13 @@ def group_source_metadata(items: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def correctness_anchor_reference_capture(capture: dict[str, Any]) -> bool:
+    if backend_family_id(backend_id(capture)) not in CORRECTNESS_ANCHOR_REFERENCE_BACKENDS:
+        return False
+    cpu_parallel = capture.get("cpu_parallel")
+    if not isinstance(cpu_parallel, dict):
+        return False
+    return (
+        cpu_parallel.get("correctness_anchor") is True
+        or cpu_parallel.get("reference_mode") == "correctness-anchor"
+    )

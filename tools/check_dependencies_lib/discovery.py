@@ -1,50 +1,52 @@
 from __future__ import annotations
 
-import argparse
-import glob
 import importlib.metadata
-import json
 import os
 import platform
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from msvc_env import command_in_msvc_environment, find_visual_studio_installation
 
-from .config import *
-from .system import *
+from check_dependencies_lib.config import (
+    CMAKE_MINIMUM_VERSION,
+    EXPECTED_ROCM_SUBMODULES,
+    PYTHON_PACKAGES,
+    RCCL_TEST_COMMANDS,
+    SUPPORTED_TARGETS,
+)
+from check_dependencies_lib.system import (
+    find_command,
+    repo_root,
+    run,
+)
+from .resolution import ACTIVE_RESOLUTION, Request, resolve_hip, resolve_vcpkg
+
 
 def hip_roots() -> list[Path]:
-    roots: list[Path] = []
-    for env_name in ("HIP_PATH", "ROCM_PATH"):
-        value = os.environ.get(env_name)
-        if value:
-            roots.append(Path(value))
-    roots.append(Path(r"C:\Program Files\AMD\ROCm\7.1"))
-    roots.append(Path("/opt/rocm"))
-    deduped: list[Path] = []
-    for root in roots:
-        if root not in deduped:
-            deduped.append(root)
-    return deduped
+    active = ACTIVE_RESOLUTION.get()
+    hip = active["hip"] if active else resolve_hip(Request(platform.system()), os.environ)
+    selected = hip.get("selected")
+    return [Path(selected["canonical_root"])] if selected else []
 
 
 def vcpkg_roots() -> list[Path]:
-    roots: list[Path] = []
     if platform.system() != "Windows":
-        return roots
-    root = os.environ.get("VCPKG_ROOT", r"C:\vcpkg")
-    triplets = ["x64-windows", "x64-linux"]
-    env_triplet = os.environ.get("VCPKG_TARGET_TRIPLET")
-    if env_triplet and env_triplet not in triplets:
-        triplets.append(env_triplet)
-    for triplet in triplets:
-        roots.append(Path(root) / "installed" / triplet)
-        roots.append(repo_root() / "vcpkg_installed" / triplet)
-    return roots
+        return []
+    active = ACTIVE_RESOLUTION.get()
+    component = (
+        active["vcpkg"] if active else resolve_vcpkg(Request(platform.system()), os.environ)[0]
+    )
+    selected = component.get("selected")
+    if not selected:
+        return []
+    triplet = selected["paths"]["triplet"]
+    return [
+        Path(selected["canonical_root"]) / "installed" / triplet,
+        repo_root() / "vcpkg_installed" / triplet,
+    ]
 
 
 def repo_local_accelerator_roots(name: str) -> list[Path]:
@@ -57,7 +59,13 @@ def repo_local_accelerator_roots(name: str) -> list[Path]:
             roots.extend(
                 [
                     root / "out" / "third_party" / "rocm" / "install" / "windows-gfx1100",
-                    root / "out" / "third_party" / "rocm" / "build" / "windows-gfx1100" / "composable_kernel",
+                    root
+                    / "out"
+                    / "third_party"
+                    / "rocm"
+                    / "build"
+                    / "windows-gfx1100"
+                    / "composable_kernel",
                 ]
             )
         return roots
@@ -87,6 +95,7 @@ def git_text(args: list[str], cwd: Path | None = None) -> tuple[int, str]:
             text=True,
             timeout=20,
             check=False,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
         )
         return completed.returncode, completed.stdout.strip()
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -141,11 +150,13 @@ def repo_local_dependency_report(name: str) -> dict[str, object]:
         "expected_url": expected_url,
         "configured_url": configured_url,
         "actual_url": actual_url,
-        "url_matches": configured_url == expected_url and (not actual_url or actual_url == expected_url),
+        "url_matches": configured_url == expected_url
+        and (not actual_url or actual_url == expected_url),
         "expected_branch": expected_branch,
         "configured_branch": configured_branch,
         "actual_branch": actual_branch,
-        "branch_matches": configured_branch == expected_branch and (not actual_branch or actual_branch == expected_branch),
+        "branch_matches": configured_branch == expected_branch
+        and (not actual_branch or actual_branch == expected_branch),
         "expected_sha": expected_sha,
         "actual_sha": actual_sha,
         "sha_matches": actual_sha == expected_sha,
@@ -173,6 +184,8 @@ def find_under_roots(roots: list[Path], relatives: list[str]) -> str | None:
 
 
 def command_version(name: str, path: str) -> str:
+    if name in {"wpr", "wpaexporter"}:
+        return "found; native profiling capability/version qualification is explicit"
     if name in {"RadeonDeveloperPanel", "RadeonGPUProfiler", "RadeonMemoryVisualizer"}:
         return "found"
     if name == "ninja":
@@ -231,7 +244,9 @@ def _ldconfig_library_path(name: str) -> str | None:
 def rccl_discovery_report() -> dict[str, object]:
     roots = hip_roots()
     header = find_under_roots(roots, ["include/rccl/rccl.h", "include/rccl.h"])
-    library = find_under_roots(roots, ["lib/librccl.so", "lib64/librccl.so"]) or _ldconfig_library_path("librccl.so")
+    library = find_under_roots(
+        roots, ["lib/librccl.so", "lib64/librccl.so"]
+    ) or _ldconfig_library_path("librccl.so")
     test_commands = {name: find_command(name) for name in RCCL_TEST_COMMANDS}
     tests_present = {name: path for name, path in test_commands.items() if path}
     return {
@@ -391,7 +406,9 @@ def find_msvc() -> str | None:
     return shutil.which("cl")
 
 
-def msvc_probe_command(source: Path, binary: Path, include_root: str, library: str) -> list[str] | str | None:
+def msvc_probe_command(
+    source: Path, binary: Path, include_root: str, library: str
+) -> list[str] | str | None:
     obj = binary.with_suffix(".obj")
     command = [
         "cl",
@@ -418,7 +435,9 @@ def command_line_for_report(command: list[str] | str) -> str:
     return subprocess.list2cmdline(command)
 
 
-def command_with_windows_developer_environment(command: list[str]) -> tuple[list[str] | str | None, str]:
+def command_with_windows_developer_environment(
+    command: list[str],
+) -> tuple[list[str] | str | None, str]:
     if platform.system() != "Windows":
         return command, command_line_for_report(command)
     try:
@@ -451,5 +470,3 @@ def installed_vcpkg_packages(vcpkg_path: str | None) -> dict[str, str]:
         if match:
             packages[match.group(1)] = match.group(2)
     return packages
-
-

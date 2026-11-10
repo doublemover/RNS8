@@ -27,7 +27,9 @@ NO_DIVIDE_SYMBOL_MARKERS = [
 ]
 
 
-def scan_generated_symbols(objdump: str, code_object: Path, target: str, symbols: list[str]) -> list[str]:
+def scan_generated_symbols(
+    objdump: str, code_object: Path, target: str, symbols: list[str]
+) -> list[str]:
     reports = []
     for symbol in symbols:
         if not any(marker in symbol for marker in NO_DIVIDE_SYMBOL_MARKERS):
@@ -37,7 +39,8 @@ def scan_generated_symbols(objdump: str, code_object: Path, target: str, symbols
         forbidden = forbidden_mnemonic_lines(disassembly, FORBIDDEN_DIVIDE_RE)
         if forbidden:
             raise RuntimeError(
-                f"{symbol} contains forbidden divide/remainder/rcp instructions:\n" + "\n".join(forbidden)
+                f"{symbol} contains forbidden divide/remainder/rcp instructions:\n"
+                + "\n".join(forbidden)
             )
         reports.append(f"{symbol}: generated prefix path has no div/rem/rcp mnemonics")
     return reports
@@ -49,7 +52,9 @@ def main() -> int:
         "Compiled Direct-HIP host object containing .hip_fatbin",
         "Direct-HIP object",
     )
-    with extracted_device_code_object(config, "rns8-generated-reducer-isa-", "hip_direct_kernels.fatbin") as code_object:
+    with extracted_device_code_object(
+        config, "rns8-generated-reducer-isa-", "hip_direct_kernels.fatbin"
+    ) as code_object:
         symbols = symbols_matching_markers(
             config.objdump,
             code_object,
@@ -69,6 +74,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:  # noqa: BLE001 - command-line tool should print concise failure cause.
+    except Exception as exc:
         print(f"Generated reducer ISA check: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

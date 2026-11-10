@@ -5,22 +5,29 @@ from pathlib import Path
 from typing import Any
 
 from metadata_registry_constants import PLACEHOLDER_GPU_TARGET_IDS
+from benchmark_cases import case_root
 
-BOUNDED_BACKENDS = ["cpu", "hip-direct", "hip-vector-alu-int64", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
+BOUNDED_BACKENDS = [
+    "cpu",
+    "hip-direct",
+    "hip-vector-alu-int64",
+    "hipblaslt",
+    "ck",
+    "rocwmma",
+    "amdgpu-builtins",
+]
 HOST_API_BATCH_BACKENDS = ["hip-direct"]
 PUBLIC_ONESHOT_BACKENDS = ["cpu", "hip-direct"]
 EXACT_WIDE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 FINITE_BACKENDS = ["cpu", "hip-direct", "hipblaslt", "ck", "rocwmma", "amdgpu-builtins"]
 WRAP64_BACKENDS = ["wrap64-byte-limb", "hip-direct"]
+CORRECTNESS_ANCHOR_REFERENCE_BACKENDS = frozenset({"cpu-reference", "wrap64-byte-limb"})
 WRAP64_ROCWMMA_CANDIDATE_BACKEND = "rocwmma-wrap64-candidate"
 BOUNDED_SEMANTICS = ["bounded-i64", "bounded-u64"]
 EXACT_WIDE_SEMANTICS = ["exact-wide-signed", "exact-wide-unsigned"]
 RNS_CHAIN_SEMANTICS = BOUNDED_SEMANTICS + EXACT_WIDE_SEMANTICS
 PHASES = ["pack", "rns_gemm", "crt_export", "end_to_end"]
-REVIEW_SCHEMA_VERSION = 3
 PLACEHOLDER_TARGET_IDS = PLACEHOLDER_GPU_TARGET_IDS
-RELEASE_MIN_WARMUPS = 3
-RELEASE_MIN_REPEATS = 9
 PROMOTABLE_RELEASE_SHAPES = [64, 128, 512, 1024]
 EXPLORATORY_RELEASE_SHAPES = [2048, 4096, 8192]
 DEFAULT_ADAPTIVE_CASES = [
@@ -34,7 +41,12 @@ ADAPTIVE_WORKLOAD_CASES = [
 ]
 DEFAULT_FINITE_RING_MODULI = [251, 255]
 DEFAULT_FINITE_FIELD_MODULI = [251]
-SCENARIO_DATA_DIR = Path(__file__).resolve().parents[2] / "benchmarks" / "scenarios"
+
+
+def scenario_data_dir() -> Path:
+    return case_root() / "scenarios"
+
+
 INPUT_PROFILES = {"uniform-small", "adaptive-bands"}
 DEFAULT_EXACT_WIDE_LIMB_COUNT = 4
 EXACT_WIDE_LIMB_VARIANTS = [1, 2, 3, 4, 8, 16, 32]
@@ -109,7 +121,6 @@ class ScenarioItem:
     metadata: dict[str, Any] | None = None
 
 
-
 @dataclass(frozen=True)
 class SweepCommand:
     name: str
@@ -117,5 +128,3 @@ class SweepCommand:
     output: Path
     scenario: dict[str, Any] | None = None
     env: dict[str, str] | None = None
-
-

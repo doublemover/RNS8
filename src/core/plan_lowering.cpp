@@ -5,28 +5,29 @@
 namespace rns8::detail {
 namespace {
 
-
 const char* semantics_name(rns8_semantics semantics) {
   switch (semantics) {
-    case RNS8_BOUNDED_I64:
-      return "bounded_i64";
-    case RNS8_BOUNDED_U64:
-      return "bounded_u64";
-    case RNS8_EXACT_WIDE_SIGNED:
-      return "exact_wide_signed";
-    case RNS8_EXACT_WIDE_UNSIGNED:
-      return "exact_wide_unsigned";
-    case RNS8_WRAP_U64_MOD_2_64:
-      return "wrap_u64_mod_2_64";
-    case RNS8_FINITE_RING_U8:
-      return "finite_ring_u8";
-    case RNS8_FINITE_FIELD_U8:
-      return "finite_field_u8";
+  case RNS8_BOUNDED_I64:
+    return "bounded_i64";
+  case RNS8_BOUNDED_U64:
+    return "bounded_u64";
+  case RNS8_EXACT_WIDE_SIGNED:
+    return "exact_wide_signed";
+  case RNS8_EXACT_WIDE_UNSIGNED:
+    return "exact_wide_unsigned";
+  case RNS8_WRAP_U64_MOD_2_64:
+    return "wrap_u64_mod_2_64";
+  case RNS8_FINITE_RING_U8:
+    return "finite_ring_u8";
+  case RNS8_FINITE_FIELD_U8:
+    return "finite_field_u8";
   }
   return "unknown";
 }
 
 std::string backend_family(const rns8_plan_backend_info& backend) {
+  if (backend.backend == RNS8_BACKEND_CPU_AMX)
+    return "cpu_amx_int8_matrix_engine";
   if (backend.backend == RNS8_BACKEND_HIP_VECTOR_ALU_INT64) {
     return "native_vector_alu";
   }
@@ -110,7 +111,8 @@ std::string lowering_path(const rns8_plan_packing_info& packing) {
            "] -> NativeI64U64Current; optional NativeToRns -> RnsResidueCurrent; FinalExport when requested";
   }
   if (packing.output_domain == RNS8_OUTPUT_DOMAIN_RNS_RESIDUE) {
-    return "MatMul[" + input_domain + "] -> RnsResidueCurrent; FinalExport only at requested boundary";
+    return "MatMul[" + input_domain +
+           "] -> RnsResidueCurrent; FinalExport only at requested boundary";
   }
   if (packing.output_domain == RNS8_OUTPUT_DOMAIN_FINITE_U8) {
     return "MatMul[" + input_domain + "] -> FiniteU8Current; CanonicalU8Export at final boundary";
@@ -121,13 +123,11 @@ std::string lowering_path(const rns8_plan_packing_info& packing) {
   return "MatMul[" + input_domain + "] -> UnknownOutputDomain";
 }
 
-}  // namespace
+} // namespace
 
-
-PlanLoweringDescription describe_plan_lowering(
-    const rns8_plan_backend_info& backend,
-    const rns8_plan_packing_info& packing,
-    const rns8_plan_schedule_info& schedule) {
+PlanLoweringDescription describe_plan_lowering(const rns8_plan_backend_info& backend,
+                                               const rns8_plan_packing_info& packing,
+                                               const rns8_plan_schedule_info& schedule) {
   PlanLoweringDescription description{};
   description.operation = "MatMul";
   description.semantic_contract = semantics_name(packing.semantics);
@@ -142,10 +142,13 @@ PlanLoweringDescription describe_plan_lowering(
   description.lowering_path = lowering_path(packing);
   description.final_export_available = (packing.next_op_flags & RNS8_NEXT_OP_FINAL_EXPORT) != 0;
   description.rns_continuation_available = (packing.next_op_flags & RNS8_NEXT_OP_RNS_GEMM) != 0;
-  description.native_continuation_available = (packing.next_op_flags & RNS8_NEXT_OP_NATIVE_GEMM) != 0;
-  description.native_to_rns_available = (packing.next_op_flags & RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE) != 0;
-  description.reusable_b_prepack_available = (packing.next_op_flags & RNS8_NEXT_OP_REUSABLE_B_PREPACK) != 0;
+  description.native_continuation_available =
+      (packing.next_op_flags & RNS8_NEXT_OP_NATIVE_GEMM) != 0;
+  description.native_to_rns_available =
+      (packing.next_op_flags & RNS8_NEXT_OP_NATIVE_TO_RNS_CONVERTIBLE) != 0;
+  description.reusable_b_prepack_available =
+      (packing.next_op_flags & RNS8_NEXT_OP_REUSABLE_B_PREPACK) != 0;
   return description;
 }
 
-}  // namespace rns8::detail
+} // namespace rns8::detail

@@ -25,7 +25,8 @@ TEST_CASE("exact-wide signed max-prefix half-product export is fixed-width two's
 
   constexpr uint64_t sentinel = 0xa3a3a3a3a3a3a3a3ull;
   uint64_t too_few[2] = {sentinel, sentinel};
-  CHECK(rns8::detail::export_exact_wide_signed_limbs(residues, prefix, too_few, 2) == RNS8_RANGE_ERROR);
+  CHECK(rns8::detail::export_exact_wide_signed_limbs(residues, prefix, too_few, 2) ==
+        RNS8_RANGE_ERROR);
   CHECK(too_few[0] == sentinel);
   CHECK(too_few[1] == sentinel);
 
@@ -44,10 +45,12 @@ TEST_CASE("exact-wide signed fixed-width limb export covers one-limb boundaries"
     return rns8::detail::export_exact_wide_signed_limbs(residues, prefix, limbs, limb_count);
   };
 
-  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::max()), 1) == RNS8_SUCCESS);
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::max()), 1) ==
+          RNS8_SUCCESS);
   CHECK(limbs[0] == 0x7fffffffffffffffull);
 
-  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 1) == RNS8_SUCCESS);
+  REQUIRE(export_signed(boost::multiprecision::cpp_int(std::numeric_limits<int64_t>::min()), 1) ==
+          RNS8_SUCCESS);
   CHECK(limbs[0] == 0x8000000000000000ull);
 
   REQUIRE(export_signed(boost::multiprecision::cpp_int(-1), 1) == RNS8_SUCCESS);
@@ -81,7 +84,8 @@ TEST_CASE("exact-wide unsigned fixed-width limb export covers overflow and max w
     return rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, limbs, limb_count);
   };
 
-  REQUIRE(export_unsigned(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()), 1) == RNS8_SUCCESS);
+  REQUIRE(export_unsigned(boost::multiprecision::cpp_int(std::numeric_limits<uint64_t>::max()),
+                          1) == RNS8_SUCCESS);
   CHECK(limbs[0] == std::numeric_limits<uint64_t>::max());
 
   constexpr uint64_t sentinel = 0x9696969696969696ull;
@@ -109,20 +113,22 @@ TEST_CASE("exact-wide unsigned high-bit magnitude export preserves fixed width")
 
   constexpr uint64_t sentinel = 0xb4b4b4b4b4b4b4b4ull;
   uint64_t too_few[1] = {sentinel};
-  CHECK(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, too_few, 1) == RNS8_RANGE_ERROR);
+  CHECK(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, too_few, 1) ==
+        RNS8_RANGE_ERROR);
   CHECK(too_few[0] == sentinel);
 
   uint64_t two_limbs[2] = {};
-  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, two_limbs, 2) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, two_limbs, 2) ==
+          RNS8_SUCCESS);
   CHECK(two_limbs[0] == 0);
   CHECK(two_limbs[1] == (uint64_t{1} << 63u));
 
   uint64_t wide[32] = {};
-  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, wide, 32) == RNS8_SUCCESS);
+  REQUIRE(rns8::detail::export_exact_wide_unsigned_limbs(residues, prefix, wide, 32) ==
+          RNS8_SUCCESS);
   CHECK(wide[0] == 0);
   CHECK(wide[1] == (uint64_t{1} << 63u));
   for (uint32_t limb = 2; limb < 32; ++limb) {
     CHECK(wide[limb] == 0);
   }
 }
-

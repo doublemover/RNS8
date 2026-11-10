@@ -1,4 +1,21 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_distributed_transports.cmake)
+
 function(rns8_configure_library target_name)
+  if(RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS OR RNS8_DEVICE_ASAN_COMPILE_FLAGS)
+    # The build directory already instruments all first-party objects. Carry
+    # the matching detector/runtime into installed consumer source and links.
+    target_compile_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_COMPILE_FLAGS} ${RNS8_DEVICE_ASAN_COMPILE_FLAGS})
+    target_link_options(${target_name} INTERFACE ${RNS8_HOST_INSTRUMENTATION_LINK_FLAGS} ${RNS8_DEVICE_ASAN_LINK_FLAGS})
+  endif()
+  if(RNS8_ENABLE_ROCTX)
+    target_include_directories(${target_name} PRIVATE "${RNS8_ROCTX_INCLUDE_DIR}")
+    target_link_libraries(${target_name} PRIVATE ${CMAKE_DL_LIBS})
+  endif()
+  if(RNS8_ENABLE_ETW_RANGES)
+    target_link_libraries(${target_name} PRIVATE advapi32)
+  endif()
+  target_compile_definitions(${target_name} PUBLIC $<$<BOOL:${RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS}>:RNS8_ENABLE_HOST_CONTROL_DIAGNOSTICS=1>)
+  rns8_bind_manifest(${target_name})
   target_compile_features(${target_name} PUBLIC cxx_std_17)
   target_include_directories(
     ${target_name}
@@ -13,8 +30,11 @@ function(rns8_configure_library target_name)
   target_compile_definitions(
     ${target_name}
     PRIVATE
+      $<$<BOOL:${RNS8_ENABLE_CPU_AMX}>:RNS8_ENABLE_CPU_AMX=1>
+      RNS8_CPU_I8MM_COMPILED=$<BOOL:${RNS8_CPU_I8MM_COMPILED}>
       $<$<BOOL:${RNS8_ENABLE_HIP}>:RNS8_ENABLE_HIP=1>
       $<$<BOOL:${RNS8_ENABLE_HIPBLASLT}>:RNS8_ENABLE_HIPBLASLT=1>
+      RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE=$<BOOL:${RNS8_HIPBLASLT_ALGO_INDEX_AVAILABLE}>
       $<$<BOOL:${RNS8_ENABLE_CK}>:RNS8_ENABLE_CK=1>
       $<$<BOOL:${RNS8_ENABLE_ROCWMMA}>:RNS8_ENABLE_ROCWMMA=1>
       $<$<BOOL:${RNS8_ENABLE_AMDGPU_BUILTINS}>:RNS8_ENABLE_AMDGPU_BUILTINS=1>
@@ -23,16 +43,24 @@ function(rns8_configure_library target_name)
       $<$<BOOL:${RNS8_ENABLE_FLINT}>:RNS8_ENABLE_FLINT=1>
       $<$<BOOL:${RNS8_CPU_PARALLEL_OPENMP}>:RNS8_CPU_PARALLEL_OPENMP=1>
       RNS8_CK_USE_XDL=${RNS8_CK_USE_XDL}
+      RNS8_CK_WMMA_SIGNED_INPUTS=${RNS8_CK_WMMA_SIGNED_INPUTS}
+      RNS8_CK_DEPENDENCY_ID="${RNS8_CK_DEPENDENCY_ID}"
       RNS8_CK_SHAPE_ALIGNMENT=${RNS8_CK_SHAPE_ALIGNMENT}
   )
-  if(MSVC)
-    target_compile_options(${target_name} PRIVATE /W4 /permissive-)
-    if(RNS8_ENABLE_HIP)
-      # AMD HIP SDK vector headers intentionally use nameless unions that trip MSVC /W4.
-      target_compile_options(${target_name} PRIVATE /wd4201)
-    endif()
-  else()
-    target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+  if(RNS8_ENABLE_DISTRIBUTED_MPI)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_DISTRIBUTED_MPI=1)
+    target_link_libraries(${target_name} PRIVATE MPI::MPI_CXX)
+  endif()
+  if(RNS8_ENABLE_RCCL)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_RCCL=1)
+    target_include_directories(${target_name} PRIVATE "${RNS8_RCCL_INCLUDE_DIR}")
+    target_link_libraries(${target_name} PRIVATE RNS8::rccl_transport)
+  endif()
+  if(RNS8_ENABLE_ROCSHMEM)
+    target_compile_definitions(${target_name} PRIVATE RNS8_ENABLE_ROCSHMEM=1)
+    target_include_directories(${target_name} PRIVATE "${RNS8_ROCSHMEM_INCLUDE_DIR}")
+    target_link_libraries(${target_name} PRIVATE RNS8::rocshmem_transport)
+    set_property(TARGET ${target_name} APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
   endif()
   if(RNS8_ENABLE_HIP)
     target_include_directories(${target_name} PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
@@ -46,11 +74,7 @@ function(rns8_configure_library target_name)
     if(RNS8_HIPBLASLT_INCLUDE_DIR)
       target_include_directories(${target_name} PRIVATE "${RNS8_HIPBLASLT_INCLUDE_DIR}")
     endif()
-    if(RNS8_HIPBLASLT_TARGET)
-      target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_TARGET}")
-    else()
-      target_link_libraries(${target_name} PRIVATE "${RNS8_HIPBLASLT_LIBRARY}")
-    endif()
+    target_link_libraries(${target_name} PRIVATE roc::hipblaslt)
   endif()
   if(RNS8_ENABLE_CK)
     target_include_directories(${target_name} PRIVATE "${RNS8_CK_GENERATED_INCLUDE_DIR}" "${RNS8_CK_INCLUDE_DIR}")
@@ -80,13 +104,65 @@ rns8_configure_library(rns8_static)
 target_compile_definitions(rns8_static PUBLIC RNS8_STATIC)
 set_target_properties(rns8_static PROPERTIES OUTPUT_NAME rns8_static)
 
+if(RNS8_BUILD_SANITIZER_CONTROLS)
+  find_package(Threads REQUIRED)
+  add_executable(rns8-host-sanitizer-control tests/controls/host_sanitizer_control.cpp)
+  target_include_directories(rns8-host-sanitizer-control PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS})
+  target_link_libraries(rns8-host-sanitizer-control PRIVATE rns8_static Threads::Threads ${CMAKE_DL_LIBS})
+  if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
+    set(_rns8_control_lane "windows-address")
+  else()
+    set(_rns8_control_lane "${RNS8_HOST_SANITIZER}")
+  endif()
+  target_compile_definitions(rns8-host-sanitizer-control PRIVATE "RNS8_HOST_CONTROL_LANE=\"${_rns8_control_lane}\"")
+  rns8_bind_manifest(rns8-host-sanitizer-control)
+  rns8_copy_windows_clang_asan_runtime(rns8-host-sanitizer-control)
+  # Deliberately bad modes belong to the bounded detector driver, never ordinary
+  # passing CTest counts. The safe mode is also classified by that driver.
+endif()
+
 if(RNS8_BUILD_TOOLS)
+  if(WIN32)
+    add_executable(rns8-etl-inspect tools/rns8_etl_inspect.cpp)
+    target_compile_features(rns8-etl-inspect PRIVATE cxx_std_17)
+    file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_etl_inspect.cpp" _rns8_etl_cpp_sha256)
+    file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/src/diagnostics/etl_sample_payload.hpp" _rns8_etl_payload_sha256)
+    string(SHA256 _rns8_etl_source_sha256 "${_rns8_etl_cpp_sha256}\n${_rns8_etl_payload_sha256}\n")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_etl_inspect.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/src/diagnostics/etl_sample_payload.hpp")
+    target_compile_definitions(rns8-etl-inspect PRIVATE "RNS8_ETL_INSPECT_SOURCE_SHA256=\"${_rns8_etl_source_sha256}\"")
+    target_link_libraries(rns8-etl-inspect PRIVATE nlohmann_json::nlohmann_json tdh advapi32)
+    rns8_copy_windows_clang_asan_runtime(rns8-etl-inspect)
+    add_executable(rns8-pdb-symbolize tools/rns8_pdb_symbolize.cpp)
+    target_compile_features(rns8-pdb-symbolize PRIVATE cxx_std_17)
+    file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_pdb_symbolize.cpp" _rns8_pdb_source_sha256)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_pdb_symbolize.cpp")
+    target_compile_definitions(rns8-pdb-symbolize PRIVATE "RNS8_PDB_SYMBOLIZE_SOURCE_SHA256=\"${_rns8_pdb_source_sha256}\"")
+    target_link_libraries(rns8-pdb-symbolize PRIVATE nlohmann_json::nlohmann_json)
+    rns8_copy_windows_clang_asan_runtime(rns8-pdb-symbolize)
+    if(BUILD_TESTING AND RNS8_BUILD_TESTS AND MSVC)
+      add_executable(rns8-pdb-symbol-control tools/rns8_pdb_symbol_control.cpp)
+      file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_pdb_symbol_control.cpp" _rns8_pdb_control_sha256)
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/rns8_pdb_symbol_control.cpp")
+      target_compile_definitions(rns8-pdb-symbol-control PRIVATE "RNS8_PDB_CONTROL_SOURCE_SHA256=\"${_rns8_pdb_control_sha256}\"")
+      target_compile_options(rns8-pdb-symbol-control PRIVATE /Zi /O2 /Ob0 /utf-8)
+      target_link_options(rns8-pdb-symbol-control PRIVATE /DEBUG:FULL /INCREMENTAL:NO /OPT:NOICF)
+      target_link_libraries(rns8-pdb-symbol-control PRIVATE nlohmann_json::nlohmann_json)
+      rns8_copy_windows_clang_asan_runtime(rns8-pdb-symbol-control)
+    endif()
+  endif()
+  add_executable(rns8-arithmetic-replay tools/rns8_arithmetic_replay.cpp)
+  rns8_bind_manifest(rns8-arithmetic-replay)
+  target_include_directories(rns8-arithmetic-replay PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
+  target_link_libraries(rns8-arithmetic-replay PRIVATE rns8_static nlohmann_json::nlohmann_json)
+  rns8_copy_windows_clang_asan_runtime(rns8-arithmetic-replay)
   add_executable(rns8-inspect tools/rns8_inspect.cpp)
+  rns8_bind_manifest(rns8-inspect)
   target_include_directories(rns8-inspect PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-  target_link_libraries(rns8-inspect PRIVATE rns8_static)
+  target_link_libraries(rns8-inspect PRIVATE rns8_static nlohmann_json::nlohmann_json)
   rns8_copy_windows_clang_asan_runtime(rns8-inspect)
 
   add_executable(rns8-verify tools/rns8_verify.cpp)
+  rns8_bind_manifest(rns8-verify)
   target_include_directories(
     rns8-verify
     PRIVATE
@@ -156,6 +232,7 @@ if(RNS8_BUILD_BENCHMARKS)
   endif()
   set(
     RNS8_BENCHMARK_SOURCES
+    src/tool_common/execution_environment_json.cpp
     benchmarks/rns8_bench.cpp
     benchmarks/rns8_bench_args.cpp
     benchmarks/rns8_bench_modes.cpp
@@ -169,6 +246,89 @@ if(RNS8_BUILD_BENCHMARKS)
     list(APPEND RNS8_BENCHMARK_SOURCES "${RNS8_BENCH_VECTOR_ALU_KERNEL_OBJECT}")
   endif()
   add_executable(rns8-bench ${RNS8_BENCHMARK_SOURCES})
+  add_executable(rns8-cpu-amx-calibrate benchmarks/rns8_cpu_amx_calibrate.cpp)
+  add_executable(rns8-distributed-calibrate benchmarks/rns8_distributed_calibrate.cpp)
+  add_executable(rns8-crt-calibrate benchmarks/rns8_crt_calibrate.cpp)
+  add_executable(rns8-native-calibrate benchmarks/rns8_native_calibrate.cpp)
+  if(RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA)
+    target_sources(rns8-native-calibrate PRIVATE "${RNS8_GENERATED_NATIVE_DIR}/native_variants.hpp")
+    target_include_directories(rns8-native-calibrate PRIVATE "${RNS8_GENERATED_NATIVE_DIR}")
+    target_compile_definitions(rns8-native-calibrate PRIVATE RNS8_EXPERIMENTAL_GENERATED_NATIVE_WMMA=1)
+  endif()
+  add_executable(rns8-epilogue-calibrate benchmarks/rns8_epilogue_calibrate.cpp)
+  add_executable(rns8-finite-verify-calibrate benchmarks/rns8_finite_verify_calibrate.cpp)
+  add_executable(rns8-block-sparse-calibrate benchmarks/rns8_block_sparse_calibrate.cpp)
+  add_executable(rns8-wrap64-calibrate benchmarks/rns8_wrap64_calibrate.cpp)
+  add_executable(rns8-word-mod-calibrate benchmarks/rns8_word_mod_calibrate.cpp)
+  add_executable(rns8-instruction-roof-calibrate benchmarks/rns8_instruction_roof_calibrate.cpp)
+  add_executable(rns8-system-roof-calibrate benchmarks/rns8_system_roof_calibrate.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(RNS8_SYSTEM_ROOF_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_system_roof_kernels.hip")
+    target_sources(rns8-system-roof-calibrate PRIVATE "${RNS8_SYSTEM_ROOF_OBJECT}")
+  endif()
+  add_executable(rns8-split-k-calibrate benchmarks/rns8_split_k_calibrate.cpp)
+  add_executable(rns8-queue-calibrate benchmarks/rns8_queue_calibrate.cpp)
+  add_executable(rns8-public-queue-calibrate benchmarks/rns8_public_queue_calibrate.cpp)
+  add_executable(rns8-ragged-calibrate benchmarks/rns8_ragged_calibrate.cpp)
+  add_executable(rns8-narrow-public-calibrate benchmarks/rns8_narrow_public_calibrate.cpp)
+  add_executable(rns8-narrow-group-calibrate benchmarks/rns8_narrow_group_calibrate.cpp)
+  target_sources(rns8-narrow-group-calibrate PRIVATE src/tool_common/execution_environment_json.cpp)
+  add_executable(rns8-bilinear-calibrate benchmarks/rns8_bilinear_calibrate.cpp)
+  add_executable(rns8-native-integrity-calibrate benchmarks/rns8_native_integrity_calibrate.cpp)
+  add_executable(rns8-native-interop-calibrate benchmarks/rns8_native_interop_calibrate.cpp)
+  add_executable(rns8-host-transfer-calibrate benchmarks/rns8_host_transfer_calibrate.cpp)
+  add_executable(rns8-residue-dot-calibrate benchmarks/rns8_residue_dot_calibrate.cpp)
+  add_executable(rns8-lift-recipe-calibrate benchmarks/rns8_lift_recipe_calibrate.cpp)
+  add_executable(rns8-product-stage-calibrate benchmarks/rns8_product_stage_calibrate.cpp)
+  if(RNS8_ENABLE_HIP)
+    rns8_compile_hip_source(RNS8_INTEROP_APPLICATION_OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/hip_native_interop_application.hip")
+    target_sources(rns8-native-interop-calibrate PRIVATE "${RNS8_INTEROP_APPLICATION_OBJECT}")
+  endif()
+  add_executable(rns8-int4-calibrate benchmarks/rns8_int4_calibrate.cpp)
+  add_executable(rns8-fp8-calibrate benchmarks/rns8_fp8_calibrate.cpp)
+  add_executable(rns8-tdm-calibrate benchmarks/rns8_tdm_calibrate.cpp)
+  add_executable(rns8-stream-panel-calibrate benchmarks/rns8_stream_panel_calibrate.cpp)
+  add_executable(rns8-stream-capacity-qualify benchmarks/rns8_stream_capacity_qualify.cpp)
+  foreach(_calibrator IN ITEMS
+      rns8-cpu-amx-calibrate
+      rns8-distributed-calibrate
+      rns8-crt-calibrate
+      rns8-native-calibrate
+      rns8-epilogue-calibrate
+      rns8-finite-verify-calibrate
+      rns8-block-sparse-calibrate
+      rns8-wrap64-calibrate
+      rns8-word-mod-calibrate
+      rns8-instruction-roof-calibrate
+      rns8-system-roof-calibrate
+      rns8-split-k-calibrate
+      rns8-queue-calibrate
+      rns8-public-queue-calibrate
+      rns8-ragged-calibrate
+      rns8-int4-calibrate
+      rns8-fp8-calibrate
+      rns8-tdm-calibrate
+      rns8-bilinear-calibrate
+      rns8-native-integrity-calibrate
+      rns8-native-interop-calibrate
+      rns8-host-transfer-calibrate
+      rns8-residue-dot-calibrate
+      rns8-lift-recipe-calibrate
+      rns8-product-stage-calibrate
+      rns8-narrow-public-calibrate
+      rns8-narrow-group-calibrate
+      rns8-stream-panel-calibrate
+      rns8-stream-capacity-qualify)
+    rns8_bind_manifest(${_calibrator})
+    target_include_directories(${_calibrator} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}")
+    target_link_libraries(${_calibrator} PRIVATE rns8_static nlohmann_json::nlohmann_json)
+    rns8_copy_windows_clang_asan_runtime(${_calibrator})
+    if(RNS8_ENABLE_HIP)
+      target_include_directories(${_calibrator} PRIVATE ${RNS8_HIP_INCLUDE_DIRS})
+      target_compile_definitions(${_calibrator} PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+    endif()
+  endforeach()
+  rns8_bind_manifest(rns8-bench)
   target_compile_definitions(
     rns8-bench
     PRIVATE
@@ -186,6 +346,7 @@ if(RNS8_BUILD_BENCHMARKS)
     PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/src"
       "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
+      ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS}
   )
   target_link_libraries(rns8-bench PRIVATE rns8_static)
   rns8_copy_windows_clang_asan_runtime(rns8-bench)
@@ -211,11 +372,10 @@ if(RNS8_BUILD_EXAMPLES)
 endif()
 
 if(RNS8_BUILD_FUZZERS)
-  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    message(FATAL_ERROR "RNS8_BUILD_FUZZERS requires an LLVM Clang or clang-cl compiler")
-  endif()
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rns8_fuzz.cmake)
+  rns8_add_fuzz_library()
 
-  function(rns8_add_cpu_fuzzer target_name source_file)
+  function(rns8_add_cpu_fuzzer target_name source_file production_library)
     add_executable(${target_name} "${source_file}")
     target_compile_features(${target_name} PRIVATE cxx_std_17)
     target_include_directories(
@@ -223,26 +383,36 @@ if(RNS8_BUILD_FUZZERS)
       PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}"
     )
-    target_link_libraries(${target_name} PRIVATE rns8_static)
+    if(production_library)
+      target_link_libraries(${target_name} PRIVATE rns8_fuzz_library)
+    endif()
     if(MSVC)
-      target_compile_options(${target_name} PRIVATE /fsanitize=address -fsanitize=fuzzer /W4 /permissive-)
-      if(RNS8_ENABLE_WINDOWS_CLANG_ASAN)
-        target_link_libraries(${target_name} PRIVATE "${RNS8_CLANG_FUZZER_LIB}")
-      else()
-        target_link_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
-      endif()
+      target_compile_options(${target_name} PRIVATE /fsanitize=address /clang:-fsanitize=fuzzer-no-link)
+      target_link_libraries(${target_name} PRIVATE "${RNS8_CLANG_FUZZER_LIB}")
     else()
-      target_compile_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
-      target_link_options(${target_name} PRIVATE -fsanitize=fuzzer,address)
-      target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+      target_compile_options(${target_name} PRIVATE -fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined)
+      target_link_options(${target_name} PRIVATE -fsanitize=fuzzer,address,undefined)
     endif()
     rns8_copy_windows_clang_asan_runtime(${target_name})
   endfunction()
 
-  rns8_add_cpu_fuzzer(rns8_fuzz_plan_descriptor tests/fuzz/rns8_fuzz_plan_descriptor.cpp)
-  rns8_add_cpu_fuzzer(rns8_fuzz_export_contract tests/fuzz/rns8_fuzz_export_contract.cpp)
-  rns8_add_cpu_fuzzer(rns8_fuzz_metadata_json tests/fuzz/rns8_fuzz_metadata_json.cpp)
-  target_link_libraries(rns8_fuzz_metadata_json PRIVATE nlohmann_json::nlohmann_json)
+  rns8_add_cpu_fuzzer(rns8_fuzz_plan_descriptor tests/fuzz/rns8_fuzz_plan_descriptor.cpp TRUE)
+  rns8_add_cpu_fuzzer(rns8_fuzz_export_contract tests/fuzz/rns8_fuzz_export_contract.cpp TRUE)
+  # This exercises a third-party parser only, not RNS8 metadata admission.
+  rns8_add_cpu_fuzzer(rns8_fuzz_json_dependency tests/fuzz/rns8_fuzz_json_dependency.cpp FALSE)
+  target_link_libraries(rns8_fuzz_json_dependency PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
+
+
+if(RNS8_BUILD_BENCHMARKS AND RNS8_ENABLE_DISTRIBUTED_MPI)
+  add_executable(rns8-process-smoke benchmarks/rns8_distributed_process_smoke.cpp)
+  rns8_bind_manifest(rns8-process-smoke)
+  target_compile_features(rns8-process-smoke PRIVATE cxx_std_17)
+  target_include_directories(rns8-process-smoke PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${RNS8_BOOST_MULTIPRECISION_INCLUDE_DIR}" ${RNS8_NLOHMANN_JSON_INCLUDE_DIRS} ${RNS8_HIP_INCLUDE_DIRS})
+  target_compile_definitions(rns8-process-smoke PRIVATE __HIP_PLATFORM_AMD__=1 RNS8_ENABLE_HIP=1)
+  target_link_libraries(rns8-process-smoke PRIVATE rns8_static MPI::MPI_CXX ${RNS8_HIP_LIBRARIES})
+endif()

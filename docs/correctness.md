@@ -1,5 +1,14 @@
 # Exactness contract and tests
 
+Current execution results and remaining qualification are owned by the
+[current roadmap](roadmap.md#current-validation-and-remaining-work).
+
+All named public enums use explicit 32-bit C++ backing through `RNS8_ENUM_BASE`.
+This makes arbitrary C/FFI bit patterns representable before validation; unknown
+values still reject through the actual descriptor/operation checks. C consumers
+must retain the normal 32-bit enum ABI and supported packing. Fixed backing does
+not authorize new enum values or change the documented public struct layout.
+
 ## CRT range and trusted bounds
 
 Let `P` be the product of the selected pairwise-coprime default moduli.
@@ -167,6 +176,12 @@ Exact-wide output/input handle aliases
 are rejected. Grouped exact-wide tasks also reject cross-task input/output or
 output/output aliases. Prepacked B retains its immutable input proof; incremental
 output reuse keeps the existing exact identity and dirty-output-region contract.
+Resident result-cache snapshot preparation invalidates cache eligibility before
+allocation or copying; only a completed compute/snapshot/binding publishes a
+new hit. Cache restore invalidates all output representations before device
+copying for bounded, finite and exact-wide contracts. A failed restore therefore
+cannot expose a partly copied result as current. These are fail-closed state
+transitions, not a promise to preserve device bytes after a hardware failure.
 Sparse raw-plane packing interprets the supplied residues as canonical unsigned
 or centered signed integers and records those magnitudes; it cannot recover an
 integer value that was already aliased before the caller supplied the residues.
@@ -211,6 +226,16 @@ requires range status. A large CRT range is not a proof that an arbitrary stored
 representative meets a smaller bound. An error must preserve every caller output
 cell and its padding.
 
+CPU integer exports prepare immutable contracts, staging and separate value/term
+scratch before entering OpenMP. Each worker catches reconstruction failures on
+that worker; publication starts only after every worker succeeds. Scalar Boost
+remainders, reusable Garner terms and direct low-limb extraction avoid creating
+a multiprecision result merely to read a machine-width value. The dedicated
+allocation test observes C++ requests across all workers, rejects growth with
+output cell count, and injects a real worker allocation failure on cold and warm
+public export traversals. Its counts cover C++ allocation requests, not all CRT
+or OpenMP-runtime allocation mechanisms; production timing is measured separately.
+
 Exact-wide structural status elision is a separate width proof: it applies only
 when all possible representatives fit the requested limb width. All-zero output
 proofs are also distinct. Neither justifies blanket bounded status elision.
@@ -219,9 +244,10 @@ Public C++ enums have fixed uint32 backing so malformed C/FFI values can be
 validated without an invalid-enum load. C clients must use the normal 32-bit
 enum ABI, not `-fshort-enums`.
 
-Unsupported contracts/targets return explicit errors. Ozaki/FP8, INT4/IU4,
-Strassen, and Freivalds execution are unimplemented; reserved research APIs
-return `RNS8_UNSUPPORTED_BACKEND`. Deterministic exact APIs do not use
+Unsupported contracts/targets return explicit errors. Public Ozaki/FP8, INT4/IU4
+and Freivalds execution remain unsupported. The opt-in one-level Strassen owner
+uses ordinary exact range admission and staged publication; public export fixtures
+await the consolidated validation campaign. Deterministic exact APIs do not use
 probabilistic verification as a substitute for reconstruction correctness.
 
 ## Test map
@@ -249,3 +275,86 @@ carry checks.
 Run the [qualification guide](gpu-qualification.md) on each actual target.
 CPU success, schema-valid fixtures, compiled kernel metadata, and skipped tests
 are not GPU correctness evidence.
+
+## Resident value publication
+
+Every resident GEMM rejects output/input handle aliases before materialization or
+writes. A shared A/B handle is valid with a distinct C. Grouped outputs must be
+distinct and disjoint from every task's inputs. Preflight rejection preserves
+old outputs. Once execution begins, failure may invalidate every output domain;
+export and downstream arithmetic require a successful recompute or repack.
+
+Caller import versions remain scoped to imported sources. Internally, matrices
+also carry an engine-owned content generation, advanced on successful value
+writes and used by result/prepack cache keys. Generated source_version reports
+that generation, not a hash of caller versions. Recomputing an identical value
+may advance it; materialization/lifting preserves it. Generation exhaustion
+permanently disables reuse for that handle instead of wrapping. Generated output
+cannot accidentally satisfy the unchanged-import optimization.
+
+The benchmark's arbitrary-width importer now uses the core checked importer:
+it decodes logical cells, rebuilds global/axis/moment proofs, checks strict CRT
+capacity, and publishes residues and proof together. Padding is excluded. Prior
+independent exact-wide export/repack chain captures require rerunning before
+comparison or promotion; no historical numerical damage is inferred.
+
+`RNS8_PLAN_EXACT_SCALAR_FIRST` explicitly trades propagated proof tightness for
+host admission cost. It first checks K times the input magnitude envelopes and
+skips per-cell moments only if that bound strictly fits the current CRT range.
+Otherwise it performs full refinement before rejecting. Successful scalar
+admission discards axis summaries, so later chains may reject sooner. The default
+remains eager and preserves existing tight-chain admissibility. This policy has
+no retained proof DAG, borrowed matrix references or hidden cache, and its plan
+fingerprint/selection key is distinct. GPU event timers do not measure its host
+proof cost; compare host helper/public-call timing separately.
+
+
+Prepared integer CRT exports use explicit signed/unsigned/canonical modes and
+validate destination width at the complete root. Their retained generation-bound
+range envelope, transactional output publication and rebind contract are defined
+in [the CRT guide](balanced-crt.md#prepared-checked-integer-exports). This authored
+extension has syntax checking; source-bound execution evidence is pending.
+
+Prepared I8MM publication uses the synchronous reservation token to clear and
+publish C while retaining its exclusive writer reservation. Computation and
+fallible proof preparation precede that commit boundary. Ordinary grouped GEMM
+validates finite operands and acquires the whole batch before invalidating any
+output; pointer-table preparation rejection preserves old results. Grouped
+scratch uses the shared retryable device-buffer owner, retaining failed frees.
+Distributed HIP owners become irreversibly retired when destructive close starts;
+a failed close may retry teardown but cannot submit or materialize a new epoch.
+A BUSY close caused by work or readers remains non-destructive. The November
+source pass has authored regression coverage; runtime qualification is pending.
+
+Offline exact-form consumers require both polynomial identity and finite exact
+recoverability before costing a form. The shared certificate checker admits the
+initial instruction and ordered-recombination carry separately and bounds all
+partial lengths, including zero. Checker v4 changes proof identity; older
+receipts do not automatically certify the stronger obligation. ISA, layout and
+measured target qualification remain separate verdicts. Modulus-search schema
+v3 is read and written through a shared strict-product validator; v1/v2 files
+remain readable as legacy, nonqualifying semantic-range evidence.
+
+Ordinary synchronous RNS/finite/wrap GEMM, exact AXPBY, Gram, paired complex
+products, sparse execution, prepacked B, incremental result-cache copies and
+the finite-product verifier now retain their borrowed owners through shared
+completion leases. The verifier holds readers without inventing an output
+writer. Sparse/prepacked/cache objects reject destruction while retained;
+private scratch retires through the existing deferred-buffer queue. Failed
+cleanup drains keep reservations and poison execution authority; a later drain
+releases memory without reviving that authority. Successful backend completion
+is reused without an additional device-wide wait. Authored public-dispatch
+host mocks exercise these state transitions without inducing device faults;
+execution and remaining accelerator-handle qualification are deferred.
+
+CPU integer export shares immutable prefix products/centering thresholds and one
+strided reconstruction traversal for bounded signed/unsigned and exact-wide
+signed/unsigned output. Uniform or per-tile contracts and worker scratch are
+prepared before OpenMP. No per-cell residue vector or status array is allocated;
+remaining multiprecision exceptions are caught by the originating worker and
+resolved in deterministic cell order before any caller bytes are published.
+Per-value range/width checks, zero-tile proofs, limb widths and row padding remain
+part of the contract. Source changes and authored cold-table/all-prefix/limb and
+public worker-failure regressions follow the roadmap's
+execution scope; allocation
+and timing improvements have not yet been measured.

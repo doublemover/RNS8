@@ -1,0 +1,15 @@
+{
+  "schema": "rns8_wrap64_signed_radix_v1",
+  "radix": 256,
+  "digits": 8,
+  "bias": 9259542123273814144,
+  "carry_before_xor": true,
+  "signed_operands": true,
+  "clamp": false,
+  "prior_accumulator": 0,
+  "pair_count": 36,
+  "fold": "unsigned64_after_each_pair",
+  "shift": "8_times_i_plus_j",
+  "layout": "tile16_canonical_bytes_recode_v1",
+  "instruction_padded_k": 16
+}

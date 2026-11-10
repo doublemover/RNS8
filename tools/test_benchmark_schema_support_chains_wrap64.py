@@ -1,3 +1,22 @@
+"""Independent schema fixture builders with explicit dependencies."""
+
+from __future__ import annotations
+
+import copy
+from test_benchmark_schema_support_core import (
+    add_ck_chain_gpu_events,
+    add_prefix_policy_fields,
+    summary,
+    zero_summary,
+)
+from test_benchmark_schema_support_metadata import (
+    add_output_policy_fields,
+    add_requested_next_op_fields,
+    add_target_variant_fields,
+    with_accumulator_key_fields,
+)
+
+
 def as_reused_pack_capture(capture: dict) -> dict:
     reused = copy.deepcopy(capture)
     repeats = reused["repeats"]
@@ -97,9 +116,9 @@ def as_exact_wide_capture(capture: dict) -> dict:
     exact["backend_metadata"]["epilogue_mode"] = "ck_fused_i32_to_centered_residue_rns_output"
     exact["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
-        "epilogue=ck_fused_i32_to_centered_residue_rns_output"
+            "backend=ck;semantics=exact_wide_signed;m=64;n=128;k=64;prefix=20;tile_m=128;tile_n=128;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
+            "epilogue=ck_fused_i32_to_centered_residue_rns_output"
         ),
         exact,
     )
@@ -124,7 +143,9 @@ def as_exact_wide_capture(capture: dict) -> dict:
     }
     phase_order = exact["timing_metadata"].get("gpu_event_phase_order")
     if isinstance(phase_order, list):
-        exact["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+        exact["timing_metadata"]["gpu_event_phase_order"] = [
+            renamed.get(item, item) for item in phase_order
+        ]
     for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
         values = exact.get(field)
         if isinstance(values, dict):
@@ -132,6 +153,7 @@ def as_exact_wide_capture(capture: dict) -> dict:
                 if old in values:
                     values[new] = values.pop(old)
     return exact
+
 
 def as_residue_current_chain_capture(capture: dict) -> dict:
     chain = as_exact_wide_capture(capture)
@@ -231,7 +253,9 @@ def as_residue_chain_final_export_capture(capture: dict) -> dict:
     add_requested_next_op_fields(chain, resolved="final-export")
     add_output_policy_fields(
         chain,
-        status_handling=chain["output_policy"]["status_handling"] if "output_policy" in chain else "structurally_elided",
+        status_handling=chain["output_policy"]["status_handling"]
+        if "output_policy" in chain
+        else "structurally_elided",
         per_repeat_export=True,
         final_checksum_export=False,
     )
@@ -262,7 +286,9 @@ def as_bounded_residue_chain_independent_final_export_capture(capture: dict) -> 
         "3 GEMM calls, exports every intermediate host output, repacks non-final intermediates as the next native "
         "input, and includes all materialization work"
     )
-    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["timing_metadata"]["benchmark_execution_mode"] = (
+        "residue_chain_independent_final_host_export"
+    )
     chain["timing_metadata"]["residue_chain_final_export"] = True
     chain["timing_metadata"]["residue_chain_independent_final_export"] = True
     chain["timing_metadata"]["pack_mode"] = "per_repeat_repack"
@@ -301,7 +327,9 @@ def as_bounded_residue_chain_independent_final_export_capture(capture: dict) -> 
     )
     chain["avg_pack_us"] = chain["timing_summary_us"]["pack"]["avg"]
     chain["avg_rns_gemm_us"] = chain["timing_summary_us"]["rns_gemm"]["avg"]
-    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"]["per_modulus_gemm_estimate"]["avg"]
+    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"][
+        "per_modulus_gemm_estimate"
+    ]["avg"]
     chain["avg_crt_export_us"] = chain["timing_summary_us"]["crt_export"]["avg"]
     chain["avg_end_to_end_us"] = chain["timing_summary_us"]["end_to_end"]["avg"]
     export_phases = [
@@ -349,7 +377,9 @@ def as_exact_wide_residue_chain_independent_final_export_capture(capture: dict) 
         "performs 3 GEMM calls, exports every intermediate fixed-limb host output, repacks non-final "
         "intermediates as the next RNS input, and includes all materialization work"
     )
-    chain["timing_metadata"]["benchmark_execution_mode"] = "residue_chain_independent_final_host_export"
+    chain["timing_metadata"]["benchmark_execution_mode"] = (
+        "residue_chain_independent_final_host_export"
+    )
     chain["timing_metadata"]["residue_chain_final_export"] = True
     chain["timing_metadata"]["residue_chain_independent_final_export"] = True
     chain["timing_metadata"]["pack_mode"] = "per_repeat_repack"
@@ -388,7 +418,9 @@ def as_exact_wide_residue_chain_independent_final_export_capture(capture: dict) 
     )
     chain["avg_pack_us"] = chain["timing_summary_us"]["pack"]["avg"]
     chain["avg_rns_gemm_us"] = chain["timing_summary_us"]["rns_gemm"]["avg"]
-    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"]["per_modulus_gemm_estimate"]["avg"]
+    chain["avg_per_modulus_gemm_estimate_us"] = chain["timing_summary_us"][
+        "per_modulus_gemm_estimate"
+    ]["avg"]
     chain["avg_crt_export_us"] = chain["timing_summary_us"]["crt_export"]["avg"]
     chain["avg_end_to_end_us"] = chain["timing_summary_us"]["end_to_end"]["avg"]
     return chain
@@ -424,9 +456,9 @@ def as_bounded_residue_current_chain_capture(capture: dict) -> dict:
     chain["timing_metadata"]["benchmark_execution_mode"] = "residue_current_rns_chain"
     chain["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
-        "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
+            "backend=ck;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=128;tile_n=128;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=ck_wmma_cshuffle_i8_i32_default_moduli_static_centered_epilogue_v3;"
+            "epilogue=ck_fused_i32_to_centered_residue_then_crt_export"
         ),
         chain,
     )
@@ -509,9 +541,9 @@ def as_hip_graph_replay_capture(capture: dict) -> dict:
     graph["avg_per_modulus_gemm_estimate_us"] = graph["avg_rns_gemm_us"]
     graph["backend_metadata"]["autotune_key"] = with_accumulator_key_fields(
         (
-        "backend=hip-direct;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=64;tile_n=64;"
-        "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;"
-        "epilogue=fused_centered_residue_then_crt_export"
+            "backend=hip-direct;semantics=bounded_i64;m=64;n=64;k=64;prefix=9;tile_m=64;tile_n=64;"
+            "groups=1;adaptive_prefix=0;adaptive_skip=0;kernel=direct_hip_tiled_active_prefix_rns_gemm_v2;"
+            "epilogue=fused_centered_residue_then_crt_export"
         ),
         graph,
     )
@@ -527,7 +559,15 @@ def as_hip_graph_replay_capture(capture: dict) -> dict:
     metadata["gpu_event_timing_source_scope"] = None
     metadata["gpu_event_timing_caveat"] = None
     metadata["gpu_event_phase_order"] = None
-    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_order"] = [
+        "planning",
+        "scheduling",
+        "matrix_alloc",
+        "pack",
+        "rns_gemm",
+        "crt_export",
+        "end_to_end",
+    ]
     metadata["phase_notes"]["pack"] = (
         "zero-valued per-repeat phase; A and B were packed once into persistent RNS matrices before HIP Graph capture"
     )
@@ -669,7 +709,15 @@ def as_hip_graph_full_bounded_capture(capture: dict) -> dict:
     metadata["gpu_event_timing_source_scope"] = None
     metadata["gpu_event_timing_caveat"] = None
     metadata["gpu_event_phase_order"] = None
-    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_order"] = [
+        "planning",
+        "scheduling",
+        "matrix_alloc",
+        "pack",
+        "rns_gemm",
+        "crt_export",
+        "end_to_end",
+    ]
     metadata["phase_notes"]["pack"] = (
         "captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay"
     )
@@ -719,7 +767,9 @@ def as_hip_graph_full_bounded_capture(capture: dict) -> dict:
     }
     add_target_variant_fields(graph)
     add_requested_next_op_fields(graph)
-    add_output_policy_fields(graph, status_handling="required", per_repeat_export=True, final_checksum_export=False)
+    add_output_policy_fields(
+        graph, status_handling="required", per_repeat_export=True, final_checksum_export=False
+    )
     return graph
 
 
@@ -759,7 +809,9 @@ def as_hip_graph_full_finite_capture(capture: dict) -> dict:
     graph["backend_metadata"]["selected_kernel"] = kernel
     graph["backend_metadata"]["epilogue_mode"] = "fused_centered_residue_then_canonical_u8_export"
     graph["backend_metadata"]["workspace_mode"] = "resident_device_buffers"
-    graph["backend_metadata"]["isa_evidence"] = "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
+    graph["backend_metadata"]["isa_evidence"] = (
+        "rns8_hip_direct_finite_specialized_reducer_isa_gate_no_divide"
+    )
     graph["backend_metadata"]["accumulator_safety"].update(
         {
             "input_domain": "centered_i8_finite_u8_residues",
@@ -792,7 +844,9 @@ def as_hip_graph_full_finite_capture(capture: dict) -> dict:
     graph["timing_note"] = (
         "host wall-clock timings for benchmark-only HIP Graph replay of a Direct-HIP finite-u8 full pack/GEMM/export path"
     )
-    graph["timing_metadata"]["benchmark_execution_mode"] = "hip_graph_replay_finite_u8_pack_gemm_export"
+    graph["timing_metadata"]["benchmark_execution_mode"] = (
+        "hip_graph_replay_finite_u8_pack_gemm_export"
+    )
     graph["timing_metadata"]["hip_graph_replay_scope"] = "direct_hip_finite_u8_pack_gemm_export"
     graph["timing_metadata"]["phase_notes"]["rns_gemm"] = (
         "captured inside one HIP Graph launch with the Direct-HIP finite-u8 pack and canonical export work"
@@ -828,11 +882,18 @@ def as_hip_graph_full_finite_capture(capture: dict) -> dict:
     add_prefix_policy_fields(graph, "semantic_specific_no_rns_prefix")
     add_target_variant_fields(graph)
     add_requested_next_op_fields(graph)
-    add_output_policy_fields(graph, status_handling="structurally_elided", per_repeat_export=True, final_checksum_export=False)
+    add_output_policy_fields(
+        graph,
+        status_handling="structurally_elided",
+        per_repeat_export=True,
+        final_checksum_export=False,
+    )
     return graph
 
 
-def as_hip_graph_full_exact_wide_capture(capture: dict, semantics: str = "exact_wide_signed") -> dict:
+def as_hip_graph_full_exact_wide_capture(
+    capture: dict, semantics: str = "exact_wide_signed"
+) -> dict:
     graph = as_hip_graph_full_bounded_capture(as_exact_wide_capture(capture))
     signed = semantics == "exact_wide_signed"
     kernel = "direct_hip_tiled_active_prefix_rns_gemm_v2"
@@ -862,7 +923,9 @@ def as_hip_graph_full_exact_wide_capture(capture: dict, semantics: str = "exact_
     graph["residue_planes_requested"] = 20
     graph["residue_planes_selected"] = 20
     graph["exact_wide_limb_count"] = 4
-    graph["epilogue_type"] = "exact_wide_signed_limb_export" if signed else "exact_wide_unsigned_limb_export"
+    graph["epilogue_type"] = (
+        "exact_wide_signed_limb_export" if signed else "exact_wide_unsigned_limb_export"
+    )
     graph["schedule_metadata"]["min_required_prefix"] = 20
     graph["schedule_metadata"]["max_required_prefix"] = 20
     graph["schedule_metadata"]["min_selected_prefix"] = 20
@@ -961,7 +1024,15 @@ def as_hip_graph_full_wrap64_capture(capture: dict) -> dict:
     metadata["gpu_event_timing_source_scope"] = None
     metadata["gpu_event_timing_caveat"] = None
     metadata["gpu_event_phase_order"] = None
-    metadata["phase_order"] = ["planning", "scheduling", "matrix_alloc", "pack", "rns_gemm", "crt_export", "end_to_end"]
+    metadata["phase_order"] = [
+        "planning",
+        "scheduling",
+        "matrix_alloc",
+        "pack",
+        "rns_gemm",
+        "crt_export",
+        "end_to_end",
+    ]
     metadata["phase_notes"]["pack"] = (
         "captured inside one HIP Graph launch; raw per-phase GPU events are unavailable for graph replay"
     )
@@ -1009,7 +1080,9 @@ def as_hip_graph_full_wrap64_capture(capture: dict) -> dict:
     }
     add_target_variant_fields(graph)
     add_requested_next_op_fields(graph)
-    add_output_policy_fields(graph, status_handling="not_applicable", per_repeat_export=True, final_checksum_export=False)
+    add_output_policy_fields(
+        graph, status_handling="not_applicable", per_repeat_export=True, final_checksum_export=False
+    )
     return graph
 
 
@@ -1114,14 +1187,19 @@ def as_wrap64_rocwmma_candidate_capture(capture: dict) -> dict:
     }
     phase_order = candidate["timing_metadata"].get("gpu_event_phase_order")
     if isinstance(phase_order, list):
-        candidate["timing_metadata"]["gpu_event_phase_order"] = [renamed.get(item, item) for item in phase_order]
+        candidate["timing_metadata"]["gpu_event_phase_order"] = [
+            renamed.get(item, item) for item in phase_order
+        ]
     for field in ["gpu_event_timings_us", "gpu_event_timing_summary_us"]:
         values = candidate.get(field)
         if isinstance(values, dict):
             for old, new in renamed.items():
                 if old in values:
                     values[new] = values.pop(old)
-    assert len(candidate["gpu_event_timings_us"]["wrap64_rocwmma_candidate_gemm36_kernel_group"]) == repeats
+    assert (
+        len(candidate["gpu_event_timings_us"]["wrap64_rocwmma_candidate_gemm36_kernel_group"])
+        == repeats
+    )
     return candidate
 
 
@@ -1160,5 +1238,3 @@ def as_large_wrap64_colpair_capture(capture: dict) -> dict:
         if isinstance(values, dict) and old_event in values:
             values[new_event] = values.pop(old_event)
     return colpair
-
-

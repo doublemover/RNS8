@@ -1,0 +1,134 @@
+name: Native Instrumentation Candidate
+
+# Automatic lanes require native sensitivity, cost and inventory qualification
+# and explicit repository activation. This source change sets no variables.
+on:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 3"
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: Separate native Linux instrumentation lane
+        required: true
+        default: cpu-asan-ubsan-debug
+        type: choice
+        options:
+          - cpu-asan-ubsan-debug
+          - cpu-asan-ubsan-release
+          - cpu-tsan-release
+          - device-asan-10.1
+      llvm_root:
+        description: Absolute prefix of the operator-prepared locked LLVM toolchain
+        required: false
+        type: string
+      rocm_root:
+        description: Prepared ROCm10.1 ASan SDK prefix for the device lane
+        required: false
+        type: string
+      target:
+        description: Explicit supported device-ASan target for the device lane
+        required: true
+        default: gfx942:xnack+
+        type: choice
+        options:
+          - gfx942:xnack+
+          - gfx950:xnack+
+      agent_index:
+        description: rocminfo agent index for the device lane
+        required: true
+        default: 1
+        type: number
+
+permissions:
+  contents: read
+
+# Reserve the native qualification image and avoid interrupting detector/test
+# captures. This workflow neither provisions a runner nor changes its system.
+concurrency:
+  group: rns8-native-host-instrumentation
+  cancel-in-progress: false
+
+jobs:
+  change-scope:
+    name: Native instrumentation source scope
+    uses: ./.github/workflows/native-check-scope.yml
+    with:
+      event: ${{ github.event_name }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+  native-host:
+    needs: change-scope
+    if: >-
+      needs.change-scope.outputs.source_required == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (vars.RNS8_NATIVE_HOST_CI == 'enabled' &&
+       (github.event_name == 'schedule' || github.event.pull_request.head.repo.full_name == github.repository)))
+    runs-on: [self-hosted, linux, x64, rns8-host-checks, node24]
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        preset: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.preset) || (github.event_name == 'schedule' && '["cpu-asan-ubsan-debug","cpu-asan-ubsan-release","cpu-tsan-release"]' || '["cpu-asan-ubsan-debug"]')) }}
+    env:
+      RNS8_NATIVE_LLVM_ROOT: ${{ inputs.llvm_root || vars.RNS8_NATIVE_LLVM_ROOT }}
+      RNS8_HOST_PRESET: ${{ matrix.preset }}
+      RNS8_ASAN_ROCM_ROOT: ${{ inputs.rocm_root }}
+      RNS8_ASAN_TARGET: ${{ inputs.target }}
+      RNS8_ASAN_AGENT_INDEX: ${{ inputs.agent_index }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Require the prepared compiler and runtime tools
+        if: ${{ matrix.preset != 'device-asan-10.1' }}
+        run: |
+          test "${RNS8_NATIVE_LLVM_ROOT#/}" != "$RNS8_NATIVE_LLVM_ROOT"
+          test -x "$RNS8_NATIVE_LLVM_ROOT/bin/clang++"
+          test -x "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-nm"
+          test -x "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-symbolizer"
+      - name: Select shared locked build tools
+        run: python tools/init_build_tools.py --github-path
+      - name: Check detector, object, loader and inventory protocols
+        run: |
+          python tools/test_execution_inventory.py
+          python tools/test_host_instrumentation.py
+          python tools/test_device_asan.py
+      - name: Run one fresh host lane and installed consumers
+        if: ${{ matrix.preset != 'device-asan-10.1' }}
+        run: >-
+          python tools/host_instrumentation_session.py
+          --preset "$RNS8_HOST_PRESET" --out temp/native-host-check
+          --compiler "$RNS8_NATIVE_LLVM_ROOT/bin/clang++"
+          --nm "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-nm"
+          --symbolizer "$RNS8_NATIVE_LLVM_ROOT/bin/llvm-symbolizer"
+          --cmake "$(command -v cmake)" --ctest "$(command -v ctest)"
+          --jobs 2 --timeout-seconds 3600 --total-seconds 6000 --execute
+      - name: Run supported device-ASan ordinary correctness and installed consumers
+        if: ${{ matrix.preset == 'device-asan-10.1' }}
+        run: >-
+          python tools/device_asan_preflight.py
+          --rocm-root "$RNS8_ASAN_ROCM_ROOT" --target "$RNS8_ASAN_TARGET"
+          --agent-index "$RNS8_ASAN_AGENT_INDEX" --out temp/native-host-check
+          --cmake "$(command -v cmake)" --ctest "$(command -v ctest)"
+          --jobs 2 --timeout-seconds 3600 --observe --compile --correctness
+      - name: Preserve first failure and native qualification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-host-check-${{ matrix.preset }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            temp/native-host-check/report.json
+            temp/native-host-check/*.json
+            temp/native-host-check/*.xml
+            temp/native-host-check/*.txt
+            temp/native-host-check/build/compile_commands.json
+            temp/native-host-check/build/CMakeCache.txt
+            temp/native-host-check/consumer-build/compile_commands.json
+            temp/native-host-check/consumer-build/CMakeCache.txt

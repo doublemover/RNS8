@@ -18,7 +18,8 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     begin_gpu_event_phase(collect_gpu_events);
     const rns8_status status =
         rns8_gemm_i64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_i64_oneshot", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_i64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       collect_bounded_oneshot_gpu_events(args, result, selected_backend, result.gpu_events);
     }
@@ -26,7 +27,7 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);
@@ -35,13 +36,22 @@ BenchmarkResult run_bounded_i64_oneshot(rns8_context* ctx, const Args& args, uin
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) {
+    (void)version;
+    run_iteration(nullptr);
+  });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
@@ -66,7 +76,8 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     begin_gpu_event_phase(collect_gpu_events);
     const rns8_status status =
         rns8_gemm_u64_oneshot(ctx, &desc, A.data(), args.k, B.data(), args.n, C.data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_u64_oneshot", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_u64_oneshot", status);
     if (collect_gpu_events && selected_backend == RNS8_BACKEND_HIP_DIRECT) {
       collect_bounded_oneshot_gpu_events(args, result, selected_backend, result.gpu_events);
     }
@@ -74,7 +85,7 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
     const auto repeat_end = std::chrono::steady_clock::now();
 
     if (samples) {
-      const uint64_t elapsed = elapsed_us(repeat_start, repeat_end);
+      const double elapsed = elapsed_us(repeat_start, repeat_end);
       samples->pack_us.push_back(0);
       samples->gemm_us.push_back(elapsed);
       samples->export_us.push_back(0);
@@ -83,18 +94,28 @@ BenchmarkResult run_bounded_u64_oneshot(rns8_context* ctx, const Args& args, uin
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
     run_iteration(nullptr);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
     run_iteration(&result.samples);
   }
   record_allocation_after_repeats(result);
+  run_public_sustained(args, result, [&](uint64_t version) {
+    (void)version;
+    run_iteration(nullptr);
+  });
+  verify_sustained_native_output(args, A, B, C, result);
   result.checksum = checksum_matrix(C, args.m, args.n, ldc, "C");
   return result;
 }
 
-BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
+BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& args,
+                                               uint64_t bound) {
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
@@ -115,7 +136,8 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(host API batch)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -128,8 +150,9 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
       grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_pack_gemm_export_enabled ? "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
-                                         : "host_phase_loop_per_task_export";
+        grouped_pack_gemm_export_enabled
+            ? "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
+            : "host_phase_loop_per_task_export";
   }
 
   const auto alloc_start = std::chrono::steady_clock::now();
@@ -139,22 +162,13 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
-  enforce_grouped_dispatch_task_setup_contract(
-      args, plan, tasks, RNS8_BOUNDED_I64, matrix_prefix, "grouped bounded i64 setup");
+  enforce_grouped_dispatch_task_setup_contract(args, plan, tasks, RNS8_BOUNDED_I64, matrix_prefix,
+                                               "grouped bounded i64 setup");
   GroupedNativeRnsBatch<int64_t> grouped_batch;
   if (grouped_pack_gemm_export_enabled) {
-    initialize_grouped_native_rns_batch(
-        args,
-        plan,
-        RNS8_BOUNDED_I64,
-        matrix_prefix,
-        tasks,
-        batch_a,
-        batch_b,
-        a_elements,
-        b_elements,
-        grouped_batch,
-        "grouped bounded i64");
+    initialize_grouped_native_rns_batch(args, plan, RNS8_BOUNDED_I64, matrix_prefix, tasks, batch_a,
+                                        batch_b, a_elements, b_elements, grouped_batch,
+                                        "grouped bounded i64");
     result.grouped_dispatch_batched_export_enabled = true;
     result.grouped_dispatch_device_output_slab_bytes =
         static_cast<uint64_t>(grouped_batch.device_resources.c_slab.bytes);
@@ -171,14 +185,10 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_pack_grouped_i64_task_inputs(
-            grouped_descriptor,
-            grouped_resources,
-            grouped_batch.a_host_slab.data(),
-            grouped_batch.b_host_slab.data(),
-            args.k,
-            args.n,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_i64_task_inputs(grouped bounded i64)", status);
+            grouped_descriptor, grouped_resources, grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(), args.k, args.n, source_version);
+        if (status != RNS8_SUCCESS)
+          fail_status("hip_direct_pack_grouped_i64_task_inputs(grouped bounded i64)", status);
       }
       (void)task;
       return OptionalPackOperandTiming{};
@@ -187,12 +197,14 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
     timing.available = true;
     const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(host API batch A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_i64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_i64(host API batch B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_i64(host API batch B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
     return timing;
@@ -200,9 +212,8 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
-            grouped_descriptor,
-            grouped_resources);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(grouped_descriptor,
+                                                                        grouped_resources);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_grouped_rns_task_outputs(grouped bounded i64)", status);
         }
@@ -211,66 +222,62 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
       return;
     }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch i64)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(host API batch i64)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_export_grouped_i64_task_outputs_to_host(
-            grouped_descriptor,
-            grouped_resources,
-            bound,
-            grouped_batch.c_host_slab.data(),
+            grouped_descriptor, grouped_resources, bound, grouped_batch.c_host_slab.data(),
             grouped_batch.c_host_slab.size());
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_export_grouped_i64_task_outputs_to_host(grouped bounded i64)", status);
+          fail_status("hip_direct_export_grouped_i64_task_outputs_to_host(grouped bounded i64)",
+                      status);
         }
+        if (!args.grouped_compact_output)
+          scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c,
+                                                 "timed grouped per-task materialization");
       }
       (void)task;
       return;
     }
     status = rns8_export_i64(ctx, plan, task.c, batch_c[task_index].data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_i64(host API batch)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export_i64(host API batch)", status);
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_BOUNDED_I64,
-        matrix_prefix,
-        static_cast<uint64_t>(r) + 1,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_I64,
+                                 matrix_prefix, static_cast<uint64_t>(r) + 1, nullptr, pack_task,
+                                 gemm_task, export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_BOUNDED_I64,
-        matrix_prefix,
-        static_cast<uint64_t>(args.warmups) + r + 1,
-        &result.samples,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_I64,
+                                 matrix_prefix, static_cast<uint64_t>(args.warmups) + r + 1,
+                                 &result.samples, pack_task, gemm_task, export_task);
   }
   record_allocation_after_repeats(result);
-  if (grouped_pack_gemm_export_enabled) {
-    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded i64 export");
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_I64,
+                                 matrix_prefix, version, nullptr, pack_task, gemm_task,
+                                 export_task);
+  });
+  if (grouped_pack_gemm_export_enabled && args.grouped_compact_output) {
+    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c,
+                                           "grouped bounded i64 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index],
+                                   batch_c[task_index], result);
+    task_checksums[task_index] =
+        checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
 
@@ -279,7 +286,8 @@ BenchmarkResult run_bounded_i64_host_api_batch(rns8_context* ctx, const Args& ar
   return result;
 }
 
-BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& args, uint64_t bound) {
+BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& args,
+                                               uint64_t bound) {
   std::mt19937_64 rng(args.seed);
   const uint32_t task_count = measured_task_count(args);
   const std::size_t a_elements = checked_elements(args.m, args.k, "host batch A");
@@ -300,7 +308,8 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   const auto plan_start = std::chrono::steady_clock::now();
   rns8_plan* plan = nullptr;
   rns8_status status = rns8_create_plan(ctx, &desc, &plan);
-  if (status != RNS8_SUCCESS) fail_status("rns8_create_plan(host API batch)", status);
+  if (status != RNS8_SUCCESS)
+    fail_status("rns8_create_plan(host API batch)", status);
   capture_schedule_info(plan, result);
   capture_backend_info(plan, result);
   apply_amdgpu_builtin_dense_variant_backend_metadata(args, result);
@@ -313,8 +322,9 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
       grouped_dispatch_requested(args) && selected_backend == RNS8_BACKEND_HIP_DIRECT;
   if (grouped_dispatch_requested(args)) {
     result.grouped_dispatch_execution_strategy =
-        grouped_pack_gemm_export_enabled ? "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
-                                         : "host_phase_loop_per_task_export";
+        grouped_pack_gemm_export_enabled
+            ? "device_grouped_pack_gemm_and_bounded_export_kernels_batched_d2h"
+            : "host_phase_loop_per_task_export";
   }
 
   const auto alloc_start = std::chrono::steady_clock::now();
@@ -324,22 +334,13 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   auto c_desc = matrix_desc(args.m, args.n, args, matrix_prefix);
   std::vector<HostApiBatchTask> tasks =
       create_host_api_batch_tasks(ctx, plan, a_desc, b_desc, c_desc, task_count);
-  enforce_grouped_dispatch_task_setup_contract(
-      args, plan, tasks, RNS8_BOUNDED_U64, matrix_prefix, "grouped bounded u64 setup");
+  enforce_grouped_dispatch_task_setup_contract(args, plan, tasks, RNS8_BOUNDED_U64, matrix_prefix,
+                                               "grouped bounded u64 setup");
   GroupedNativeRnsBatch<uint64_t> grouped_batch;
   if (grouped_pack_gemm_export_enabled) {
-    initialize_grouped_native_rns_batch(
-        args,
-        plan,
-        RNS8_BOUNDED_U64,
-        matrix_prefix,
-        tasks,
-        batch_a,
-        batch_b,
-        a_elements,
-        b_elements,
-        grouped_batch,
-        "grouped bounded u64");
+    initialize_grouped_native_rns_batch(args, plan, RNS8_BOUNDED_U64, matrix_prefix, tasks, batch_a,
+                                        batch_b, a_elements, b_elements, grouped_batch,
+                                        "grouped bounded u64");
     result.grouped_dispatch_batched_export_enabled = true;
     result.grouped_dispatch_device_output_slab_bytes =
         static_cast<uint64_t>(grouped_batch.device_resources.c_slab.bytes);
@@ -356,14 +357,10 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_pack_grouped_u64_task_inputs(
-            grouped_descriptor,
-            grouped_resources,
-            grouped_batch.a_host_slab.data(),
-            grouped_batch.b_host_slab.data(),
-            args.k,
-            args.n,
-            source_version);
-        if (status != RNS8_SUCCESS) fail_status("hip_direct_pack_grouped_u64_task_inputs(grouped bounded u64)", status);
+            grouped_descriptor, grouped_resources, grouped_batch.a_host_slab.data(),
+            grouped_batch.b_host_slab.data(), args.k, args.n, source_version);
+        if (status != RNS8_SUCCESS)
+          fail_status("hip_direct_pack_grouped_u64_task_inputs(grouped bounded u64)", status);
       }
       (void)task;
       return OptionalPackOperandTiming{};
@@ -372,12 +369,14 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
     timing.available = true;
     const auto pack_a_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.a, batch_a[task_index].data(), args.k, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch A)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(host API batch A)", status);
     const auto pack_a_end = std::chrono::steady_clock::now();
     timing.timing.a_us = elapsed_us(pack_a_start, pack_a_end);
     const auto pack_b_start = std::chrono::steady_clock::now();
     status = rns8_pack_u64(ctx, task.b, batch_b[task_index].data(), args.n, source_version);
-    if (status != RNS8_SUCCESS) fail_status("rns8_pack_u64(host API batch B)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_pack_u64(host API batch B)", status);
     const auto pack_b_end = std::chrono::steady_clock::now();
     timing.timing.b_us = elapsed_us(pack_b_start, pack_b_end);
     return timing;
@@ -385,9 +384,8 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   const auto gemm_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
-        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(
-            grouped_descriptor,
-            grouped_resources);
+        status = rns8::detail::hip_direct_gemm_grouped_rns_task_outputs(grouped_descriptor,
+                                                                        grouped_resources);
         if (status != RNS8_SUCCESS) {
           fail_status("hip_direct_gemm_grouped_rns_task_outputs(grouped bounded u64)", status);
         }
@@ -396,66 +394,62 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
       return;
     }
     status = rns8_gemm_rns(ctx, plan, task.a, task.b, task.c, task.workspace);
-    if (status != RNS8_SUCCESS) fail_status("rns8_gemm_rns(host API batch u64)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_gemm_rns(host API batch u64)", status);
   };
   const auto export_task = [&](HostApiBatchTask& task, uint32_t task_index) {
     if (grouped_pack_gemm_export_enabled) {
       if (task_index == 0) {
         status = rns8::detail::hip_direct_export_grouped_u64_task_outputs_to_host(
-            grouped_descriptor,
-            grouped_resources,
-            bound,
-            grouped_batch.c_host_slab.data(),
+            grouped_descriptor, grouped_resources, bound, grouped_batch.c_host_slab.data(),
             grouped_batch.c_host_slab.size());
         if (status != RNS8_SUCCESS) {
-          fail_status("hip_direct_export_grouped_u64_task_outputs_to_host(grouped bounded u64)", status);
+          fail_status("hip_direct_export_grouped_u64_task_outputs_to_host(grouped bounded u64)",
+                      status);
         }
+        if (!args.grouped_compact_output)
+          scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c,
+                                                 "timed grouped per-task materialization");
       }
       (void)task;
       return;
     }
     status = rns8_export_u64(ctx, plan, task.c, batch_c[task_index].data(), ldc);
-    if (status != RNS8_SUCCESS) fail_status("rns8_export_u64(host API batch)", status);
+    if (status != RNS8_SUCCESS)
+      fail_status("rns8_export_u64(host API batch)", status);
   };
 
   for (uint32_t r = 0; r < args.warmups; ++r) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_BOUNDED_U64,
-        matrix_prefix,
-        static_cast<uint64_t>(r) + 1,
-        nullptr,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::warmup, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_U64,
+                                 matrix_prefix, static_cast<uint64_t>(r) + 1, nullptr, pack_task,
+                                 gemm_task, export_task);
   }
   record_allocation_after_warmups(result);
   for (uint32_t r = 0; r < args.repeats; ++r) {
-    run_host_api_batch_iteration(
-        args,
-        result,
-        selected_backend,
-        plan,
-        tasks,
-        RNS8_BOUNDED_U64,
-        matrix_prefix,
-        static_cast<uint64_t>(args.warmups) + r + 1,
-        &result.samples,
-        pack_task,
-        gemm_task,
-        export_task);
+    [[maybe_unused]] rns8::detail::trace::IterationScope trace_iteration(
+        rns8::detail::trace::Role::measured, r);
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_U64,
+                                 matrix_prefix, static_cast<uint64_t>(args.warmups) + r + 1,
+                                 &result.samples, pack_task, gemm_task, export_task);
   }
   record_allocation_after_repeats(result);
-  if (grouped_pack_gemm_export_enabled) {
-    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c, "grouped bounded u64 export");
+  run_public_sustained(args, result, [&](uint64_t version) {
+    run_host_api_batch_iteration(args, result, selected_backend, plan, tasks, RNS8_BOUNDED_U64,
+                                 matrix_prefix, version, nullptr, pack_task, gemm_task,
+                                 export_task);
+  });
+  if (grouped_pack_gemm_export_enabled && args.grouped_compact_output) {
+    scatter_grouped_native_slab_to_outputs(args, grouped_batch.c_host_slab, batch_c,
+                                           "grouped bounded u64 export");
   }
   std::vector<uint64_t> task_checksums(task_count);
   for (uint32_t task_index = 0; task_index < task_count; ++task_index) {
-    task_checksums[task_index] = checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
+    verify_sustained_native_output(args, batch_a[task_index], batch_b[task_index],
+                                   batch_c[task_index], result);
+    task_checksums[task_index] =
+        checksum_matrix(batch_c[task_index], args.m, args.n, ldc, "host batch C");
   }
   result.checksum = combine_host_api_batch_checksums(task_checksums);
 
@@ -463,4 +457,3 @@ BenchmarkResult run_bounded_u64_host_api_batch(rns8_context* ctx, const Args& ar
   rns8_destroy_plan(plan);
   return result;
 }
-

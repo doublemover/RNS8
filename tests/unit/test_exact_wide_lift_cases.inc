@@ -40,8 +40,8 @@ void check_lift_unchanged(const rns8_matrix& matrix, const rns8_matrix& before) 
   check_lift_metadata(matrix, before);
 }
 
-void check_lift_planes(const rns8_matrix& matrix, const std::vector<boost::multiprecision::cpp_int>& values,
-                       uint32_t prefix) {
+void check_lift_planes(const rns8_matrix& matrix,
+                       const std::vector<boost::multiprecision::cpp_int>& values, uint32_t prefix) {
   for (uint32_t p = 0; p < prefix; ++p) {
     for (std::size_t cell = 0; cell < values.size(); ++cell) {
       CHECK(matrix.residues[values.size() * p + cell] ==
@@ -53,13 +53,15 @@ void check_lift_planes(const rns8_matrix& matrix, const std::vector<boost::multi
 // Internal oracle fixture for source-prefix boundaries that native-width plans
 // cannot produce. This proof is constructed from known full integers, never
 // inferred from their possibly aliased CRT representatives.
-void proven_lift_fixture(rns8_matrix& matrix, const std::vector<boost::multiprecision::cpp_int>& values,
+void proven_lift_fixture(rns8_matrix& matrix,
+                         const std::vector<boost::multiprecision::cpp_int>& values,
                          uint32_t prefix) {
   fill_exact_residue_matrix(&matrix, values);
   matrix.exact_max_magnitude = 0;
   for (const auto& value : values)
-    matrix.exact_max_magnitude = std::max(matrix.exact_max_magnitude,
-                                          boost::multiprecision::cpp_int(boost::multiprecision::abs(value)));
+    matrix.exact_max_magnitude =
+        std::max(matrix.exact_max_magnitude,
+                 boost::multiprecision::cpp_int(boost::multiprecision::abs(value)));
   matrix.exact_axis_ranges = {};
   matrix.exact_range_prefix = prefix;
   std::fill(matrix.residues.begin() + values.size() * prefix, matrix.residues.end(), int8_t(99));
@@ -82,9 +84,10 @@ struct ExactLiftPlan {
   }
 };
 
-}  // namespace
+} // namespace
 
-TEST_CASE("exact-wide CPU lifting enables wider signed and unsigned resident chains", "[exact-lift]") {
+TEST_CASE("exact-wide CPU lifting enables wider signed and unsigned resident chains",
+          "[exact-lift]") {
   for (auto semantics : {RNS8_EXACT_WIDE_SIGNED, RNS8_EXACT_WIDE_UNSIGNED}) {
     ExactChainFixture f(semantics, 1, 18);
     const int64_t sa = INT64_MIN, sb = INT64_MAX;
@@ -101,7 +104,7 @@ TEST_CASE("exact-wide CPU lifting enables wider signed and unsigned resident cha
                                                         ? boost::multiprecision::cpp_int(sa) * sb
                                                         : boost::multiprecision::cpp_int(ua) * ub;
     CHECK(result.exact_range_prefix == 18);
-    result.residues[18] = result.residues[19] = 99;  // Unwritten planes must be replaced.
+    result.residues[18] = result.residues[19] = 99; // Unwritten planes must be replaced.
     const auto before = result;
     auto* storage = result.residues.data();
     auto* row_proofs = result.exact_axis_ranges.rows.data();
@@ -125,16 +128,16 @@ TEST_CASE("exact-wide CPU lifting enables wider signed and unsigned resident cha
     check_lift_metadata(result, before);
     check_lift_planes(result, {expected}, 20);
     REQUIRE(export_wide() == RNS8_SUCCESS);
-    CHECK(std::vector<uint64_t>(output, output + 3) == (semantics == RNS8_EXACT_WIDE_SIGNED
-                                                            ? signed_twos_complement_limbs(expected, 3)
-                                                            : unsigned_limbs(expected, 3)));
+    CHECK(std::vector<uint64_t>(output, output + 3) ==
+          (semantics == RNS8_EXACT_WIDE_SIGNED ? signed_twos_complement_limbs(expected, 3)
+                                               : unsigned_limbs(expected, 3)));
     const int64_t sone = 1;
     const uint64_t uone = 1;
     REQUIRE((semantics == RNS8_EXACT_WIDE_SIGNED
                  ? rns8_pack_i64(f.ctx, f.matrices[1], &sone, 1, 13)
                  : rns8_pack_u64(f.ctx, f.matrices[1], &uone, 1, 13)) == RNS8_SUCCESS);
-    REQUIRE(rns8_gemm_rns(f.ctx, larger.plan, &result, f.matrices[1], f.matrices[3], larger.workspace) ==
-            RNS8_SUCCESS);
+    REQUIRE(rns8_gemm_rns(f.ctx, larger.plan, &result, f.matrices[1], f.matrices[3],
+                          larger.workspace) == RNS8_SUCCESS);
     check_lift_planes(*f.matrices[3], {expected}, 20);
   }
 }
@@ -146,9 +149,9 @@ TEST_CASE("exact-wide CPU lifting covers every source-prefix strict boundary", "
     for (uint32_t prefix = 1; prefix < 20; ++prefix) {
       INFO("prefix=" << prefix << " semantics=" << semantics);
       const auto product = rns8::detail::modulus_product(prefix);
-      const boost::multiprecision::cpp_int limit = semantics == RNS8_EXACT_WIDE_SIGNED
-                                                       ? boost::multiprecision::cpp_int((product - 1) / 2)
-                                                       : boost::multiprecision::cpp_int(product - 1);
+      const boost::multiprecision::cpp_int limit =
+          semantics == RNS8_EXACT_WIDE_SIGNED ? boost::multiprecision::cpp_int((product - 1) / 2)
+                                              : boost::multiprecision::cpp_int(product - 1);
       const std::vector<boost::multiprecision::cpp_int> values =
           semantics == RNS8_EXACT_WIDE_SIGNED
               ? std::vector<boost::multiprecision::cpp_int>{0, 1, -1, limit, -limit}
@@ -158,13 +161,15 @@ TEST_CASE("exact-wide CPU lifting covers every source-prefix strict boundary", "
         const auto before = matrix;
         REQUIRE(rns8_lift_exact_wide_cpu(f.ctx, &matrix, prefix + 1, 1) == RNS8_SUCCESS);
         CHECK(matrix.exact_range_prefix == prefix + 1);
-        CHECK(std::equal(before.residues.begin(), before.residues.begin() + prefix, matrix.residues.begin()));
+        CHECK(std::equal(before.residues.begin(), before.residues.begin() + prefix,
+                         matrix.residues.begin()));
         check_lift_planes(matrix, {value}, prefix + 1);
         check_lift_metadata(matrix, before);
       }
       proven_lift_fixture(matrix, {0}, prefix);
-      matrix.exact_max_magnitude =
-          semantics == RNS8_EXACT_WIDE_SIGNED ? boost::multiprecision::cpp_int(product / 2) : product;
+      matrix.exact_max_magnitude = semantics == RNS8_EXACT_WIDE_SIGNED
+                                       ? boost::multiprecision::cpp_int(product / 2)
+                                       : product;
       const auto ambiguous = matrix;
       CHECK(rns8_lift_exact_wide_cpu(f.ctx, &matrix, 20, UINT64_MAX) == RNS8_RANGE_ERROR);
       check_lift_unchanged(matrix, ambiguous);
@@ -172,7 +177,8 @@ TEST_CASE("exact-wide CPU lifting covers every source-prefix strict boundary", "
   }
 }
 
-TEST_CASE("exact-wide CPU lifting obeys suffix budgets and preserves failed stages", "[exact-lift]") {
+TEST_CASE("exact-wide CPU lifting obeys suffix budgets and preserves failed stages",
+          "[exact-lift]") {
   ExactChainFixture f(RNS8_EXACT_WIDE_SIGNED, 2, 18);
   const int64_t a[] = {-7, 2, 3, -4}, identity[] = {1, 0, 0, 1};
   REQUIRE(rns8_pack_i64(f.ctx, f.matrices[0], a, 2, 1) == RNS8_SUCCESS);
@@ -189,7 +195,7 @@ TEST_CASE("exact-wide CPU lifting obeys suffix budgets and preserves failed stag
 
   // First three cells stage successfully; the last source cell is malformed.
   const auto last_source = matrix.residues[4 + 3];
-  matrix.residues[4 + 3] = -128;  // Outside modulus 255's centered interval.
+  matrix.residues[4 + 3] = -128; // Outside modulus 255's centered interval.
   const auto malformed = matrix;
   CHECK(rns8_lift_exact_wide_cpu(f.ctx, &matrix, 20, 4) == RNS8_INVALID_ARGUMENT);
   check_lift_unchanged(matrix, malformed);
@@ -211,7 +217,8 @@ TEST_CASE("exact-wide CPU lifting obeys suffix budgets and preserves failed stag
   check_lift_unchanged(matrix, lifted);
 }
 
-TEST_CASE("exact-wide CPU lifting preserves cancellation and rejects later overflow", "[exact-lift]") {
+TEST_CASE("exact-wide CPU lifting preserves cancellation and rejects later overflow",
+          "[exact-lift]") {
   ExactChainFixture f(RNS8_EXACT_WIDE_SIGNED, 2, 18);
   const int64_t h = INT64_MAX;
   const int64_t a[] = {h, h, h, h}, balanced[] = {h, -h, -h, h}, positive[] = {h, h, h, h};
@@ -225,19 +232,20 @@ TEST_CASE("exact-wide CPU lifting preserves cancellation and rejects later overf
   check_lift_metadata(matrix, zero);
   check_lift_planes(matrix, {0, 0, 0, 0}, 20);
   ExactLiftPlan larger(f.ctx, RNS8_EXACT_WIDE_SIGNED, 2, 2, 2, 20);
-  REQUIRE(rns8_gemm_rns(f.ctx, larger.plan, &matrix, f.matrices[0], f.matrices[3], larger.workspace) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns(f.ctx, larger.plan, &matrix, f.matrices[0], f.matrices[3],
+                        larger.workspace) == RNS8_SUCCESS);
   check_lift_planes(*f.matrices[3], {0, 0, 0, 0}, 20);
   REQUIRE(rns8_pack_i64(f.ctx, f.matrices[1], positive, 2, 3) == RNS8_SUCCESS);
   REQUIRE(f.multiply(0, 1, 2) == RNS8_SUCCESS);
   REQUIRE(rns8_lift_exact_wide_cpu(f.ctx, &matrix, 20, 8) == RNS8_SUCCESS);
   const auto destination = *f.matrices[3];
-  CHECK(rns8_gemm_rns(f.ctx, larger.plan, &matrix, f.matrices[0], f.matrices[3], larger.workspace) ==
-        RNS8_RANGE_ERROR);
+  CHECK(rns8_gemm_rns(f.ctx, larger.plan, &matrix, f.matrices[0], f.matrices[3],
+                      larger.workspace) == RNS8_RANGE_ERROR);
   check_lift_unchanged(*f.matrices[3], destination);
 }
 
-TEST_CASE("exact-wide CPU lifting rejects absent proofs and invalid ownership or capacity", "[exact-lift]") {
+TEST_CASE("exact-wide CPU lifting rejects absent proofs and invalid ownership or capacity",
+          "[exact-lift]") {
   ExactChainFixture f(RNS8_EXACT_WIDE_UNSIGNED);
   auto& matrix = *f.matrices[0];
   const uint64_t value = 7;
@@ -269,7 +277,7 @@ TEST_CASE("exact-wide CPU lifting rejects absent proofs and invalid ownership or
   const auto foreign = matrix;
   CHECK(rns8_lift_exact_wide_cpu(f.ctx, &matrix, 20, 100) == RNS8_INVALID_ARGUMENT);
   check_lift_unchanged(matrix, foreign);
-  f.ctx->backend = RNS8_BACKEND_HIP_DIRECT;  // Validate rejection only; no device calls.
+  f.ctx->backend = RNS8_BACKEND_HIP_DIRECT; // Validate rejection only; no device calls.
   CHECK(rns8_lift_exact_wide_cpu(f.ctx, &matrix, 20, 100) == RNS8_UNSUPPORTED_BACKEND);
   check_lift_unchanged(matrix, foreign);
   f.ctx->backend = RNS8_BACKEND_CPU_REFERENCE;

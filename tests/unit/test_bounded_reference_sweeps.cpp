@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "rns8/rns8.h"
+#include "../fuzz/arithmetic_case.hpp"
 
 namespace {
 
@@ -56,14 +57,8 @@ cpp_int abs_cpp(cpp_int value) {
   return value < 0 ? -value : value;
 }
 
-cpp_int exact_i64_cell(
-    const std::vector<int64_t>& A,
-    int64_t lda,
-    const std::vector<int64_t>& B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k) {
+cpp_int exact_i64_cell(const std::vector<int64_t>& A, int64_t lda, const std::vector<int64_t>& B,
+                       int64_t ldb, int64_t row, int64_t col, int64_t k) {
   cpp_int acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     acc += cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
@@ -72,14 +67,8 @@ cpp_int exact_i64_cell(
   return acc;
 }
 
-cpp_int exact_u64_cell(
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb,
-    int64_t row,
-    int64_t col,
-    int64_t k) {
+cpp_int exact_u64_cell(const std::vector<uint64_t>& A, int64_t lda, const std::vector<uint64_t>& B,
+                       int64_t ldb, int64_t row, int64_t col, int64_t k) {
   cpp_int acc = 0;
   for (int64_t kk = 0; kk < k; ++kk) {
     acc += cpp_int(A[static_cast<std::size_t>(row * lda + kk)]) *
@@ -94,15 +83,9 @@ uint64_t checked_u64_bound(const cpp_int& value) {
   return static_cast<uint64_t>(value);
 }
 
-void assert_i64_public_matches_exact(
-    rns8_context* ctx,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<int64_t>& A,
-    int64_t lda,
-    const std::vector<int64_t>& B,
-    int64_t ldb) {
+void assert_i64_public_matches_exact(rns8_context* ctx, int64_t m, int64_t n, int64_t k,
+                                     const std::vector<int64_t>& A, int64_t lda,
+                                     const std::vector<int64_t>& B, int64_t ldb) {
   std::vector<cpp_int> exact(static_cast<std::size_t>(m * n));
   cpp_int max_abs = 0;
   for (int64_t row = 0; row < m; ++row) {
@@ -115,7 +98,8 @@ void assert_i64_public_matches_exact(
 
   std::vector<int64_t> C(static_cast<std::size_t>(m * n), 0);
   auto desc = i64_desc(m, n, k, checked_u64_bound(max_abs));
-  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
@@ -125,15 +109,9 @@ void assert_i64_public_matches_exact(
   }
 }
 
-void assert_u64_public_matches_exact(
-    rns8_context* ctx,
-    int64_t m,
-    int64_t n,
-    int64_t k,
-    const std::vector<uint64_t>& A,
-    int64_t lda,
-    const std::vector<uint64_t>& B,
-    int64_t ldb) {
+void assert_u64_public_matches_exact(rns8_context* ctx, int64_t m, int64_t n, int64_t k,
+                                     const std::vector<uint64_t>& A, int64_t lda,
+                                     const std::vector<uint64_t>& B, int64_t ldb) {
   std::vector<cpp_int> exact(static_cast<std::size_t>(m * n));
   cpp_int max_value = 0;
   for (int64_t row = 0; row < m; ++row) {
@@ -146,7 +124,8 @@ void assert_u64_public_matches_exact(
 
   std::vector<uint64_t> C(static_cast<std::size_t>(m * n), 0);
   auto desc = u64_desc(m, n, k, checked_u64_bound(max_value));
-  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), n) ==
+          RNS8_SUCCESS);
 
   for (int64_t row = 0; row < m; ++row) {
     for (int64_t col = 0; col < n; ++col) {
@@ -156,7 +135,7 @@ void assert_u64_public_matches_exact(
   }
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("bounded i64 CPU reference covers all tiny dimensions 1 through 8") {
   rns8_context* ctx = create_cpu();
@@ -191,12 +170,14 @@ TEST_CASE("bounded u64 CPU reference covers all tiny dimensions 1 through 8") {
         std::vector<uint64_t> B(static_cast<std::size_t>(k * n));
         for (int64_t row = 0; row < m; ++row) {
           for (int64_t col = 0; col < k; ++col) {
-            A[static_cast<std::size_t>(row * k + col)] = static_cast<uint64_t>((row * 19 + col * 3 + m + 1) % 17);
+            A[static_cast<std::size_t>(row * k + col)] =
+                static_cast<uint64_t>((row * 19 + col * 3 + m + 1) % 17);
           }
         }
         for (int64_t row = 0; row < k; ++row) {
           for (int64_t col = 0; col < n; ++col) {
-            B[static_cast<std::size_t>(row * n + col)] = static_cast<uint64_t>((row * 5 + col * 11 + n + 2) % 19);
+            B[static_cast<std::size_t>(row * n + col)] =
+                static_cast<uint64_t>((row * 5 + col * 11 + n + 2) % 19);
           }
         }
         assert_u64_public_matches_exact(ctx, m, n, k, A, k, B, n);
@@ -312,7 +293,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width u64 output
   CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   rns8_destroy_plan(plan);
 
-  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+          RNS8_SUCCESS);
   CHECK(C[0] == std::numeric_limits<uint64_t>::max());
   CHECK(C[1] == std::numeric_limits<uint64_t>::max() - 1u);
   CHECK(C[2] == sentinel);
@@ -356,7 +338,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width i64 output
   CHECK(info.max_selected_prefix == RNS8_DEFAULT_BOUNDED_PREFIX);
   rns8_destroy_plan(plan);
 
-  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+          RNS8_SUCCESS);
   CHECK(C[0] == std::numeric_limits<int64_t>::min());
   CHECK(C[1] == std::numeric_limits<int64_t>::max());
   CHECK(C[2] == sentinel);
@@ -366,7 +349,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves full-width i64 output
   rns8_destroy_context(ctx);
 }
 
-TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around every K split edge") {
+TEST_CASE(
+    "phase 2 fixed 9-modulus CPU reference preserves padded outputs around every K split edge") {
   rns8_context* ctx = create_cpu();
   for (int64_t k : {static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK) - 1,
                     static_cast<int64_t>(RNS8_SAFE_INT32_K_BLOCK),
@@ -410,7 +394,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
       CHECK(info.adaptive_prefix_active == 0);
       rns8_destroy_plan(plan);
 
-      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_i64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       for (int64_t row = 0; row < m; ++row) {
         for (int64_t col = 0; col < n; ++col) {
           CHECK(cpp_int(C[static_cast<std::size_t>(row * ldc + col)]) ==
@@ -459,7 +444,8 @@ TEST_CASE("phase 2 fixed 9-modulus CPU reference preserves padded outputs around
       CHECK(info.adaptive_prefix_active == 0);
       rns8_destroy_plan(plan);
 
-      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) == RNS8_SUCCESS);
+      REQUIRE(rns8_gemm_u64_oneshot(ctx, &desc, A.data(), lda, B.data(), ldb, C.data(), ldc) ==
+              RNS8_SUCCESS);
       for (int64_t row = 0; row < m; ++row) {
         for (int64_t col = 0; col < n; ++col) {
           CHECK(cpp_int(C[static_cast<std::size_t>(row * ldc + col)]) ==
@@ -499,4 +485,48 @@ TEST_CASE("bounded u64 CPU reference handles accumulation around K block") {
     assert_u64_public_matches_exact(ctx, 1, 1, k, A, k, B, 1);
   }
   rns8_destroy_context(ctx);
+}
+
+TEST_CASE("wide fuzz zero-product admission retains independent input range checks",
+          "[cpu][fuzz][exact][admission]") {
+  auto* ctx = create_cpu();
+  for (uint8_t semantic : {uint8_t(4), uint8_t(5)}) {
+    const uint64_t limit = semantic == 4 ? 127 : 255;
+    for (bool reverse : {false, true}) {
+      rns8_fuzz::ArithmeticCase value;
+      value.semantic = semantic;
+      value.m = value.n = value.k = value.prefix = 1;
+      value.a = {reverse ? 0 : limit + 1};
+      value.b = {reverse ? limit + 1 : 0};
+      const auto rejected = rns8_fuzz::oracle(value);
+      REQUIRE_FALSE(rejected.admitted);
+      REQUIRE(rejected.cells[0] == 0);
+      rns8_matrix_desc desc{};
+      desc.struct_size = sizeof(desc);
+      desc.abi_version = RNS8_ABI_VERSION;
+      desc.semantics = value.semantics();
+      desc.bound_kind = RNS8_BOUND_NONE;
+      desc.rows = desc.cols = desc.logical_ld = 1;
+      desc.logical_layout = RNS8_LAYOUT_ROW_MAJOR;
+      desc.max_prefix = 1;
+      rns8_matrix* matrix = nullptr;
+      REQUIRE(rns8_create_matrix(ctx, &desc, &matrix) == RNS8_SUCCESS);
+      const auto pack = [&](uint64_t input) {
+        const int64_t signed_value = rns8_fuzz::signed_bits(input);
+        return value.signed_input() ? rns8_pack_i64(ctx, matrix, &signed_value, 1, 0)
+                                    : rns8_pack_u64(ctx, matrix, &input, 1, 0);
+      };
+      CHECK(pack(limit) == RNS8_SUCCESS);
+      CHECK(pack(limit + 1) == RNS8_RANGE_ERROR);
+      (reverse ? value.b : value.a)[0] = limit;
+      const auto accepted = rns8_fuzz::oracle(value);
+      CHECK(accepted.admitted);
+      CHECK(accepted.cells[0] == 0);
+      (reverse ? value.b : value.a)[0] = limit + 1;
+      value.prefix = 20;
+      CHECK(rns8_fuzz::oracle(value).admitted);
+      REQUIRE(rns8_destroy_matrix(matrix) == RNS8_SUCCESS);
+    }
+  }
+  REQUIRE(rns8_destroy_context(ctx) == RNS8_SUCCESS);
 }

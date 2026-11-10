@@ -1,4 +1,5 @@
-TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", "[hip][result-cache]") {
+TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles",
+          "[hip][result-cache]") {
   if (!hip_available()) {
     SKIP("HIP direct backend unavailable");
   }
@@ -43,16 +44,69 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", 
   rns8_result_cache_desc cache_desc{};
   cache_desc.struct_size = sizeof(cache_desc);
   cache_desc.abi_version = RNS8_ABI_VERSION;
-  cache_desc.flags = RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES |
-                     RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
-                     RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE |
-                     RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
+  cache_desc.flags =
+      RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES | RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
+      RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE | RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
   cache_desc.max_dirty_regions = 4;
   rns8_result_cache* cache = nullptr;
   REQUIRE(rns8_create_result_cache(hip, hip_plan, &cache_desc, &cache) == RNS8_SUCCESS);
 
-  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) ==
-          RNS8_SUCCESS);
+  const auto allocations = rns8::detail::hip_direct_allocation_counters_snapshot();
+  const auto output_generation = hip_c->content_generation;
+  const auto references = hip->prepared_references;
+  const auto cache_detail = cache->detail;
+  for (uint32_t bits : {1u, UINT32_C(0x80000000), UINT32_MAX}) {
+    rns8_dirty_region invalid{};
+    invalid.struct_size = sizeof(invalid);
+    invalid.abi_version = RNS8_ABI_VERSION;
+    invalid.row_extent = invalid.col_extent = 1;
+    invalid.flags = bits;
+    CHECK(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    &invalid, 1) == RNS8_INVALID_ARGUMENT);
+    CHECK_FALSE(cache->initialized);
+    CHECK(cache->last_dirty_region_count == 0);
+    CHECK(cache->detail == cache_detail);
+    CHECK(hip_c->content_generation == output_generation);
+    CHECK(hip->prepared_references == references);
+    CHECK_FALSE(hip_workspace->in_flight);
+  }
+  const auto rejected = rns8::detail::hip_direct_allocation_counters_snapshot();
+  CHECK(rejected.allocate_calls == allocations.allocate_calls);
+  CHECK(rejected.free_calls == allocations.free_calls);
+  CHECK(rejected.h2d_calls == allocations.h2d_calls);
+  CHECK(rejected.d2h_calls == allocations.d2h_calls);
+
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    nullptr, 0) == RNS8_SUCCESS);
+
+  // Safely force the backend's null-pointer precondition failure without
+  // submitting an invalid device access. Failed snapshot publication must
+  // invalidate the cache, and the public call must rebuild it successfully.
+  auto* saved_output = hip_c->hip_residues;
+  hip_c->hip_residues = nullptr;
+  const auto snapshot_failure =
+      rns8::detail::api::snapshot_result_cache_from_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(snapshot_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(cache->initialized);
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    nullptr, 0) == RNS8_SUCCESS);
+  CHECK(cache->initialized);
+  CHECK(cache->last_cache_miss);
+
+  hip_c->hip_residues = nullptr;
+  const auto restore_failure =
+      rns8::detail::api::restore_result_cache_to_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(restore_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(hip_c->device_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  std::vector<int64_t> rejected_output(static_cast<std::size_t>(m * n), -999);
+  CHECK(rns8_export_i64(hip, hip_plan, hip_c, rejected_output.data(), n) == RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_output == std::vector<int64_t>(static_cast<std::size_t>(m * n), -999));
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    nullptr, 0) == RNS8_SUCCESS);
+  CHECK(cache->last_cache_hit);
 
   A[static_cast<std::size_t>(1 * k + 0)] = -7;
   A[static_cast<std::size_t>(1 * k + 1)] = 8;
@@ -73,8 +127,8 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", 
   dirty.col_offset = 0;
   dirty.row_extent = 1;
   dirty.col_extent = n;
-  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, &dirty, 1) ==
-          RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache,
+                                    &dirty, 1) == RNS8_SUCCESS);
   std::vector<int64_t> actual(static_cast<std::size_t>(m * n));
   REQUIRE(rns8_export_i64(hip, hip_plan, hip_c, actual.data(), n) == RNS8_SUCCESS);
   CHECK(actual == expected);
@@ -90,8 +144,8 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", 
   CHECK(info.b_matrix_instance_id != 0);
 
   REQUIRE(rns8_pack_i64(hip, hip_a, A.data(), k, 4) == RNS8_SUCCESS);
-  CHECK(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) ==
-        RNS8_INVALID_ARGUMENT);
+  CHECK(rns8_gemm_rns_incremental(hip, hip_plan, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr,
+                                  0) == RNS8_INVALID_ARGUMENT);
   REQUIRE(rns8_get_result_cache_info(cache, &info) == RNS8_SUCCESS);
   CHECK(info.last_stale_rejection == 1);
 
@@ -110,7 +164,8 @@ TEST_CASE("Direct-HIP result cache recomputes dirty bounded output rectangles", 
   REQUIRE(rns8_destroy_context(hip) == RNS8_SUCCESS);
 }
 
-TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles", "[hip][result-cache]") {
+TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles",
+          "[hip][result-cache]") {
   if (!hip_available()) {
     SKIP("HIP direct backend unavailable");
   }
@@ -121,8 +176,10 @@ TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles"
   constexpr uint16_t modulus = 251;
   rns8_context* cpu = create_context(RNS8_BACKEND_CPU_REFERENCE);
   rns8_context* hip = create_context(RNS8_BACKEND_HIP_DIRECT);
-  rns8_gemm_desc cpu_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE, modulus);
-  rns8_gemm_desc hip_desc = finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
+  rns8_gemm_desc cpu_desc =
+      finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_CPU_REFERENCE, modulus);
+  rns8_gemm_desc hip_desc =
+      finite_desc(m, n, k, RNS8_FINITE_RING_U8, RNS8_BACKEND_HIP_DIRECT, modulus);
   rns8_plan* cpu_plan = nullptr;
   rns8_plan* hip_plan = nullptr;
   REQUIRE(rns8_create_plan(cpu, &cpu_desc, &cpu_plan) == RNS8_SUCCESS);
@@ -158,22 +215,38 @@ TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles"
   rns8_result_cache_desc cache_desc{};
   cache_desc.struct_size = sizeof(cache_desc);
   cache_desc.abi_version = RNS8_ABI_VERSION;
-  cache_desc.flags = RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES |
-                     RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
-                     RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE |
-                     RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
+  cache_desc.flags =
+      RNS8_RESULT_CACHE_CONTRACT_OUTPUT_RECTANGLES | RNS8_RESULT_CACHE_CONTRACT_DIRECT_HIP_ONLY |
+      RNS8_RESULT_CACHE_CONTRACT_FULL_K_RECOMPUTE | RNS8_RESULT_CACHE_CONTRACT_EXPLICIT_OPT_IN;
   cache_desc.max_dirty_regions = 4;
   rns8_result_cache* cache = nullptr;
   REQUIRE(rns8_create_result_cache(hip, hip_plan, &cache_desc, &cache) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_u8_incremental(
-              hip, hip_plan, modulus, hip_a, hip_b, hip_c, hip_workspace, cache, nullptr, 0) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8_incremental(hip, hip_plan, modulus, hip_a, hip_b, hip_c,
+                                          hip_workspace, cache, nullptr, 0) == RNS8_SUCCESS);
+
+  auto* saved_output = hip_c->hip_residues;
+  hip_c->hip_residues = nullptr;
+  const auto restore_failure =
+      rns8::detail::api::restore_result_cache_to_output(*hip, *cache, *hip_c);
+  hip_c->hip_residues = saved_output;
+  CHECK(restore_failure == RNS8_INVALID_ARGUMENT);
+  CHECK_FALSE(hip_c->device_residues_current);
+  CHECK_FALSE(hip_c->host_residues_current);
+  std::vector<uint8_t> rejected_output(static_cast<std::size_t>(m * n), 199);
+  CHECK(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c, rejected_output.data(), n) ==
+        RNS8_INVALID_ARGUMENT);
+  CHECK(rejected_output == std::vector<uint8_t>(static_cast<std::size_t>(m * n), 199));
+  REQUIRE(rns8_gemm_finite_u8_incremental(hip, hip_plan, modulus, hip_a, hip_b, hip_c,
+                                          hip_workspace, cache, nullptr, 0) == RNS8_SUCCESS);
+  CHECK(cache->last_cache_hit);
 
   A[static_cast<std::size_t>(2 * k + 0)] = 41;
   A[static_cast<std::size_t>(2 * k + 1)] = 42;
   A[static_cast<std::size_t>(2 * k + 2)] = 43;
   REQUIRE(rns8_pack_finite_u8(cpu, cpu_a, modulus, A.data(), k, 3) == RNS8_SUCCESS);
   REQUIRE(rns8_pack_finite_u8(hip, hip_a, modulus, A.data(), k, 3) == RNS8_SUCCESS);
-  REQUIRE(rns8_gemm_finite_u8(cpu, cpu_plan, modulus, cpu_a, cpu_b, cpu_c, cpu_workspace) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8(cpu, cpu_plan, modulus, cpu_a, cpu_b, cpu_c, cpu_workspace) ==
+          RNS8_SUCCESS);
   std::vector<uint8_t> expected(static_cast<std::size_t>(m * n));
   REQUIRE(rns8_export_finite_u8(cpu, cpu_plan, modulus, cpu_c, expected.data(), n) == RNS8_SUCCESS);
 
@@ -184,8 +257,8 @@ TEST_CASE("Direct-HIP result cache recomputes dirty finite-u8 output rectangles"
   dirty.col_offset = 0;
   dirty.row_extent = 1;
   dirty.col_extent = n;
-  REQUIRE(rns8_gemm_finite_u8_incremental(
-              hip, hip_plan, modulus, hip_a, hip_b, hip_c, hip_workspace, cache, &dirty, 1) == RNS8_SUCCESS);
+  REQUIRE(rns8_gemm_finite_u8_incremental(hip, hip_plan, modulus, hip_a, hip_b, hip_c,
+                                          hip_workspace, cache, &dirty, 1) == RNS8_SUCCESS);
   std::vector<uint8_t> actual(static_cast<std::size_t>(m * n));
   REQUIRE(rns8_export_finite_u8(hip, hip_plan, modulus, hip_c, actual.data(), n) == RNS8_SUCCESS);
   CHECK(actual == expected);

@@ -12,12 +12,12 @@ TEST_CASE("exact-wide CPU range errors preserve every destination cell") {
     auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
     fill_exact_residue_matrix(
-        c_matrix,
-        {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 63u});
+        c_matrix, {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 63u});
 
     constexpr uint64_t sentinel = 0x3131313131313131ull;
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n), sentinel);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) ==
+          RNS8_RANGE_ERROR);
     CHECK(limbs == std::vector<uint64_t>(static_cast<std::size_t>(m * n), sentinel));
 
     rns8_destroy_matrix(c_matrix);
@@ -32,12 +32,12 @@ TEST_CASE("exact-wide CPU range errors preserve every destination cell") {
     auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
     fill_exact_residue_matrix(
-        c_matrix,
-        {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 64u});
+        c_matrix, {boost::multiprecision::cpp_int(1), boost::multiprecision::cpp_int(1) << 64u});
 
     constexpr uint64_t sentinel = 0x4141414141414141ull;
     std::vector<uint64_t> limbs(static_cast<std::size_t>(m * n), sentinel);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) == RNS8_RANGE_ERROR);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 1) ==
+          RNS8_RANGE_ERROR);
     CHECK(limbs == std::vector<uint64_t>(static_cast<std::size_t>(m * n), sentinel));
 
     rns8_destroy_matrix(c_matrix);
@@ -64,13 +64,15 @@ TEST_CASE("exact-wide CPU export rejects stale or non-RNS matrix state") {
 
     uint64_t limbs[2] = {0x5151515151515151ull, 0x5252525252525252ull};
     rns8::test::set_host_residues_current(*c_matrix, false);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x5151515151515151ull);
     CHECK(limbs[1] == 0x5252525252525252ull);
     rns8::test::set_host_residues_current(*c_matrix, true);
 
     c_matrix->byte_limbs.push_back(0);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x5151515151515151ull);
     CHECK(limbs[1] == 0x5252525252525252ull);
     c_matrix->byte_limbs.clear();
@@ -90,13 +92,15 @@ TEST_CASE("exact-wide CPU export rejects stale or non-RNS matrix state") {
 
     uint64_t limbs[2] = {0x6161616161616161ull, 0x6262626262626262ull};
     rns8::test::set_host_residues_current(*c_matrix, false);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x6161616161616161ull);
     CHECK(limbs[1] == 0x6262626262626262ull);
     rns8::test::set_host_residues_current(*c_matrix, true);
 
     rns8::test::set_host_byte_limbs_current(*c_matrix, true);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs, n, 2) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(limbs[0] == 0x6161616161616161ull);
     CHECK(limbs[1] == 0x6262626262626262ull);
     rns8::test::set_host_byte_limbs_current(*c_matrix, false);
@@ -160,9 +164,12 @@ TEST_CASE("exact-wide CPU export rejects invalid fixed-width ABI parameters") {
     auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_SIGNED);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n - 1, 2) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_signed_limbs(ctx, plan, c_matrix, limbs.data(), n - 1, 2) ==
+          RNS8_INVALID_ARGUMENT);
     for (const uint64_t limb : limbs) {
       CHECK(limb == sentinel);
     }
@@ -179,8 +186,10 @@ TEST_CASE("exact-wide CPU export rejects invalid fixed-width ABI parameters") {
     auto c_desc = exact_matrix_desc(m, n, RNS8_EXACT_WIDE_UNSIGNED);
     REQUIRE(rns8_create_matrix(ctx, &c_desc, &c_matrix) == RNS8_SUCCESS);
 
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) == RNS8_INVALID_ARGUMENT);
-    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) == RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 0) ==
+          RNS8_INVALID_ARGUMENT);
+    CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n, 33) ==
+          RNS8_INVALID_ARGUMENT);
     CHECK(rns8_export_exact_wide_unsigned_limbs(ctx, plan, c_matrix, limbs.data(), n - 1, 2) ==
           RNS8_INVALID_ARGUMENT);
     for (const uint64_t limb : limbs) {

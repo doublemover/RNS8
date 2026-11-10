@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Run a command inside the Visual Studio developer environment when needed."""
+"""Run a command inside the Visual Studio developer environment when needed.
+
+RNS8 CMake configure commands consume the shared dependency selection through
+their pre-project hook. This wrapper preserves user preset/-D choices verbatim;
+it does not choose a different SDK or install packages.
+"""
 
 from __future__ import annotations
 
@@ -19,7 +24,9 @@ def main() -> int:
         )
     )
     parser.add_argument("--arch", default="x64", help="target architecture passed to VsDevCmd.bat")
-    parser.add_argument("--host-arch", default="x64", help="host architecture passed to VsDevCmd.bat")
+    parser.add_argument(
+        "--host-arch", default="x64", help="host architecture passed to VsDevCmd.bat"
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the command that would run")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="command and arguments to run")
     args = parser.parse_args()
@@ -41,11 +48,25 @@ def main() -> int:
         return 1
 
     if args.dry_run:
+        if command and "cmake" in command[0].lower():
+            print(
+                "Dry run: no CMake discovery/configure, probes or package installation executed.",
+                file=sys.stderr,
+            )
         print(wrapped if isinstance(wrapped, str) else subprocess.list2cmdline(wrapped))
         return 0
 
     if used_vsdevcmd:
         print("Loading Visual Studio developer environment automatically...", file=sys.stderr)
+    if (
+        command
+        and "cmake" in command[0].lower()
+        and not any(flag in command for flag in ("--build", "--install", "-P", "-E", "--version"))
+    ):
+        print(
+            "RNS8 CMake resolves SDK/toolchain paths before compiler selection; preset and -D overrides are preserved.",
+            file=sys.stderr,
+        )
     completed = subprocess.run(wrapped, check=False, shell=isinstance(wrapped, str))
     return completed.returncode
 

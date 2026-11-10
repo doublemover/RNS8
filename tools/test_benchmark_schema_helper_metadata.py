@@ -6,13 +6,17 @@ from __future__ import annotations
 import copy
 
 from benchmark_schema import validate_capture
-from test_benchmark_schema import (
-    add_helper_lane_fields,
-    add_timing_helper_fields,
+from test_benchmark_schema_support_chains_wrap64 import (
     as_residue_chain_final_export_capture,
     as_residue_current_chain_capture,
+)
+from test_benchmark_schema_support_core import (
     expect_invalid,
     expect_valid,
+)
+from test_benchmark_schema_support_metadata import (
+    add_helper_lane_fields,
+    add_timing_helper_fields,
 )
 
 
@@ -25,7 +29,9 @@ def main() -> int:
 
     bad_output_policy = copy.deepcopy(helper_lane)
     bad_output_policy["output_policy"]["destination_layout"] = "padded_row_major"
-    expect_invalid(bad_output_policy, "output_policy.destination_layout must match output_ld_padding")
+    expect_invalid(
+        bad_output_policy, "output_policy.destination_layout must match output_ld_padding"
+    )
 
     missing_target = copy.deepcopy(helper_lane)
     del missing_target["target_variant"]
@@ -37,16 +43,33 @@ def main() -> int:
 
     bad_allocation_counter = copy.deepcopy(helper_lane)
     bad_allocation_counter["device_allocation"]["measured_repeat_delta"]["allocated_bytes"] = -1
-    expect_invalid(bad_allocation_counter, "device_allocation.measured_repeat_delta.allocated_bytes")
+    expect_invalid(
+        bad_allocation_counter, "device_allocation.measured_repeat_delta.allocated_bytes"
+    )
+
+    bad_scope = copy.deepcopy(helper_lane)
+    bad_scope["device_allocation"]["transfer_scope"] = "physical_bus_traffic"
+    expect_invalid(bad_scope, "device_allocation.transfer_scope")
+
+    for field in ("h2d_calls", "h2d_bytes", "d2h_calls", "d2h_bytes", "d2d_calls", "d2d_bytes"):
+        for invalid in (-1, True, 0.5):
+            bad_transfer = copy.deepcopy(helper_lane)
+            bad_transfer["device_allocation"]["measured_repeat_delta"][field] = invalid
+            expect_invalid(bad_transfer, "device_allocation.measured_repeat_delta." + field)
+        missing_transfer = copy.deepcopy(helper_lane)
+        del missing_transfer["device_allocation"]["measured_repeat_delta"][field]
+        expect_invalid(missing_transfer, "device_allocation.measured_repeat_delta." + field)
 
     direct_reducer = add_helper_lane_fields(copy.deepcopy(adaptive))
-    add_timing_helper_fields(direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1")
+    add_timing_helper_fields(
+        direct_reducer, reducer="direct_hip_fixed_prefix_9_generated_reducer_v1"
+    )
     validate_capture(direct_reducer)
 
     exact_wide_prefix18_reducer = copy.deepcopy(direct_reducer)
-    exact_wide_prefix18_reducer["timing_metadata"][
-        "generated_reducer_identity"
-    ] = "direct_hip_fixed_prefix_18_generated_reducer_v1"
+    exact_wide_prefix18_reducer["timing_metadata"]["generated_reducer_identity"] = (
+        "direct_hip_fixed_prefix_18_generated_reducer_v1"
+    )
     validate_capture(exact_wide_prefix18_reducer)
 
     stale_reducer = copy.deepcopy(direct_reducer)

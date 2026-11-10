@@ -1,0 +1,13 @@
+{
+  "schema": "product_stage_case_v1",
+  "side": 17,
+  "depth": 3,
+  "prefix": 20,
+  "topology": "chain",
+  "unsigned_inputs": false,
+  "prefixes": [1, 2, 3, 20],
+  "capacities": [1, 2, 3, 20],
+  "warmups": 2,
+  "repeats": 7,
+  "max_payload_bytes": 1073741824
+}

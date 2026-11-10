@@ -1,0 +1,75 @@
+name: Native Dependency Contracts Candidate
+
+# Frontload the complete host-only fixture lane without launching another
+# validation campaign on pushes. Native SDK/package/device qualification is
+# separate; activate required CI after the deferred validation batch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-contracts-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dependency-contracts:
+    name: Dependency contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python: bin/python
+          - os: windows-2025
+            python: Scripts/python.exe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        id: python
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Create isolated build-tool environment
+        run: python -m venv temp/dependency-tools
+      - name: Install hash-locked build tools
+        run: >-
+          temp/dependency-tools/${{ matrix.python }} -m pip install
+          --require-hashes --only-binary=:all: --no-deps
+          -r scripts/requirements-build-tools.txt
+      - name: Select reviewed native CMake
+        run: temp/dependency-tools/${{ matrix.python }} tools/init_build_tools.py --github-path
+      - name: Select native Ninja on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "$PWD/temp/dependency-tools/bin" >> "$GITHUB_PATH"
+      - name: Select native Ninja on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Add-Content -LiteralPath $env:GITHUB_PATH -Value (Join-Path $env:GITHUB_WORKSPACE 'temp/dependency-tools/Scripts')
+      - name: Configure compiler-free fixture denominator
+        run: >-
+          cmake -S tools/probes/dependency-fixtures -B build/dependency-contracts
+          -G Ninja -DPython3_EXECUTABLE="${{ steps.python.outputs.python-path }}"
+      - name: Run all dependency contracts as one bounded batch
+        run: >-
+          ctest --test-dir build/dependency-contracts --no-tests=error
+          --parallel 1 --output-on-failure
+          --output-junit "${{ github.workspace }}/build/dependency-contracts/dependency-contracts.xml"
+      - name: Preserve complete CTest denominator and failures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-contracts-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            build/dependency-contracts/dependency-contracts.xml
+            build/dependency-contracts/CTestTestfile.cmake
+            build/dependency-contracts/CMakeCache.txt
+            build/dependency-contracts/Testing/
