@@ -75,6 +75,8 @@ replaced throughout the JSON tree, including wrong types and oversized
 integers. The driver checks both diagnostic and throwing APIs, deterministic
 errors and absence of input mutation. Only documented parser/schema rejection
 is expected; unexpected exceptions retain exact reproducer bytes and fail.
+The PR CPU fuzz job runs a 120-case bounded property smoke against this
+first-party Python validator and retains its process and verdict receipts.
 Limits on bytes, nesting, nodes, child time/output and owned artifacts bound
 the session. Source/interpreter/fixture hashes and compact case verdicts remain
 in ignored output. Reaching a case limit reports bounded completion, not full

@@ -237,8 +237,14 @@ jobs:
           mkdir -p temp
           python tools/test_fuzz_cases.py
           python tools/test_fuzz_discovery.py
+          python tools/test_fuzz_metadata.py
           python tools/test_fuzz_replay.py
           python tools/test_fuzz_replay_shrink.py
+      - name: Exercise the production Python metadata validator
+        run: >-
+          python tools/fuzz_metadata.py --out temp/cpu-metadata-property-smoke
+          --cases 120 --seconds 30 --execute
+          > temp/cpu-metadata-property-smoke-summary.json
       - name: Configure isolated instrumented CPU library
         run: >-
           cmake -S . -B temp/cpu-fuzz-smoke-build -G Ninja
@@ -270,6 +276,8 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
           path: |
+            temp/cpu-metadata-property-smoke/
+            temp/cpu-metadata-property-smoke-summary.json
             temp/cpu-fuzz-smoke-capture/
             temp/cpu-fuzz-smoke-build/compile_commands.json
             temp/cpu-fuzz-smoke-build/CMakeCache.txt

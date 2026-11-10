@@ -109,9 +109,10 @@ def named_seed_contract_counts(corpus: dict, arithmetic_counts: dict) -> dict:
     arithmetic_total = arithmetic_counts.get("admitted", 0) + arithmetic_counts.get(
         "range_rejected", 0
     )
-    if arithmetic_total != len(corpus[TARGETS[1]]) or sum(
-        arithmetic_counts["semantic_counts"].values()
-    ) != arithmetic_total:
+    if (
+        arithmetic_total != len(corpus[TARGETS[1]])
+        or sum(arithmetic_counts["semantic_counts"].values()) != arithmetic_total
+    ):
         raise ValueError("named arithmetic classification differs from input inventory")
     return {
         TARGETS[0]: dict(
