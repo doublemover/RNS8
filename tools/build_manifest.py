@@ -391,8 +391,26 @@ def generate(source, config):
     environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
 
     def git(*args):
+        # Windows and WSL can share an index whose uid/inode/ctime fields are
+        # incomparable across clients. Git's minimal stat mode preserves its
+        # normal mtime/size/content checks without rehashing the entire checkout
+        # for those metadata differences. Never write repository configuration.
+        stat_options = (
+            ["-c", "core.checkStat=minimal", "-c", "core.trustctime=false"]
+            if args and args[0] == "status"
+            else []
+        )
         return subprocess.check_output(
-            ["git", "--no-optional-locks", "-c", "core.fsmonitor=false", "-C", str(source), *args],
+            [
+                "git",
+                "--no-optional-locks",
+                "-c",
+                "core.fsmonitor=false",
+                *stat_options,
+                "-C",
+                str(source),
+                *args,
+            ],
             stderr=subprocess.DEVNULL,
             env=environment,
             timeout=30,

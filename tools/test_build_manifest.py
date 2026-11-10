@@ -164,6 +164,11 @@ class BuildManifestTest(unittest.TestCase):
                 self.assertFalse(any(key.startswith("GIT_") for key in kwargs["env"]))
                 self.assertIn("--no-optional-locks", command)
                 self.assertIn("core.fsmonitor=false", command)
+                if "status" in command:
+                    self.assertIn("core.checkStat=minimal", command)
+                    self.assertIn("core.trustctime=false", command)
+                else:
+                    self.assertNotIn("core.checkStat=minimal", command)
             with patch(
                 "build_manifest.subprocess.check_output",
                 side_effect=subprocess.TimeoutExpired("git", 30),
