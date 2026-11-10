@@ -186,6 +186,16 @@ class FuzzDiscoveryControls(unittest.TestCase):
         corpus, counts = discovery.corpus_inputs()
         self.assertEqual(set(corpus), set(inventory.TARGETS))
         self.assertGreater(counts["admitted"], 0)
+        self.assertEqual(sum(counts["semantic_counts"].values()), len(corpus[inventory.TARGETS[1]]))
+        self.assertEqual(set(counts["semantic_counts"]), {str(index) for index in range(6)})
+        classified = discovery.named_seed_contract_counts(corpus, counts)
+        self.assertEqual(classified[inventory.TARGETS[0]]["valid_plan_routes"], 127)
+        self.assertEqual(classified[inventory.TARGETS[0]]["expected_rejection_routes"], 127)
+        self.assertEqual(classified[inventory.TARGETS[1]]["valid_arithmetic_inputs"], 479)
+        self.assertEqual(classified[inventory.TARGETS[2]]["valid_json_inputs"], 5)
+        self.assertEqual(classified[inventory.TARGETS[2]]["parse_rejected_inputs"], 1)
+        with self.assertRaisesRegex(ValueError, "classification differs"):
+            discovery.named_seed_contract_counts(corpus, {**counts, "admitted": 1})
         for cases in corpus.values():
             self.assertTrue(cases)
             self.assertEqual(len(cases), len({name for name, _ in cases}))

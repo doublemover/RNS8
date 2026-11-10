@@ -186,8 +186,14 @@ targets and completed bounded discovery with first-party function attribution
 for both RNS8 entrypoints. Its initial descriptor abort was a harness assertion
 that contradicted the documented output-slot preservation contract; the
 minimized empty-input regression now runs in the ordinary unit suite. A hosted
-Ubuntu PR smoke is wired but needs its own CI execution. Native sanitizer,
-full analyzer/coverage/mutation, multi-GPU, Instinct/CDNA and unavailable
+Ubuntu Clang 18 PR smoke passed on committed `a0e650c` with all 612 named
+seeds, 57 inspected production objects, 503/1,000/1,000 bounded discovery
+executions and source-attributed first-party PC edges. A focused native Linux
+mutation session on the same cut passed its baseline and killed the three
+wrong-result/status/stale-state mutants at their intended assertions. Native
+CPU adapter replay is wired into the ordinary CI job; its hosted verdict is
+pending. Native sanitizer, full analyzer/coverage/eleven-seed mutation,
+multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
 suite cannot establish their behavior.
 

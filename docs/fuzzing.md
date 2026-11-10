@@ -195,6 +195,12 @@ The parent stops on the first failed child, deadline, interrupted capture,
 missing feedback report or input/artifact drift. It never retries or minimizes
 a crash automatically. [LLVM's file-operand replay](https://llvm.org/docs/LibFuzzer.html#options)
 executes every named seed before directory-based discovery.
+The report counts the authored inputs and their expected valid, rejected and
+unsupported routes by target, with a six-domain arithmetic histogram. One
+descriptor input exercises both a valid plan and an expected rejection, so
+these route counts intentionally overlap. The report labels generated
+libFuzzer mutations as semantically unclassified; its aggregate execution
+counter cannot establish their admission outcomes.
 
 The object denominator comes from the real exported compilation database,
 registered first-party targets and generated fuzz-library source inventory.
@@ -234,7 +240,12 @@ executions respectively; the two RNS8 targets attributed PC-edge observations
 to 374 and 426 first-party functions across 52 source files. These are observed
 SanitizerCoverage edges, not source-branch percentages. The JSON target only
 exercises its third-party parser. This pilot used a dirty precommit source cut;
-the pushed CI run must establish its own compiled/source identity.
+it does not qualify the committed source. [Hosted PR run 42757563702](https://github.com/doublemover/RNS8/actions/runs/42757563702)
+on committed `a0e650c` passed the Clang 18 smoke: the same 612 named seeds,
+57 inspected production objects, 503/1,000/1,000 bounded discovery executions,
+and source-attributed PC edges for 373/426 first-party functions in the two
+RNS8 targets. Its retained artifact binds the source, compiler, corpus and
+execution receipts. The JSON target remains third-party-only.
 
 The named corpus also includes row/column and common-K permutations, legal zero
 K padding, physical-padding changes, zero/identity operands, independently
@@ -250,9 +261,12 @@ The [native production mutation registry](native-production-mutations.md) binds
 real signed CRT, export rejection-status and prepared generation mutations to
 three shared-replay assertion cases. An unchanged baseline must pass before
 mutants execute in disposable copies; only the intended public-route assertion
-failure counts as detection. These witnesses are registered; real mutation detection
-requires the qualifying native
-lane.
+failure counts as detection. On committed `a0e650c`, the focused native Linux
+Clang 23.1.5 session passed its baseline and killed all three production mutants
+at their intended assertions, with no survivors or infrastructure errors. The
+stale-input witness repacks only A, so B's intact generation guard cannot mask
+a missing A guard. This is the three-seed arithmetic sensitivity subset; the
+complete eleven-seed mutation qualification belongs to #103.
 
 The descriptor corpus can carry an `R8H1` suffix, followed by1–32 operation
 bytes. The low nibble modulo12 selects repack A/B, ordinary GEMM, export,
@@ -272,8 +286,10 @@ CPU support. A named19-transition seed exercises the model from all six valid
 descriptor prefixes. The existing real production stale-generation mutant also
 targets this model's actual public calls.
 
-The local CPU object-inspection, seed-replay and discovery pilot above is complete.
-The ordinary CPU suite also runs the shared descriptor and arithmetic controls.
-Hosted PR smoke, production mutation sensitivity and deterministic GPU replay
-remain separate execution gates. GPU backend/target parity requires actual
-device-qualified runs; CPU fuzzing makes no performance claim.
+The local and hosted CPU object-inspection, seed-replay and discovery runs above
+are complete. The ordinary CPU suite also runs the shared descriptor and
+arithmetic controls. Six serialized cases passed a local native CPU adapter
+pilot (five CPU-reference, one wrap64); the newly added CI step owns the
+committed-source native replay gate. Deterministic GPU replay remains a separate
+execution gate. GPU backend/target parity requires actual device-qualified
+runs; CPU fuzzing makes no performance claim.

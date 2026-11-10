@@ -40,10 +40,12 @@ class DiscoverySession(Session):
 def corpus_inputs():
     arithmetic = []
     counts = Counter()
+    semantics = Counter()
     for name, case in seeds():
         raw = encode(case)
         valid = admitted(case)
         counts["admitted" if valid else "range_rejected"] += 1
+        semantics[str(case.semantic)] += 1
         arithmetic.append((name, raw))
     descriptors = [("empty", b"")]
     descriptors.extend(
@@ -89,7 +91,49 @@ def corpus_inputs():
     ]
     if not counts["admitted"] or not arithmetic or not descriptors:
         raise ValueError("nonempty semantic regression controls required")
-    return dict(zip(TARGETS, (descriptors, arithmetic, metadata))), dict(counts)
+    return dict(zip(TARGETS, (descriptors, arithmetic, metadata))), {
+        **dict(counts),
+        "semantic_counts": dict(sorted(semantics.items())),
+    }
+
+
+def named_seed_contract_counts(corpus: dict, arithmetic_counts: dict) -> dict:
+    """Count expected routes in checked, authored inputs; mutations remain unclassified."""
+    json_valid = 0
+    for _, raw in corpus[TARGETS[2]]:
+        try:
+            json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        json_valid += 1
+    arithmetic_total = arithmetic_counts.get("admitted", 0) + arithmetic_counts.get(
+        "range_rejected", 0
+    )
+    if arithmetic_total != len(corpus[TARGETS[1]]) or sum(
+        arithmetic_counts["semantic_counts"].values()
+    ) != arithmetic_total:
+        raise ValueError("named arithmetic classification differs from input inventory")
+    return {
+        TARGETS[0]: dict(
+            inputs=len(corpus[TARGETS[0]]),
+            valid_plan_routes=len(corpus[TARGETS[0]]),
+            expected_rejection_routes=len(corpus[TARGETS[0]]),
+            unsupported_routes=0,
+        ),
+        TARGETS[1]: dict(
+            inputs=arithmetic_total,
+            valid_arithmetic_inputs=arithmetic_counts.get("admitted", 0),
+            range_rejected_inputs=arithmetic_counts.get("range_rejected", 0),
+            unsupported_inputs=0,
+            semantic_counts=arithmetic_counts["semantic_counts"],
+        ),
+        TARGETS[2]: dict(
+            inputs=len(corpus[TARGETS[2]]),
+            valid_json_inputs=json_valid,
+            parse_rejected_inputs=len(corpus[TARGETS[2]]) - json_valid,
+            unsupported_inputs=0,
+        ),
+    }
 
 
 def discovery_stats(text: str) -> dict:
@@ -138,6 +182,13 @@ def execute(args, plan):
             raise ValueError("fuzz symbolizer must match the object inspector/compiler")
         report["symbolizer"] = reference(args.symbolizer)
         corpus, report["arithmetic_seed_counts"] = corpus_inputs()
+        # These are the authored named inputs whose expected routes are checked
+        # by replay. LibFuzzer's generated mutation outcomes are not observable
+        # from its aggregate stats and must not be invented here.
+        report["named_seed_contract_counts"] = named_seed_contract_counts(
+            corpus, report["arithmetic_seed_counts"]
+        )
+        report["generated_mutation_semantic_counts"] = "unavailable_from_libfuzzer"
         for name in TARGETS:
             path = Path(instrumentation["artifacts"][name]["path"])
             root = out / name

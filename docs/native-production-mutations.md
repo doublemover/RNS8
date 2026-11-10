@@ -15,8 +15,10 @@ control query. Native coverage uses the same seed/test registry and a separate
 reviewed public-route map; it cannot turn branch reachability into a mutant kill.
 The ownership case instantiates
 the maintained production template with fake host operations; it does not call
-a HIP driver or qualify a device failure. No source snapshot, compiler, build,
-Catch discovery/test, baseline or mutant has run in this source pass.
+a HIP driver or qualify a device failure. A focused three-seed native Linux
+Clang 23.1.5 run on committed `a0e650c` passed its unchanged baseline and
+killed the signed CRT, signed export status and prepared A-generation mutants
+at their intended assertions. This does not qualify the other eight seeds.
 
 Five Gram seeds mutate the actual production tile directory (wrong triangle,
 omitted diagonal and duplicate ownership), CPU mirror address and prepared
@@ -76,8 +78,8 @@ interrupt stops the batch and preserves existing process records.
 
 These curated native seeds and the separate
 [Python production gate mutations](production-mutations.md) are source-authored.
-Actual execution, reviewed coverage/kill baselines and
-continuous CI integration remain work under
+Complete eleven-seed execution, reviewed coverage/kill baselines and
+continuous mutation CI integration remain work under
 [#103](https://github.com/doublemover/RNS8/issues/103). No mutation score or GPU
 qualification is inferred from this implementation.
 
