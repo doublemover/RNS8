@@ -65,7 +65,7 @@ def main() -> int:
 
     def host_task_key(capture):
         current = copy.deepcopy(capture)
-        current["benchmark_execution_mode"] = "persistent_resident"
+        current["benchmark_execution_mode"] = "persistent_resident_matrices"
         synthetic_host_measurements(current)
         return host_api_batch_report.contract_key(current)
 

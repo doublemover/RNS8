@@ -488,7 +488,7 @@ void public_integer_export_faults(bool profile_only) {
   for (uint32_t requested : {1u, 2u}) {
     configure_cpu_parallel(requested, 0, false);
     std::array<std::size_t, 4> small_allocation_counts{};
-    for (const auto shape :
+    for (const auto& shape :
          std::array<std::pair<int64_t, int64_t>, 3>{{{1, 1}, {65, 67}, {512, 513}}}) {
       for (bool wide : {false, true})
         for (bool sign : {false, true}) {

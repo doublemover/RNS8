@@ -71,31 +71,41 @@ std::vector<T> padded(const std::vector<uint64_t>& raw, uint32_t rows, uint32_t 
     }
   return result;
 }
-inline void pack(Owner& owner, const ArithmeticCase& value) {
+inline void pack_a(Owner& owner, const ArithmeticCase& value) {
   if (value.finite()) {
     auto a = padded<uint8_t>(value.a, value.m, value.k, value.padding_a, false);
-    auto b = padded<uint8_t>(value.b, value.k, value.n, value.padding_b, false);
     check(rns8_pack_finite_u8(owner.ctx, owner.a, value.modulus, a.data() + 1,
                               value.k + value.padding_a, 0),
           RNS8_SUCCESS, "pack finite A");
+  } else if (value.signed_input()) {
+    auto a = padded<int64_t>(value.a, value.m, value.k, value.padding_a, true);
+    check(rns8_pack_i64(owner.ctx, owner.a, a.data() + 1, value.k + value.padding_a, 0),
+          RNS8_SUCCESS, "pack signed A");
+  } else {
+    auto a = padded<uint64_t>(value.a, value.m, value.k, value.padding_a, false);
+    check(rns8_pack_u64(owner.ctx, owner.a, a.data() + 1, value.k + value.padding_a, 0),
+          RNS8_SUCCESS, "pack unsigned A");
+  }
+}
+inline void pack_b(Owner& owner, const ArithmeticCase& value) {
+  if (value.finite()) {
+    auto b = padded<uint8_t>(value.b, value.k, value.n, value.padding_b, false);
     check(rns8_pack_finite_u8(owner.ctx, owner.b, value.modulus, b.data() + 1,
                               value.n + value.padding_b, 0),
           RNS8_SUCCESS, "pack finite B");
   } else if (value.signed_input()) {
-    auto a = padded<int64_t>(value.a, value.m, value.k, value.padding_a, true);
     auto b = padded<int64_t>(value.b, value.k, value.n, value.padding_b, true);
-    check(rns8_pack_i64(owner.ctx, owner.a, a.data() + 1, value.k + value.padding_a, 0),
-          RNS8_SUCCESS, "pack signed A");
     check(rns8_pack_i64(owner.ctx, owner.b, b.data() + 1, value.n + value.padding_b, 0),
           RNS8_SUCCESS, "pack signed B");
   } else {
-    auto a = padded<uint64_t>(value.a, value.m, value.k, value.padding_a, false);
     auto b = padded<uint64_t>(value.b, value.k, value.n, value.padding_b, false);
-    check(rns8_pack_u64(owner.ctx, owner.a, a.data() + 1, value.k + value.padding_a, 0),
-          RNS8_SUCCESS, "pack unsigned A");
     check(rns8_pack_u64(owner.ctx, owner.b, b.data() + 1, value.n + value.padding_b, 0),
           RNS8_SUCCESS, "pack unsigned B");
   }
+}
+inline void pack(Owner& owner, const ArithmeticCase& value) {
+  pack_a(owner, value);
+  pack_b(owner, value);
 }
 inline rns8_status execute(Owner& owner, const ArithmeticCase& value) {
   if (value.finite())
@@ -232,7 +242,7 @@ inline void replay(ArithmeticCase value, const Expected& expected, rns8_backend_
                             &owner.prepared),
           RNS8_SUCCESS, "prepare");
     std::fill(value.a.begin(), value.a.end(), 0);
-    pack(owner, value);
+    pack_a(owner, value);
     rns8_completion_token token{};
     check(rns8_execute_prepared(owner.prepared, &token), RNS8_INVALID_ARGUMENT,
           "stale prepared inputs");
