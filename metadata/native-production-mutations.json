@@ -29,8 +29,8 @@
       "id": "omit-signed-crt-centering",
       "source": "src/reconstruct/crt.cpp",
       "anchor": "rns8_status reconstruct_strided(",
-      "before": "value -= contract.products[contract.prefix];",
-      "after": "value += cpp_int(0);",
+      "before": "term.backend().negate();",
+      "after": "term += cpp_int(0);",
       "tests": [
         {
           "name": "CRT reconstruction recovers signed and unsigned bounded values",
@@ -43,7 +43,7 @@
           "assertion_marker": "replay(value, expected)"
         }
       ],
-      "source_sha256": "5affd0f217bea9909b84ff5f0bb24c267af732b232192b5c454e54805b07aae3",
+      "source_sha256": "1f9309778f5ac7a720fc6a5838f0a5fae123485dc3dfe387411132a241bb7f98",
       "mandatory": true
     },
     {
@@ -86,7 +86,7 @@
     {
       "id": "misclassify-signed-export-preflight",
       "source": "src/core/api_export.cpp",
-      "source_sha256": "ac9f7397357ce85426f867cea59f7df15e3969775c8dba203d43e88fcb0d64fc",
+      "source_sha256": "28db80372b8d41955bf1641f3f060f300793f0b18898e014851ac21c058a61ff",
       "anchor": "rns8_status rns8_export_i64(",
       "before": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_INVALID_ARGUMENT;\n    }\n",
       "after": "rns8_status rns8_export_i64(rns8_context* ctx, const rns8_plan* plan, const rns8_matrix* C,\n                            int64_t* dst, int64_t ld) {\n  [[maybe_unused]] rns8::detail::trace::Scope trace_scope(\n      rns8::detail::trace::Phase::export_result);\n  return guard_api([&]() -> rns8_status {\n    if (!ctx || !plan || !C || !dst || !valid_matrix_access(plan->desc.m, plan->desc.n, ld)) {\n      return RNS8_RANGE_ERROR;\n    }\n",
@@ -102,7 +102,7 @@
     {
       "id": "omit-prepared-a-generation-admission",
       "source": "src/core/api_prepared.cpp",
-      "source_sha256": "8845c288574ef047bf52d51c02933c051f9c175a1becdc7c42e9650e8a64177c",
+      "source_sha256": "f15ca4f1e959b4cb97d6df67476ad2c6f1fab5ec2ea989a897a3270db34008d0",
       "anchor": "bool inputs_match(const rns8_prepared_execution& e) {",
       "before": "return e.a_instance == e.a->matrix_instance_id && e.a_generation == e.a->content_generation &&",
       "after": "return e.a_instance == e.a->matrix_instance_id &&",
@@ -187,7 +187,7 @@
     {
       "id": "gram-reuse-stale-transpose-after-refresh",
       "source": "src/core/api_prepared_gram.cpp",
-      "source_sha256": "3037312fbcd9b40de13cd7051fd4b3b9ef2d78e3a6717d2922ebdcc3ae32f025",
+      "source_sha256": "f2aa83753c201aee6d47236a3809d01838ce408ca0a2475b14dc01d8f6893393",
       "anchor": "rns8_status rns8_refresh_prepared_gram(",
       "before": "owner->adapter_ready = false;",
       "after": "static_cast<void>(owner->adapter_ready);",
