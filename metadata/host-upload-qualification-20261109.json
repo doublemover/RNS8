@@ -1,0 +1,776 @@
+{
+  "schema": "rns8_host_upload_qualification_v1",
+  "date": "2026-11-09",
+  "issue": 82,
+  "decision": "acceptance_complete",
+  "execution": "solo",
+  "scope": "Windows RX7900XTX/gfx1100 TheRock Core10.1; source-bound ordinary public packing and safe transfer controls, not a prior/new-library throughput comparison.",
+  "artifact_source": {
+    "source_commit": "f60ca27709c7eae67b4dcf256460e324bad10714",
+    "source_digest": "84f858b3dfebf899988af9c91efe7e3c5b2c643ad0923c6876cbd40f0c396ab1",
+    "source_dirty": false,
+    "dependency_digest": "499a13c2f606eb2ab694e76895c349ba9a8e02262363b03150efb1f66c59bf17"
+  },
+  "harness_build": "Standalone MSVC14.51.36231 Release C++17/MD qualification harness, linked to the unchanged f60ca277 HIP static library and original manifest. Source, compiler, library, manifest and executable hashes remain unchanged throughout collection.",
+  "capture_sha256": [
+    "60f6d07676f5394b69f9c0f1032db798dea0327939d070d682256676937a246c",
+    "3fed4ea84dd0d5b438729cce3e759a862162a73043012b5ae3cd74ca5035d17d"
+  ],
+  "build_receipt_sha256": "e04751586b5c4d52b51641c67fb0b7a4ce30c67ec70863f385b512711c3df6ed",
+  "harness_source_sha256": "7aacfa5e8bacf6ba819c99b05d7ccab7fef91edd3e6c10b09fe81d6eeb476ded",
+  "execution_ids": [
+    "eb44efc4-f992-4a26-84ec-11acde2198fc",
+    "22f6760c-54ea-483f-b33b-cedef8c58ed9"
+  ],
+  "native_custody": [
+    {
+      "executable_sha256": "041194e60254bfdb7473cce4dc8b1555c1ed94e23bd6f4bd184c6badecea3298",
+      "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\issue-closeout-20261109\\host-upload-probe.exe",
+      "hash_seconds": 0.014102300003287382,
+      "rns8_linkage": "static",
+      "unchanged_during_run": true
+    },
+    {
+      "executable_sha256": "041194e60254bfdb7473cce4dc8b1555c1ed94e23bd6f4bd184c6badecea3298",
+      "executable_path": "C:\\Users\\sneak\\Development\\RNS8\\temp\\issue-closeout-20261109\\host-upload-probe.exe",
+      "hash_seconds": 0.013961600008769892,
+      "rns8_linkage": "static",
+      "unchanged_during_run": true
+    }
+  ],
+  "measurement_protocol": {
+    "independent_processes": 2,
+    "process_array_order": [
+      0,
+      1
+    ],
+    "warmups": 3,
+    "sustained_batches": 7,
+    "minimum_batch_ms": 100,
+    "minimum_calls_per_batch": 2,
+    "timing_source": "Host steady clock through observed default-stream completion. Kernel timing hooks disabled.",
+    "raw_control": "Preallocated compact logical upload versus the exact safe accessed extent, both using the identical fixed-prefix conversion provider. Their device pitches differ as required by their layouts. Neither reads final-row padding.",
+    "raw_control_boundary": "Copy-only, conversion-only and complete copy+conversion recorded separately; these are not public API or historical unsafe-baseline timings.",
+    "public_boundary": "Ordinary nonretained bounded signed pack, and complete packA+packB+GEMM+native export. Source_version0 forces actual packing; input scans/range checks, metadata, completion and publication remain included.",
+    "public_implementation": "The production helper snapshots only logical rows into reusable owned compact host storage, then submits a contiguous copy. The direct hipMemcpy2D control is distinct from that production policy.",
+    "oracle": "Every raw residue cell equals an independent CPU modular result; every public output equals the full Boost integer reference; output padding remains unchanged. All checks are outside timed intervals.",
+    "allocations": "Requested device allocation capacities and completed API H2D payload bytes, not physical bus traffic or allocator page usage.",
+    "raw_variance": "Within-process variances, completed call counts and all individual sustained batches remain in the hash-bound raw captures; durable raw-control summaries retain both independent-process medians."
+  },
+  "correctness_receipts": {
+    "existing_release": "metadata/implementation-validation-20261107.json",
+    "scope": "The same f60ca277 artifact passed minimal-final-row allocations for bounded/wide signed and unsigned pack, finite251/255/256 controls, wrap64 and eligible direct one-shots, ordinary/retained policies, version reuse and output padding. Unrelated Gram timing failures remain separate.",
+    "host_transfer_plan": "Shared host-only tests cover one-row unused pitch,2x3/ld8,element sizes1/8,compact/padded/overflow spans and traced rejection before any invalid read."
+  },
+  "measurements": [
+    {
+      "rows": 2,
+      "cols": 3,
+      "padding": 0,
+      "prefix": 9,
+      "logical_upload_bytes": 48,
+      "safe_accessed_extent_bytes": 48,
+      "public_setup_us": [
+        2228.4,
+        1483.1
+      ],
+      "public_first_pack_us": [
+        341.8,
+        739.0
+      ],
+      "public_first_pack_allocated_bytes": [
+        48,
+        48
+      ],
+      "public_upload_staging_bytes": [
+        48,
+        48
+      ],
+      "public_pack": {
+        "median_us": [
+          331.41,
+          236.338
+        ],
+        "population_stdev_us": [
+          85.221,
+          89.479
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          971.717,
+          1042.042
+        ],
+        "population_stdev_us": [
+          76.967,
+          256.239
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 48,
+          "device_allocation_request_bytes": 48,
+          "transfer_median_us": [
+            100.875,
+            103.964
+          ],
+          "fixed_conversion_median_us": [
+            96.261,
+            108.74
+          ],
+          "transfer_and_conversion_median_us": [
+            388.283,
+            392.445
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 48,
+          "device_allocation_request_bytes": 48,
+          "transfer_median_us": [
+            100.526,
+            95.712
+          ],
+          "fixed_conversion_median_us": [
+            111.733,
+            97.396
+          ],
+          "transfer_and_conversion_median_us": [
+            369.057,
+            396.689
+          ]
+        }
+      }
+    },
+    {
+      "rows": 2,
+      "cols": 3,
+      "padding": 5,
+      "prefix": 9,
+      "logical_upload_bytes": 48,
+      "safe_accessed_extent_bytes": 88,
+      "public_setup_us": [
+        1268.1,
+        2865.0
+      ],
+      "public_first_pack_us": [
+        207.9,
+        181.5
+      ],
+      "public_first_pack_allocated_bytes": [
+        48,
+        48
+      ],
+      "public_upload_staging_bytes": [
+        48,
+        48
+      ],
+      "public_pack": {
+        "median_us": [
+          437.43,
+          517.147
+        ],
+        "population_stdev_us": [
+          114.665,
+          162.414
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          1677.905,
+          1132.283
+        ],
+        "population_stdev_us": [
+          428.017,
+          186.916
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 88,
+          "device_allocation_request_bytes": 88,
+          "transfer_median_us": [
+            145.21,
+            152.555
+          ],
+          "fixed_conversion_median_us": [
+            110.019,
+            114.15
+          ],
+          "transfer_and_conversion_median_us": [
+            224.954,
+            256.452
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 48,
+          "device_allocation_request_bytes": 48,
+          "transfer_median_us": [
+            1213.963,
+            1320.276
+          ],
+          "fixed_conversion_median_us": [
+            193.823,
+            120.649
+          ],
+          "transfer_and_conversion_median_us": [
+            1194.793,
+            1053.349
+          ]
+        }
+      }
+    },
+    {
+      "rows": 2,
+      "cols": 3,
+      "padding": 4096,
+      "prefix": 9,
+      "logical_upload_bytes": 48,
+      "safe_accessed_extent_bytes": 32816,
+      "public_setup_us": [
+        1365.8,
+        1271.0
+      ],
+      "public_first_pack_us": [
+        186.1,
+        274.9
+      ],
+      "public_first_pack_allocated_bytes": [
+        48,
+        48
+      ],
+      "public_upload_staging_bytes": [
+        48,
+        48
+      ],
+      "public_pack": {
+        "median_us": [
+          215.354,
+          214.889
+        ],
+        "population_stdev_us": [
+          10.793,
+          26.067
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          1978.457,
+          1170.172
+        ],
+        "population_stdev_us": [
+          438.978,
+          618.428
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 32816,
+          "device_allocation_request_bytes": 32816,
+          "transfer_median_us": [
+            155.093,
+            147.961
+          ],
+          "fixed_conversion_median_us": [
+            153.431,
+            123.4
+          ],
+          "transfer_and_conversion_median_us": [
+            321.118,
+            209.189
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 48,
+          "device_allocation_request_bytes": 48,
+          "transfer_median_us": [
+            944.921,
+            872.351
+          ],
+          "fixed_conversion_median_us": [
+            274.031,
+            272.561
+          ],
+          "transfer_and_conversion_median_us": [
+            2750.062,
+            1944.206
+          ]
+        }
+      }
+    },
+    {
+      "rows": 64,
+      "cols": 64,
+      "padding": 0,
+      "prefix": 9,
+      "logical_upload_bytes": 32768,
+      "safe_accessed_extent_bytes": 32768,
+      "public_setup_us": [
+        1200.9,
+        1718.3
+      ],
+      "public_first_pack_us": [
+        344.8,
+        306.4
+      ],
+      "public_first_pack_allocated_bytes": [
+        32768,
+        32768
+      ],
+      "public_upload_staging_bytes": [
+        32768,
+        32768
+      ],
+      "public_pack": {
+        "median_us": [
+          361.076,
+          358.646
+        ],
+        "population_stdev_us": [
+          27.869,
+          61.236
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          1291.192,
+          1381.504
+        ],
+        "population_stdev_us": [
+          104.593,
+          120.38
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 32768,
+          "device_allocation_request_bytes": 32768,
+          "transfer_median_us": [
+            141.509,
+            192.516
+          ],
+          "fixed_conversion_median_us": [
+            128.191,
+            171.352
+          ],
+          "transfer_and_conversion_median_us": [
+            339.413,
+            359.87
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 32768,
+          "device_allocation_request_bytes": 32768,
+          "transfer_median_us": [
+            128.237,
+            114.964
+          ],
+          "fixed_conversion_median_us": [
+            117.443,
+            98.907
+          ],
+          "transfer_and_conversion_median_us": [
+            408.528,
+            381.686
+          ]
+        }
+      }
+    },
+    {
+      "rows": 64,
+      "cols": 64,
+      "padding": 5,
+      "prefix": 9,
+      "logical_upload_bytes": 32768,
+      "safe_accessed_extent_bytes": 35288,
+      "public_setup_us": [
+        1494.3,
+        3604.3
+      ],
+      "public_first_pack_us": [
+        305.0,
+        801.0
+      ],
+      "public_first_pack_allocated_bytes": [
+        32768,
+        32768
+      ],
+      "public_upload_staging_bytes": [
+        32768,
+        32768
+      ],
+      "public_pack": {
+        "median_us": [
+          514.129,
+          847.029
+        ],
+        "population_stdev_us": [
+          99.739,
+          243.478
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          2565.869,
+          1517.461
+        ],
+        "population_stdev_us": [
+          595.569,
+          1478.861
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 35288,
+          "device_allocation_request_bytes": 35288,
+          "transfer_median_us": [
+            163.181,
+            186.107
+          ],
+          "fixed_conversion_median_us": [
+            137.824,
+            135.346
+          ],
+          "transfer_and_conversion_median_us": [
+            287.146,
+            298.007
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 32768,
+          "device_allocation_request_bytes": 32768,
+          "transfer_median_us": [
+            1608.019,
+            1255.63
+          ],
+          "fixed_conversion_median_us": [
+            212.557,
+            145.921
+          ],
+          "transfer_and_conversion_median_us": [
+            1089.565,
+            1116.946
+          ]
+        }
+      }
+    },
+    {
+      "rows": 64,
+      "cols": 64,
+      "padding": 4096,
+      "prefix": 9,
+      "logical_upload_bytes": 32768,
+      "safe_accessed_extent_bytes": 2097152,
+      "public_setup_us": [
+        1574.8,
+        1029.7
+      ],
+      "public_first_pack_us": [
+        301.3,
+        310.0
+      ],
+      "public_first_pack_allocated_bytes": [
+        32768,
+        32768
+      ],
+      "public_upload_staging_bytes": [
+        32768,
+        32768
+      ],
+      "public_pack": {
+        "median_us": [
+          279.436,
+          270.271
+        ],
+        "population_stdev_us": [
+          15.903,
+          16.332
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          1376.674,
+          3042.661
+        ],
+        "population_stdev_us": [
+          777.293,
+          411.956
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 2097152,
+          "device_allocation_request_bytes": 2097152,
+          "transfer_median_us": [
+            345.438,
+            410.728
+          ],
+          "fixed_conversion_median_us": [
+            107.364,
+            151.29
+          ],
+          "transfer_and_conversion_median_us": [
+            514.198,
+            529.12
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 32768,
+          "device_allocation_request_bytes": 32768,
+          "transfer_median_us": [
+            871.973,
+            1038.62
+          ],
+          "fixed_conversion_median_us": [
+            140.324,
+            139.625
+          ],
+          "transfer_and_conversion_median_us": [
+            1573.377,
+            1330.607
+          ]
+        }
+      }
+    },
+    {
+      "rows": 256,
+      "cols": 128,
+      "padding": 0,
+      "prefix": 9,
+      "logical_upload_bytes": 262144,
+      "safe_accessed_extent_bytes": 262144,
+      "public_setup_us": [
+        1541.6,
+        1229.2
+      ],
+      "public_first_pack_us": [
+        630.0,
+        526.7
+      ],
+      "public_first_pack_allocated_bytes": [
+        262144,
+        262144
+      ],
+      "public_upload_staging_bytes": [
+        262144,
+        262144
+      ],
+      "public_pack": {
+        "median_us": [
+          710.055,
+          616.058
+        ],
+        "population_stdev_us": [
+          66.068,
+          32.662
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          1830.353,
+          1635.232
+        ],
+        "population_stdev_us": [
+          45.315,
+          131.28
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 262144,
+          "device_allocation_request_bytes": 262144,
+          "transfer_median_us": [
+            581.861,
+            307.89
+          ],
+          "fixed_conversion_median_us": [
+            115.095,
+            129.377
+          ],
+          "transfer_and_conversion_median_us": [
+            483.453,
+            719.01
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 262144,
+          "device_allocation_request_bytes": 262144,
+          "transfer_median_us": [
+            378.149,
+            429.848
+          ],
+          "fixed_conversion_median_us": [
+            109.419,
+            106.628
+          ],
+          "transfer_and_conversion_median_us": [
+            548.463,
+            532.268
+          ]
+        }
+      }
+    },
+    {
+      "rows": 256,
+      "cols": 128,
+      "padding": 5,
+      "prefix": 9,
+      "logical_upload_bytes": 262144,
+      "safe_accessed_extent_bytes": 272344,
+      "public_setup_us": [
+        1284.8,
+        1236.3
+      ],
+      "public_first_pack_us": [
+        584.2,
+        957.5
+      ],
+      "public_first_pack_allocated_bytes": [
+        262144,
+        262144
+      ],
+      "public_upload_staging_bytes": [
+        262144,
+        262144
+      ],
+      "public_pack": {
+        "median_us": [
+          861.174,
+          1017.074
+        ],
+        "population_stdev_us": [
+          200.318,
+          203.309
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          3706.422,
+          2302.755
+        ],
+        "population_stdev_us": [
+          604.867,
+          911.887
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 272344,
+          "device_allocation_request_bytes": 272344,
+          "transfer_median_us": [
+            562.404,
+            455.414
+          ],
+          "fixed_conversion_median_us": [
+            226.426,
+            103.317
+          ],
+          "transfer_and_conversion_median_us": [
+            462.217,
+            397.775
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 262144,
+          "device_allocation_request_bytes": 262144,
+          "transfer_median_us": [
+            1220.315,
+            1435.847
+          ],
+          "fixed_conversion_median_us": [
+            187.077,
+            151.324
+          ],
+          "transfer_and_conversion_median_us": [
+            990.61,
+            1000.454
+          ]
+        }
+      }
+    },
+    {
+      "rows": 256,
+      "cols": 128,
+      "padding": 4096,
+      "prefix": 9,
+      "logical_upload_bytes": 262144,
+      "safe_accessed_extent_bytes": 8617984,
+      "public_setup_us": [
+        1394.5,
+        1265.1
+      ],
+      "public_first_pack_us": [
+        561.7,
+        777.3
+      ],
+      "public_first_pack_allocated_bytes": [
+        262144,
+        262144
+      ],
+      "public_upload_staging_bytes": [
+        262144,
+        262144
+      ],
+      "public_pack": {
+        "median_us": [
+          669.157,
+          669.118
+        ],
+        "population_stdev_us": [
+          26.932,
+          92.602
+        ]
+      },
+      "public_pack_gemm_export": {
+        "median_us": [
+          3175.562,
+          4093.104
+        ],
+        "population_stdev_us": [
+          669.875,
+          409.795
+        ]
+      },
+      "raw_controls": {
+        "safe_accessed_extent": {
+          "h2d_payload_bytes": 8617984,
+          "device_allocation_request_bytes": 8617984,
+          "transfer_median_us": [
+            1232.185,
+            1119.476
+          ],
+          "fixed_conversion_median_us": [
+            138.002,
+            163.217
+          ],
+          "transfer_and_conversion_median_us": [
+            1656.564,
+            1713.171
+          ]
+        },
+        "compact": {
+          "h2d_payload_bytes": 262144,
+          "device_allocation_request_bytes": 262144,
+          "transfer_median_us": [
+            1198.868,
+            1706.851
+          ],
+          "fixed_conversion_median_us": [
+            170.942,
+            219.404
+          ],
+          "transfer_and_conversion_median_us": [
+            1723.393,
+            2105.602
+          ]
+        }
+      }
+    }
+  ],
+  "interpretation": [
+    "Public H2D payload and upload staging capacity equal rows*cols*8 for every measured pitch.",
+    "For256x128/ld4224, public upload staging is262144 bytes versus the8617984-byte safe extent control (32.875x smaller requested upload storage/payload).",
+    "Direct compact HIP2D copy+conversion often loses to the safe contiguous-extent control despite lower byte volume. Retain these losing cases; no general throughput speedup or routing promotion is claimed.",
+    "Production already uses owned CPU gathering plus a contiguous transfer. These measurements do not justify replacing that policy with direct HIP2D copies.",
+    "Other GPU/OS targets require their own qualification; the broad Linux/multi-GPU issues remain open."
+  ]
+}
