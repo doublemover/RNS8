@@ -292,6 +292,8 @@ The local and hosted CPU object-inspection, seed-replay and discovery runs above
 are complete. The ordinary CPU suite also runs the shared descriptor and
 arithmetic controls. Six serialized cases passed a local native CPU adapter
 pilot (five CPU-reference, one wrap64); the newly added CI step owns the
-committed-source native replay gate. Deterministic GPU replay remains a separate
+committed-source native replay gate. [Hosted PR run 42760859522](https://github.com/doublemover/RNS8/actions/runs/42760859522)
+passed all six cases and retained compiled-identity, process and exact-comparison
+receipts. Deterministic GPU replay remains a separate
 execution gate. GPU backend/target parity requires actual device-qualified
 runs; CPU fuzzing makes no performance claim.

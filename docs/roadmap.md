@@ -191,8 +191,11 @@ seeds, 57 inspected production objects, 503/1,000/1,000 bounded discovery
 executions and source-attributed first-party PC edges. A focused native Linux
 mutation session on the same cut passed its baseline and killed the three
 wrong-result/status/stale-state mutants at their intended assertions. Native
-CPU adapter replay is wired into the ordinary CI job; its hosted verdict is
-pending. Native sanitizer, full analyzer/coverage/eleven-seed mutation,
+CPU adapter replay passed five CPU-reference and one explicit wrap64 case in
+the [hosted PR run](https://github.com/doublemover/RNS8/actions/runs/42760859522),
+with compiled-identity and exact-comparison receipts; its ordinary Ubuntu CPU
+job also passed the full CTest suite. Issue #101's CPU infrastructure gate is
+closed. Native sanitizer, full analyzer/coverage/eleven-seed mutation,
 multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
 suite cannot establish their behavior.
@@ -207,8 +210,10 @@ rehearsals remain under #57/#58/#60/#61. The selected Git candidate remains
 uninstalled. Explicit gfx950 FP4/FP6/FP8 fixed/dynamic/mixed-format kernels are
 implemented under a conditional instruction model, with live qualification
 pending. M3 distributed transports are implemented as explicit optional source
-paths, with physical cluster/memory-ordering/failure qualification pending. There are 54 open issues after the November7 acceptance review;
-child acceptance gates remain the roadmap's retirement criterion. The full audit
+paths, with physical cluster/memory-ordering/failure qualification pending.
+There are 50 open issues as of November 10; the November 7 audit recorded 54
+before #81, #82, #84 and #101 closed. Issue-specific acceptance gates remain
+the roadmap's retirement criterion. The full audit
 record described its then-requested backlog. The November 7 source frontload is
 written; the [implementation ledger](../metadata/implementation-frontload-20261104.json)
 tracks source completion separately from remaining qualification. Dated receipts
