@@ -179,3 +179,64 @@ jobs:
         env:
           OMP_NUM_THREADS: 3
         run: ctest --test-dir build/ci-openmp --output-on-failure --parallel 2
+
+  cpu-fuzz-smoke:
+    name: CPU fuzz seed replay and discovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          allow-prereleases: false
+      - name: Install native CPU fuzz compiler and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 llvm-18 libclang-rt-18-dev ninja-build libboost-dev nlohmann-json3-dev
+      - name: Select locked build tools
+        run: python tools/init_build_tools.py --github-path
+      - name: Check corpus and driver contracts
+        run: |
+          python tools/test_fuzz_cases.py
+          python tools/test_fuzz_discovery.py
+          python tools/test_fuzz_replay.py
+          python tools/test_fuzz_replay_shrink.py
+      - name: Configure isolated instrumented CPU library
+        run: >-
+          cmake -S . -B temp/cpu-fuzz-smoke-build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DRNS8_ENABLE_HIP=OFF -DRNS8_BUILD_FUZZERS=ON
+          -DRNS8_ENABLE_HIPBLASLT=OFF -DRNS8_ENABLE_CK=OFF
+          -DRNS8_ENABLE_ROCWMMA=OFF -DRNS8_ENABLE_AMDGPU_BUILTINS=OFF
+          -DRNS8_ENABLE_CPU_PARALLEL=OFF -DRNS8_BUILD_SHARED=OFF
+          -DRNS8_ENABLE_GMP=OFF -DRNS8_ENABLE_FLINT=OFF
+          -DRNS8_HOST_SANITIZER=none -DRNS8_ENABLE_HOST_COVERAGE=OFF
+          -DRNS8_BUILD_TESTS=OFF -DRNS8_BUILD_TOOLS=OFF
+          -DRNS8_BUILD_BENCHMARKS=OFF -DRNS8_BUILD_EXAMPLES=OFF
+      - name: Build all three fuzz targets and production objects
+        run: >-
+          cmake --build temp/cpu-fuzz-smoke-build --parallel 2 --target
+          rns8_fuzz_plan_descriptor rns8_fuzz_export_contract rns8_fuzz_json_dependency
+      - name: Inspect instrumentation, replay all named seeds and run bounded discovery
+        run: >-
+          python tools/fuzz_discovery.py --build temp/cpu-fuzz-smoke-build
+          --nm /usr/bin/llvm-nm-18 --symbolizer /usr/bin/llvm-symbolizer-18
+          --out temp/cpu-fuzz-smoke-capture --seconds 600 --runs 1000
+          --discovery-seconds 5 --rss-mib 2048 --artifact-mib 256 --execute
+      - name: Retain first failure and complete evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cpu-fuzz-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            temp/cpu-fuzz-smoke-capture/
+            temp/cpu-fuzz-smoke-build/compile_commands.json
+            temp/cpu-fuzz-smoke-build/CMakeCache.txt
+            temp/cpu-fuzz-smoke-build/rns8-fuzz-instrumentation-*.json
+            temp/cpu-fuzz-smoke-build/rns8-analysis-targets-*.json

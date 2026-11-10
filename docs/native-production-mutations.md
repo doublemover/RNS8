@@ -48,6 +48,11 @@ copy and test input is content-bound; mutations preserve unaffected file bytes
 and newline style. The original checkout is unchanged. No automatic retry or
 artifact deletion occurs.
 
+Repeat `--seed ID` to run a focused registered subset with its own unchanged
+baseline and only the selected mutations. The plan and report mark that subset;
+it cannot count as the complete eleven-seed mutation gate. Duplicate or unknown
+IDs reject before creating output.
+
 The actual compiler/database/dependency observations must contain the changed
 TU/header/fragment. Test and static-library files, native compiled identity,
 source digest, compiler/configuration and dependency domain bind each variant.

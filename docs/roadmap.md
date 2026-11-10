@@ -180,8 +180,14 @@ report](https://github.com/ROCm/rocm-systems/issues/12925). Resolve the SDK/driv
 behavior and rerun the two diagnostics before accepting new timing evidence. No invalid
 timestamp is clamped into a pass.
 
-Fresh selected-toolchain sanitizer/analyzer/fuzzer/coverage/mutation execution, native
-Linux, multi-GPU, Instinct/CDNA and unavailable
+The November 9 native Linux Clang 23.1.5 CPU fuzz pilot inspected all 57
+first-party production fuzz objects, replayed 612 named seeds across three
+targets and completed bounded discovery with first-party function attribution
+for both RNS8 entrypoints. Its initial descriptor abort was a harness assertion
+that contradicted the documented output-slot preservation contract; the
+minimized empty-input regression now runs in the ordinary unit suite. A hosted
+Ubuntu PR smoke is wired but needs its own CI execution. Native sanitizer,
+full analyzer/coverage/mutation, multi-GPU, Instinct/CDNA and unavailable
 instruction families remain separate qualification lanes. The current Windows
 suite cannot establish their behavior.
 

@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "../fuzz/arithmetic_case.hpp"
+#include "../fuzz/plan_descriptor_case.hpp"
 #include "reconstruct/reconstruction.hpp"
 #include <cmath>
 #include <numeric>
@@ -23,6 +24,32 @@ std::vector<uint8_t> encoded(uint8_t semantics, uint64_t a, uint64_t b) {
   return bytes;
 }
 } // namespace
+TEST_CASE("descriptor fuzz regression replays every invalid mutation with live handles",
+          "[fuzz][descriptor][api]") {
+  using rns8_fuzz::descriptor_support::replay;
+  replay(nullptr, 0); // The original finding minimizes to an empty input.
+  for (uint8_t semantic = 0; semantic < 6; ++semantic) {
+    for (uint8_t invalid = 0; invalid < 15; ++invalid) {
+      std::vector<uint8_t> input{semantic, 0, 0, 0};
+      if (semantic < 2) {
+        input.insert(input.end(), 8, 0); // Global bound.
+        input.push_back(0);              // No per-tile bounds.
+      } else if (semantic == 2) {
+        input.push_back(0); // Finite modulus 2.
+      }
+      input.push_back(invalid);
+      replay(input.data(), input.size());
+      if (semantic < 2) {
+        input.resize(12);
+        input.push_back(1); // Select a legal one-tile bound.
+        input.insert(input.end(), 8, 0);
+        input.push_back(invalid);
+        replay(input.data(), input.size());
+      }
+    }
+  }
+}
+
 TEST_CASE("independent literal residues exercise every CRT prefix midpoint",
           "[fuzz][crt][boundary]") {
   using namespace rns8_fuzz;

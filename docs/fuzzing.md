@@ -20,9 +20,11 @@ See LLVM's [separate fuzzer instrumentation](https://llvm.org/docs/LibFuzzer.htm
 
 `rns8_fuzz_plan_descriptor` constructs known-valid plans in all six domains,
 checks explicit backend/schedule/workspace admission, then applies one invalid
-descriptor mutation and requires its specific rejection/null-output contract.
-The existing live plan must remain queryable. No arbitrary dangling handles
-are supplied. `rns8_fuzz_json_dependency` is explicitly a third-party JSON
+descriptor mutation and requires its specific rejection/output-slot-preservation
+contract. The existing live plan must remain queryable. Named seeds include the
+empty-input minimization of the first native finding and both global and per-tile
+bounded contracts; the same replay runs in the ordinary CPU unit suite. No
+arbitrary dangling handles are supplied. `rns8_fuzz_json_dependency` is explicitly a third-party JSON
 parser/access smoke; it does not claim to exercise RNS8 metadata validation or
 link the instrumented RNS8 library. The former metadata harness name is retired.
 
@@ -213,11 +215,26 @@ dependencies and HIP code are outside this denominator. The JSON target remains
 honestly classified as third-party parser reachability.
 
 The manual [CPU fuzz candidate workflow](../.github/workflows/cpu-fuzz-candidate.yml)
-verifies an already prepared managed LLVM archive against the shared lock,
-builds an isolated HIP-OFF library and all three entrypoints, then retains the
-object denominator, every seed replay, bounded discovery and first failure.
-It has not run. Required PR activation follows qualification of sensitivity and
-cost in a native pilot; no new push-triggered discovery campaign is enabled.
+uses an already prepared locked LLVM archive for a longer managed-host run. The
+[PR CPU fuzz smoke](../.github/workflows/ci.yml) installs Ubuntu's Clang 18,
+LLVM object/symbol tools and native dependencies, builds the isolated HIP-OFF
+library, replays every named seed, then runs five seconds of discovery per target
+under the same fail-closed driver. It retains the first failure and source/object
+denominator. The two compiler lanes are separate evidence; a local Clang 23 pass
+does not prove the hosted Clang 18 job will pass.
+
+The first native Linux Clang 23.1.5 pilot exposed a descriptor-harness false
+assertion: invalid descriptor preflight is documented to preserve the caller's
+output slot, but the harness required null. The old binary also aborts on empty
+input. The repaired harness shares its exact replay with an ordinary CPU unit
+test and retains an empty named seed. A fresh isolated build inspected 57
+production objects and replayed 127 descriptor, 479 exact-arithmetic and six
+JSON seeds without failure. Bounded discovery completed 857, 1,000 and 1,000
+executions respectively; the two RNS8 targets attributed PC-edge observations
+to 374 and 426 first-party functions across 52 source files. These are observed
+SanitizerCoverage edges, not source-branch percentages. The JSON target only
+exercises its third-party parser. This pilot used a dirty precommit source cut;
+the pushed CI run must establish its own compiled/source identity.
 
 The named corpus also includes row/column and common-K permutations, legal zero
 K padding, physical-padding changes, zero/identity operands, independently
@@ -255,9 +272,8 @@ CPU support. A named19-transition seed exercises the model from all six valid
 descriptor prefixes. The existing real production stale-generation mutant also
 targets this model's actual public calls.
 
-All #101 source infrastructure is authored. The source-attributed PC-edge gate,
-lifecycle/mutation and minimizer controls are registered; native replay, object inspection and
-discovery remain unqualified. Required PR activation follows the
-deferred CPU sensitivity/cost validation; GPU backend/target parity remains
-separate actual-device qualification. No test score, GPU support or performance
-gain follows from source registration alone.
+The local CPU object-inspection, seed-replay and discovery pilot above is complete.
+The ordinary CPU suite also runs the shared descriptor and arithmetic controls.
+Hosted PR smoke, production mutation sensitivity and deterministic GPU replay
+remain separate execution gates. GPU backend/target parity requires actual
+device-qualified runs; CPU fuzzing makes no performance claim.

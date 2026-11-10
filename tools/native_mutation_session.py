@@ -495,6 +495,11 @@ def main(argv=None):
         help="explicit absolute scratch root; default: repository temp",
     )
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument(
+        "--seed",
+        action="append",
+        help="select a registered production mutation; repeat to run a focused sensitivity lane",
+    )
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
     parser.add_argument("--artifact-mib", type=int, default=32768)
@@ -546,12 +551,19 @@ def main(argv=None):
         ):
             raise ValueError("native mutation budgets exceed supported bounds")
         seeds = registry()
+        if args.seed:
+            selected = set(args.seed)
+            available = {seed["id"] for seed in seeds}
+            if len(selected) != len(args.seed) or not selected <= available:
+                raise ValueError("mutation selection must name distinct registered seeds")
+            seeds = [seed for seed in seeds if seed["id"] in selected]
         plan = dict(
             schema="rns8_native_production_mutation_plan_v1",
             artifact_root=str(artifact_root.resolve()),
             total_seconds=args.total_seconds,
             output=str(output),
             seed_ids=[seed["id"] for seed in seeds],
+            selected_registry_subset=bool(args.seed),
             baseline_builds=1 + int(args.mull_runner is not None),
             mutant_builds=len(seeds),
             build_target="rns8_tests",

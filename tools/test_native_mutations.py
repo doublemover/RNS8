@@ -190,6 +190,29 @@ class NativeMutationControls(unittest.TestCase):
             self.assertFalse((root / "temp/planned").exists())
             self.assertFalse(value["runtime_validation_executed"])
             self.assertEqual(value["baseline_builds"], 1)
+            self.assertFalse(value["selected_registry_subset"])
+            with (
+                mock.patch.object(session, "ROOT", root),
+                mock.patch.object(session, "registry", return_value=seeds),
+                mock.patch.object(session.platform, "system", return_value="Linux"),
+                contextlib.redirect_stdout(io.StringIO()) as focused_stdout,
+            ):
+                self.assertEqual(session.main([*args, "--seed", "source-fixture"]), 0)
+            focused = json.loads(focused_stdout.getvalue())
+            self.assertEqual(focused["seed_ids"], ["source-fixture"])
+            self.assertEqual(focused["mutant_builds"], 1)
+            self.assertTrue(focused["selected_registry_subset"])
+            with (
+                mock.patch.object(session, "ROOT", root),
+                mock.patch.object(session, "registry", return_value=seeds),
+                mock.patch.object(session.platform, "system", return_value="Linux"),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                self.assertEqual(session.main([*args, "--seed", "unknown"]), 2)
+                self.assertEqual(
+                    session.main([*args, "--seed", "source-fixture", "--seed", "source-fixture"]),
+                    2,
+                )
             self.assertIn("-DRNS8_ENABLE_HIP=OFF", value["configure_example"])
             self.assertIn("-DRNS8_ENABLE_DISTRIBUTED_MPI=OFF", value["configure_example"])
             with (

@@ -45,16 +45,27 @@ def corpus_inputs():
         valid = admitted(case)
         counts["admitted" if valid else "range_rejected"] += 1
         arithmetic.append((name, raw))
-    descriptors = [
+    descriptors = [("empty", b"")]
+    descriptors.extend(
         (
-            f"semantic-{semantic}-invalid-{invalid}",
-            bytes([semantic, 0, 0, 0])
-            + (bytes(9) if semantic < 2 else bytes(1) if semantic == 2 else b"")
-            + bytes([invalid]),
+            f"per-tile-semantic-{semantic}-invalid-{invalid}",
+            bytes([semantic, 0, 0, 0]) + bytes(8) + bytes([1]) + bytes(8) + bytes([invalid]),
         )
-        for semantic in range(6)
+        for semantic in range(2)
         for invalid in range(15)
-    ]
+    )
+    descriptors.extend(
+        [
+            (
+                f"semantic-{semantic}-invalid-{invalid}",
+                bytes([semantic, 0, 0, 0])
+                + (bytes(9) if semantic < 2 else bytes(1) if semantic == 2 else b"")
+                + bytes([invalid]),
+            )
+            for semantic in range(6)
+            for invalid in range(15)
+        ]
+    )
     # Valid descriptor prefix followed by the explicit bounded R8H1 history.
     # Keep the original descriptor-only seeds as independent regression inputs.
     history = b"R8H1" + bytes([3, 4, 9, 0, 5, 3, 6, 5, 3, 7, 8, 4, 5, 3, 10, 11, 1, 10, 11])
