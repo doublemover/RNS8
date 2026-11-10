@@ -1,0 +1,799 @@
+{
+  "schema": "rns8_cpu_export_qualification_v1",
+  "date": "2026-11-09",
+  "issue": 81,
+  "decision": "acceptance_complete",
+  "execution": "solo",
+  "artifact_source": {
+    "source_commit": "9a024c662d83687c4634a2a5d6adb2a9d9289133",
+    "source_digest": "cb06915714c1b055c866837627dad5e4f5c5a53d15b42d439598b2e05e2b1da4",
+    "source_dirty": false,
+    "dependency_digest": "5df3651eb78e30ee3d06c333fa28ac9bfd3f89b74870c298cde179a3857e6ae0"
+  },
+  "executable_sha256": "a40e95e41af9e351290578a1421cb69a7237398c25737563b36a7c1eaa906e17",
+  "scope": "Windows MSVC Release/OpenMP public CPU exports and complete pack+GEMM+export calls. Candidate-only measurements; no old/new throughput speedup or routing promotion.",
+  "native_calls": {
+    "captures": 96,
+    "independent_processes_per_cell": 2,
+    "warmups": 3,
+    "diagnostic_repeats": 7,
+    "sustained_batches_per_process": 7,
+    "minimum_sustained_batch_ms": 100,
+    "minimum_calls_per_batch": 2,
+    "padding_elements": 4,
+    "exact_wide_output_limbs": 3,
+    "seed": 20261109,
+    "reference": "Every sustained production process and every exact-wide diagnostic checks full Boost integer output outside timing. Bounded cold/warm diagnostics have no direct oracle metadata; they retain matching full-output-verified production companions and matching final checksums. No direct numerical credit is assigned to those diagnostics.",
+    "custody": "Direct native subprocess invocations with distinct fresh output paths; campaign records commands, return codes and executable hash before/after. These are not collector-generated promotion cohorts.",
+    "cold_scope": "Zero-warmup first export/call after ordinary context/plan/matrix setup; not process startup or an isolated initialization microbenchmark.",
+    "sample_unit": "microseconds per completed call; variance is population standard deviation across seven within-process observations. Independent process medians remain separate.",
+    "process_array_order": [
+      0,
+      1
+    ]
+  },
+  "allocation_evidence": {
+    "four_public_domains": true,
+    "requested_threads": [
+      1,
+      2
+    ],
+    "output_cells": [
+      1,
+      4355,
+      262656
+    ],
+    "warm_and_first_traversals": true,
+    "signed_wide_prefix20": {
+      "one_thread_complete_call_requests": 8,
+      "two_threads_complete_call_requests": 10,
+      "decode_and_limb_store_requests": 0,
+      "growth_with_output_cells": false
+    },
+    "worker_failure": "Actual replacement-allocator bad_alloc on worker1; same-worker catch, deterministic status, whole caller canary preserved, exact successful retry.",
+    "existing_fault_points": 756,
+    "diagnostic_old_signed_wide_4355_cells_requests": 8717,
+    "diagnostic_old_scope": "Discovery-only pre-repair allocator observation, not a retained matched performance baseline or timing speedup."
+  },
+  "correctness": {
+    "windows_release": {
+      "passed": 629,
+      "skipped": 64,
+      "failed": 0
+    },
+    "fresh_windows_cpu_asan": {
+      "passed": 629,
+      "skipped": 64,
+      "failed": 0,
+      "scope": "No OpenMP sanitizer runtime qualification; allocator fixture repair separately retested."
+    },
+    "native_linux_release": {
+      "passed": 631,
+      "skipped": 64,
+      "failed": 0,
+      "receipt": "metadata/native-linux-provenance-20261109.json"
+    },
+    "coverage": "Shared reconstruction differential covers every prefix1-20, signed centering, canonical boundaries and limb widths1-32. Public API suite covers bounded signed/unsigned and wide signed/unsigned endpoints, adaptive/tail layouts, padding, range rejection and insufficient limbs."
+  },
+  "measurements": [
+    {
+      "semantics": "bounded-i64",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 1,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        82.7,
+        75.3
+      ],
+      "cold_complete_call_us": [
+        148.8,
+        117.3
+      ],
+      "warm_export_median_us": [
+        59.2,
+        59.8
+      ],
+      "warm_export_population_stdev_us": [
+        0.20503857277724735,
+        2.7644979615821437
+      ],
+      "complete_call_sustained_median_us": [
+        73.55808823529412,
+        73.40161408657373
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        0.8075864835120916,
+        0.29560354348847506
+      ],
+      "sustained_calls": [
+        9523,
+        9546
+      ],
+      "minimum_batch_duration_us": [
+        100017,
+        100007.7
+      ]
+    },
+    {
+      "semantics": "bounded-i64",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 2,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        46.5,
+        51.8
+      ],
+      "cold_complete_call_us": [
+        192.5,
+        211.2
+      ],
+      "warm_export_median_us": [
+        38.2,
+        67.9
+      ],
+      "warm_export_population_stdev_us": [
+        1.5587802662233523,
+        13.75654204295512
+      ],
+      "complete_call_sustained_median_us": [
+        67.52586090479406,
+        65.7516765285996
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        2.797800879597288,
+        0.8187011453619295
+      ],
+      "sustained_calls": [
+        10535,
+        10646
+      ],
+      "minimum_batch_duration_us": [
+        100005.8,
+        100008.1
+      ]
+    },
+    {
+      "semantics": "bounded-i64",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 1,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        43988.3,
+        43604.7
+      ],
+      "cold_complete_call_us": [
+        49844.3,
+        49447.7
+      ],
+      "warm_export_median_us": [
+        43863,
+        43786.9
+      ],
+      "warm_export_population_stdev_us": [
+        499.2702985562109,
+        464.6143439148518
+      ],
+      "complete_call_sustained_median_us": [
+        49409.53333333333,
+        49580.5
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        103.43954712438294,
+        300.98693080764497
+      ],
+      "sustained_calls": [
+        21,
+        20
+      ],
+      "minimum_batch_duration_us": [
+        147674,
+        100485.4
+      ]
+    },
+    {
+      "semantics": "bounded-i64",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 2,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        49028.8,
+        28647.4
+      ],
+      "cold_complete_call_us": [
+        52134.4,
+        31701.7
+      ],
+      "warm_export_median_us": [
+        49101.6,
+        44495.6
+      ],
+      "warm_export_population_stdev_us": [
+        78.01324848239184,
+        8590.388232204643
+      ],
+      "complete_call_sustained_median_us": [
+        25046.75,
+        25175.225
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        6309.359853506061,
+        10397.832880037837
+      ],
+      "sustained_calls": [
+        29,
+        28
+      ],
+      "minimum_batch_duration_us": [
+        100183.1,
+        100327.8
+      ]
+    },
+    {
+      "semantics": "bounded-u64",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 1,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        48.2,
+        46.1
+      ],
+      "cold_complete_call_us": [
+        92.4,
+        88.9
+      ],
+      "warm_export_median_us": [
+        31.7,
+        31.4
+      ],
+      "warm_export_population_stdev_us": [
+        0.13552618543578743,
+        0.14568627181693664
+      ],
+      "complete_call_sustained_median_us": [
+        46.55258259655654,
+        46.228419593345656
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        0.3807833118943856,
+        0.20590911380485663
+      ],
+      "sustained_calls": [
+        14994,
+        15115
+      ],
+      "minimum_batch_duration_us": [
+        100000,
+        100013.5
+      ]
+    },
+    {
+      "semantics": "bounded-u64",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 2,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        37.3,
+        36.2
+      ],
+      "cold_complete_call_us": [
+        206,
+        192.3
+      ],
+      "warm_export_median_us": [
+        18.6,
+        18.8
+      ],
+      "warm_export_population_stdev_us": [
+        0.21665358411575808,
+        0.18516401995451073
+      ],
+      "complete_call_sustained_median_us": [
+        39.43718454258675,
+        39.27577542206517
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        0.5564526623779563,
+        0.2270313693795353
+      ],
+      "sustained_calls": [
+        17650,
+        17795
+      ],
+      "minimum_batch_duration_us": [
+        100012.7,
+        100001.4
+      ]
+    },
+    {
+      "semantics": "bounded-u64",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 1,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        21142.5,
+        20996.5
+      ],
+      "cold_complete_call_us": [
+        27025.8,
+        26887
+      ],
+      "warm_export_median_us": [
+        21020.7,
+        20997.2
+      ],
+      "warm_export_population_stdev_us": [
+        89.78642459089419,
+        477.8670039554805
+      ],
+      "complete_call_sustained_median_us": [
+        26782.275,
+        26922.75
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        127.9874665021248,
+        126.00747274973627
+      ],
+      "sustained_calls": [
+        28,
+        28
+      ],
+      "minimum_batch_duration_us": [
+        106488.3,
+        107149.2
+      ]
+    },
+    {
+      "semantics": "bounded-u64",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 2,
+      "prefix": 9,
+      "diagnostic_oracle_scope": "matching_production_companion_only",
+      "cold_export_us": [
+        10712.6,
+        15344.8
+      ],
+      "cold_complete_call_us": [
+        13932.6,
+        18436.4
+      ],
+      "warm_export_median_us": [
+        15264.1,
+        14679.9
+      ],
+      "warm_export_population_stdev_us": [
+        73.3355441843608,
+        124.49457655591564
+      ],
+      "complete_call_sustained_median_us": [
+        16002.442857142858,
+        16896.866666666665
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        287.44787144889364,
+        501.702719219655
+      ],
+      "sustained_calls": [
+        49,
+        43
+      ],
+      "minimum_batch_duration_us": [
+        110606.7,
+        101218.6
+      ]
+    },
+    {
+      "semantics": "exact-wide-signed",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 1,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        163.9,
+        168.3
+      ],
+      "cold_complete_call_us": [
+        491.2,
+        481.9
+      ],
+      "warm_export_median_us": [
+        140.7,
+        141
+      ],
+      "warm_export_population_stdev_us": [
+        1.8514197530654228,
+        0.45265655765013824
+      ],
+      "complete_call_sustained_median_us": [
+        413.3095041322314,
+        410.50122950819673
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        4.148920961772258,
+        2.88961214178779
+      ],
+      "sustained_calls": [
+        1695,
+        1702
+      ],
+      "minimum_batch_duration_us": [
+        100020.9,
+        100051.5
+      ]
+    },
+    {
+      "semantics": "exact-wide-signed",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 2,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        155.6,
+        184.7
+      ],
+      "cold_complete_call_us": [
+        623.7,
+        630.8
+      ],
+      "warm_export_median_us": [
+        141.5,
+        145.7
+      ],
+      "warm_export_population_stdev_us": [
+        5.6925658645683646,
+        3.1612449110682843
+      ],
+      "complete_call_sustained_median_us": [
+        412.7901234567901,
+        416.66390041493776
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        5.863839876469897,
+        26.308680817330902
+      ],
+      "sustained_calls": [
+        1694,
+        1719
+      ],
+      "minimum_batch_duration_us": [
+        100012.1,
+        100008.4
+      ]
+    },
+    {
+      "semantics": "exact-wide-signed",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 1,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        109754.6,
+        109919.2
+      ],
+      "cold_complete_call_us": [
+        269001.2,
+        265748.1
+      ],
+      "warm_export_median_us": [
+        109551.8,
+        110417.4
+      ],
+      "warm_export_population_stdev_us": [
+        525.0742260453712,
+        3124.463295038175
+      ],
+      "complete_call_sustained_median_us": [
+        283598.75,
+        280136.1
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        7386.837366946298,
+        5298.898028546947
+      ],
+      "sustained_calls": [
+        14,
+        14
+      ],
+      "minimum_batch_duration_us": [
+        551805.9,
+        545576.8
+      ]
+    },
+    {
+      "semantics": "exact-wide-signed",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 2,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        107730.1,
+        105897.3
+      ],
+      "cold_complete_call_us": [
+        258672.3,
+        261786.4
+      ],
+      "warm_export_median_us": [
+        56978.3,
+        56234.8
+      ],
+      "warm_export_population_stdev_us": [
+        9877.028995996474,
+        284.708942677987
+      ],
+      "complete_call_sustained_median_us": [
+        305174.4,
+        279124.6
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        15656.729839716772,
+        32981.95210900367
+      ],
+      "sustained_calls": [
+        14,
+        14
+      ],
+      "minimum_batch_duration_us": [
+        522103.7,
+        426160.2
+      ]
+    },
+    {
+      "semantics": "exact-wide-unsigned",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 1,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        75.4,
+        73.9
+      ],
+      "cold_complete_call_us": [
+        397.8,
+        393.7
+      ],
+      "warm_export_median_us": [
+        54.9,
+        86.3
+      ],
+      "warm_export_population_stdev_us": [
+        0.13552618543578682,
+        13.30496301446669
+      ],
+      "complete_call_sustained_median_us": [
+        320.59615384615387,
+        322.7141935483871
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        1.5039033348305104,
+        6.462669938494224
+      ],
+      "sustained_calls": [
+        2185,
+        2157
+      ],
+      "minimum_batch_duration_us": [
+        100026,
+        100017.2
+      ]
+    },
+    {
+      "semantics": "exact-wide-unsigned",
+      "shape": [
+        17,
+        19,
+        3
+      ],
+      "output_cells": 323,
+      "requested_and_effective_threads": 2,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        82.2,
+        50.8
+      ],
+      "cold_complete_call_us": [
+        502.6,
+        494.3
+      ],
+      "warm_export_median_us": [
+        35,
+        30.1
+      ],
+      "warm_export_population_stdev_us": [
+        0.9542600509808425,
+        2.572063413697576
+      ],
+      "complete_call_sustained_median_us": [
+        294.14147058823534,
+        303.47999999999996
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        2.3766330939732407,
+        19.1897062325055
+      ],
+      "sustained_calls": [
+        2375,
+        2257
+      ],
+      "minimum_batch_duration_us": [
+        100008.1,
+        100103
+      ]
+    },
+    {
+      "semantics": "exact-wide-unsigned",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 1,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        43123.1,
+        42953.9
+      ],
+      "cold_complete_call_us": [
+        199666.2,
+        201433.8
+      ],
+      "warm_export_median_us": [
+        42863.7,
+        42707.8
+      ],
+      "warm_export_population_stdev_us": [
+        75.77159017435952,
+        68.40196022969889
+      ],
+      "complete_call_sustained_median_us": [
+        211807.6,
+        207383.55
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        22998.537740853197,
+        7011.955688315347
+      ],
+      "sustained_calls": [
+        14,
+        14
+      ],
+      "minimum_batch_duration_us": [
+        400666.1,
+        397696.2
+      ]
+    },
+    {
+      "semantics": "exact-wide-unsigned",
+      "shape": [
+        512,
+        513,
+        1
+      ],
+      "output_cells": 262656,
+      "requested_and_effective_threads": 2,
+      "prefix": 20,
+      "diagnostic_oracle_scope": "direct_full_boost",
+      "cold_export_us": [
+        23725.4,
+        26803.9
+      ],
+      "cold_complete_call_us": [
+        195755.7,
+        178102.2
+      ],
+      "warm_export_median_us": [
+        26419.7,
+        26859.4
+      ],
+      "warm_export_population_stdev_us": [
+        1182.6924348748519,
+        2067.689318232963
+      ],
+      "complete_call_sustained_median_us": [
+        197678.25,
+        206976.65
+      ],
+      "complete_call_sustained_population_stdev_us": [
+        35870.021596019105,
+        62998.64812358342
+      ],
+      "sustained_calls": [
+        14,
+        14
+      ],
+      "minimum_batch_duration_us": [
+        341542.4,
+        349128.7
+      ]
+    }
+  ],
+  "scratch_receipts": {
+    "plan_sha256": "938665ec12d10b951d41ed017eb195b79c8debd2f90f4124efbb43ce614070d4",
+    "completed_campaign_sha256": "433c4262374e3a6f566e609951c56a11f01d5d3ec0e0565cb006156868267fba",
+    "capture_inventory": {
+      "scratch_path": "temp/issue-closeout-20261109/cpu-export-measurements/capture-index.json",
+      "sha256": "fc50abfe82d3a24309269f8055df53ae177a2c8ef0a8106ddce52d359dd0d970",
+      "capture_count": 96
+    }
+  },
+  "interpretation": [
+    "Large bounded complete-call medians improve with two threads in both independent processes. This is thread scaling of the repaired candidate, not a pre-repair speedup.",
+    "Signed-wide two-thread warmed export is faster, while complete-call timings remain mixed; retain both and make no general throughput claim.",
+    "Per-cell scratch allocations are eliminated; remaining per-call allocations scale with workers and staging, not output cell count.",
+    "Historical ABI, sanitizer, broader GPU and other issue qualification retains its own source cut and scope."
+  ]
+}
