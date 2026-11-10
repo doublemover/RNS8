@@ -2237,7 +2237,7 @@
   },
   "quality_tools": {
     "lock": "metadata/quality-tools.json",
-    "sha256": "443b886054aa5981ea27afcaff1b3019ac87297c04f5cf5251b73f95ba24484d",
+    "sha256": "d57eaae0eeb30914a7f2cc745fbfe59b4c00e76404593880a14bc887f46ce8bd",
     "qualification": "source_and_artifact_inventory_pending_tool_validation"
   },
   "candidate_refresh_20261105": {

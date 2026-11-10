@@ -396,7 +396,8 @@ def execute(args, plan, seeds):
         if Path(git_root).resolve() != ROOT:
             raise ValueError("actual source worktree root required")
         status = session.run(
-            "source-clean-state", [*git, "status", "--porcelain", "--untracked-files=normal"]
+            "source-clean-state",
+            [*git, "status", "--porcelain", "--untracked-files=normal", "--ignore-submodules=all"],
         )["stdout"]
         if status:
             raise ValueError("native source snapshots require all development committed first")

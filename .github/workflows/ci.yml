@@ -200,6 +200,7 @@ jobs:
         run: python tools/init_build_tools.py --github-path
       - name: Check corpus and driver contracts
         run: |
+          mkdir -p temp
           python tools/test_fuzz_cases.py
           python tools/test_fuzz_discovery.py
           python tools/test_fuzz_replay.py
