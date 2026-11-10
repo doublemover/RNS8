@@ -75,7 +75,7 @@ Primary and official sources used for this alignment:
   https://pkg.go.dev/github.com/tuneinsight/lattigo/v6/schemes/ckks
   https://pkg.go.dev/github.com/tuneinsight/lattigo/v6/schemes/bgv
 - HElib CKKS security guidance:
-  https://ibm.github.io/fhe-toolkit-linux/html/helib/md__opt__i_b_m__f_h_e-distro__h_elib__c_k_k_s-security.html
+  https://github.com/homenc/HElib/blob/3e337a66a91a92d49de6a9505340826b0eb71081/CKKS-security.md
 - HEonGPU documentation and paper:
   https://heongpu.readthedocs.io/en/latest/
   https://heongpu.readthedocs.io/en/latest/bootstrapping.html
