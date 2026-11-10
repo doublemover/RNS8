@@ -157,7 +157,10 @@ records terminal peak working set on Windows and `wait4` child max RSS on Linux,
 with native units, child/supervisor identities and exact commands retained.
 The session reports the maximum observed child peak; this is not concurrent
 process-tree memory. Unavailable observations and their count remain explicit,
-including workers stopped by a time/output limit. `python tools/quality.py analyze
+including workers stopped by a time/output limit. Artifact scans share a
+non-following metadata walker, advance in short polling intervals and retain
+the 100,000-entry/byte limits. Each complete scan has a 30-second bound, including
+the mandatory final inventory after child completion. `python tools/quality.py analyze
 --verify-receipt temp/analysis-session/results.json` reopens the current configured
 compiler inventory, exact per-pass databases/commands and native YAML, then
 reconstructs findings, include footprints, branch visibility, missing-header

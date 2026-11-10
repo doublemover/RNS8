@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from typing import Mapping, Sequence
+from artifact_inventory import artifact_entries, regular_files
 
 
 def capture_succeeded(result: dict, *, expected_exit_code: int = 0) -> bool:
@@ -26,32 +27,11 @@ def capture_succeeded(result: dict, *, expected_exit_code: int = 0) -> bool:
 
 
 def _artifact_bytes(roots: Sequence[Path], stop_after: int) -> int:
-    total = entries_seen = 0
-    pending = list(roots)
-    deadline = time.monotonic() + 1
-    while pending:
-        if time.monotonic() >= deadline:
-            raise ValueError("owned artifact inventory exceeds its scan time budget")
-        path = pending.pop()
-        try:
-            info = path.lstat()
-            if path.is_symlink() or path.is_junction():
-                raise ValueError("owned artifact tree contains a link or junction")
-            if path.is_dir():
-                with os.scandir(path) as entries:
-                    for entry in entries:
-                        entries_seen += 1
-                        if entries_seen > 100000:
-                            raise ValueError("owned artifact tree exceeds its entry budget")
-                        pending.append(Path(entry.path))
-            elif path.is_file():
-                total += info.st_size
-                if total > stop_after:
-                    return total
-            else:
-                raise ValueError("owned artifact tree contains a nonregular file")
-        except FileNotFoundError:
-            continue
+    total = 0
+    for _, size in regular_files(roots, seconds=30, missing_ok=True):
+        total += size
+        if total > stop_after:
+            return total
     return total
 
 
@@ -160,6 +140,8 @@ def run_capture(
     timed_out = interrupted = False
     limit = capture_error = None
     artifact_bytes = 0
+    artifact_scan = None
+    partial_artifact_bytes = 0
     next_heartbeat, next_artifact_check = start + heartbeat_seconds, start
     try:
         process = subprocess.Popen(
@@ -214,13 +196,31 @@ def run_capture(
                 capture_error = "stdout/stderr read failed: " + "; ".join(errors)
                 stop_process_tree()
                 break
-            if roots and now >= next_artifact_check:
-                artifact_bytes = _artifact_bytes(roots, artifact_budget)
-                next_artifact_check = now + 0.25
+            if roots and (artifact_scan is not None or now >= next_artifact_check):
+                if artifact_scan is None:
+                    artifact_scan = artifact_entries(roots, seconds=30, missing_ok=True)
+                    partial_artifact_bytes = 0
+                # Shared filesystems can need seconds for a complete tree.
+                # Advance in short quanta so process/output deadlines still run.
+                quantum_end = time.monotonic() + 0.025
+                while time.monotonic() < quantum_end:
+                    try:
+                        _, size = next(artifact_scan)
+                    except StopIteration:
+                        artifact_bytes = partial_artifact_bytes
+                        artifact_scan = None
+                        next_artifact_check = time.monotonic() + 0.25
+                        break
+                    if size is not None:
+                        partial_artifact_bytes += size
+                        artifact_bytes = max(artifact_bytes, partial_artifact_bytes)
+                        if artifact_bytes > artifact_budget:
+                            break
                 if artifact_bytes > artifact_budget:
                     limit = "owned_artifact_bytes"
                     stop_process_tree()
                     break
+            now = time.monotonic()
             if process.poll() is not None and not any(reader.is_alive() for reader in readers):
                 break
             if now - start >= timeout_seconds:
@@ -234,7 +234,9 @@ def run_capture(
                     flush=True,
                 )
                 next_heartbeat = now + heartbeat_seconds
-            wake.wait(min(0.1, timeout_seconds - (now - start)))
+            wake.wait(
+                min(0.01 if artifact_scan is not None else 0.1, timeout_seconds - (now - start))
+            )
             wake.clear()
     except Exception as error:
         capture_error = "owned process capture failed: " + str(error)
@@ -249,6 +251,8 @@ def run_capture(
         stop_process_tree()
         raise
     finally:
+        if artifact_scan is not None:
+            artifact_scan.close()
         # A detached descendant retaining a pipe is incomplete evidence.
         # Never wait forever or report it as a successful process capture.
         try:

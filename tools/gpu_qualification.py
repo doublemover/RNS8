@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from artifact_inventory import regular_files
 
 from process_progress import run_capture, capture_succeeded
 from session_artifacts import load_inventory, inspect_cache, stage_cache, export_session
@@ -843,26 +844,7 @@ def owned_artifact_files(directory: Path, out: Path) -> list[Path]:
         or directory.resolve() != directory
     ):
         raise ValueError("owned artifact directory must be a child of the session")
-    pending, files, count = [directory], [], 0
-    deadline = time.monotonic() + 5
-    while pending:
-        if time.monotonic() > deadline:
-            raise ValueError("artifact inventory scan budget exhausted")
-        path = pending.pop()
-        if path.is_symlink() or path.is_junction():
-            raise ValueError("artifact inventory contains a link or junction")
-        if path.is_dir():
-            with os.scandir(path) as entries:
-                for entry in entries:
-                    count += 1
-                    if count > 100000:
-                        raise ValueError("artifact inventory entry budget exhausted")
-                    pending.append(Path(entry.path))
-        elif path.is_file():
-            files.append(path)
-        else:
-            raise ValueError("artifact inventory contains an absent or nonregular file")
-    return sorted(files)
+    return sorted(path for path, _ in regular_files([directory], seconds=30))
 
 
 def resume_results(out: Path, manifest: dict) -> list[dict]:

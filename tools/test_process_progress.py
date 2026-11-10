@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -15,6 +16,33 @@ from gpu_qualification import validate_result
 
 
 class BoundedProcessCapture(unittest.TestCase):
+    def test_incremental_inventory_does_not_block_child_deadlines_and_closes_its_cursor(self):
+        closed = []
+
+        def slow_inventory(*args, **kwargs):
+            try:
+                for _ in range(10000):
+                    time.sleep(0.001)
+                    yield Path.cwd(), None
+            finally:
+                closed.append(True)
+
+        with tempfile.TemporaryDirectory(
+            dir=Path(__file__).resolve().parents[1] / "temp"
+        ) as directory:
+            with patch("process_progress.artifact_entries", side_effect=slow_inventory):
+                result = run_capture(
+                    [sys._base_executable, "-c", "import time; time.sleep(10)"],
+                    cwd=Path.cwd(),
+                    label="authored-slow-inventory",
+                    artifact_roots=[Path(directory)],
+                    max_artifact_bytes=1024,
+                    timeout_seconds=0.2,
+                )
+        self.assertTrue(result["timed_out"])
+        self.assertLess(result["elapsed_seconds"], 3)
+        self.assertEqual(closed, [True])
+
     def test_expected_information_exit_does_not_waive_capture_integrity(self):
         result = dict(returncode=1, timed_out=False)
         self.assertTrue(capture_succeeded(result, expected_exit_code=1))
@@ -67,7 +95,9 @@ class BoundedProcessCapture(unittest.TestCase):
     def test_streams_pid_unicode_and_final_output_are_preserved(self):
         result = run_capture(
             [
-                sys.executable,
+                # Windows venv redirectors own a different PID from the Python
+                # process executing this body. Check a native child directly.
+                sys._base_executable,
                 "-c",
                 "import os,sys; print(os.getpid()); print('unicode \\u03b1'); print('stderr',file=sys.stderr)",
             ],
