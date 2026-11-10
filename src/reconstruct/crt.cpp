@@ -86,36 +86,55 @@ rns8_status prepare_reconstruction_contract(IntegerExportKind kind, uint32_t pre
 
 namespace {
 void reconstruct_into(const int8_t* first, std::size_t stride, uint32_t prefix,
-                      const cpp_int* products, cpp_int& x) {
+                      const cpp_int* products, cpp_int& x, cpp_int& term) {
   x = 0;
   for (uint32_t i = 0; i < prefix; ++i) {
     const uint32_t modulus = kDefaultModuli[i];
     const uint32_t target =
         canonical_from_centered(first[std::size_t(i) * stride], uint16_t(modulus));
-    const uint32_t current =
-        static_cast<uint32_t>(x % modulus); // Garner x is canonical/nonnegative
+    // Garner x is canonical/nonnegative. The scalar remainder helper avoids
+    // constructing a wide cpp_int result just to read a 32-bit remainder.
+    const uint32_t current = boost::multiprecision::integer_modulus(x, modulus);
     const uint32_t delta = (target + modulus - current) % modulus;
     const uint32_t coefficient =
         static_cast<uint32_t>((uint64_t(delta) * garner::kConstants.inverses[i]) % modulus);
-    if (coefficient)
-      x += products[i] * coefficient;
+    if (coefficient) {
+      term = products[i];
+      term *= coefficient;
+      x += term;
+    }
   }
 }
 } // namespace
 
 rns8_status reconstruct_strided(const int8_t* first, std::size_t stride,
-                                const ReconstructionContract& contract, cpp_int& value) {
-  reconstruct_into(first, stride, contract.prefix, contract.products, value);
-  if (contract.signed_value && value >= *contract.centering_threshold)
-    value -= contract.products[contract.prefix];
+                                const ReconstructionContract& contract, cpp_int& value,
+                                cpp_int& term) {
+  reconstruct_into(first, stride, contract.prefix, contract.products, value, term);
+  if (contract.signed_value && value >= *contract.centering_threshold) {
+    // Boost may allocate a temporary for an in-place subtraction whose result
+    // changes sign. Subtract from the larger positive magnitude in reusable
+    // storage, then change sign; neither operand aliases the smaller input.
+    term = contract.products[contract.prefix];
+    term -= value;
+    term.backend().negate();
+    value.swap(term);
+  }
   return value < contract.minimum || value > contract.maximum ? RNS8_RANGE_ERROR : RNS8_SUCCESS;
 }
-void store_reconstructed_limbs(cpp_int& value, const ReconstructionContract& contract,
-                               uint64_t* out) {
-  if (value < 0)
-    value += contract.ring_limit;
+void store_reconstructed_limbs(cpp_int& value, cpp_int& term,
+                               const ReconstructionContract& contract, uint64_t* out) {
+  if (value < 0) {
+    // Keep the positive, larger magnitude on the left for two's-complement
+    // conversion too. A negative left operand can require another temporary.
+    term = contract.ring_limit;
+    term += value;
+    value.swap(term);
+  }
   for (uint32_t limb = 0; limb < contract.limbs; ++limb) {
-    out[limb] = static_cast<uint64_t>(value & UINT64_MAX);
+    // cpp_int's unchecked unsigned conversion already returns the low bits.
+    // Masking first materializes a wide expression temporary on every cell.
+    out[limb] = static_cast<uint64_t>(value);
     value >>= 64;
   }
 }
@@ -123,8 +142,8 @@ void store_reconstructed_limbs(cpp_int& value, const ReconstructionContract& con
 cpp_int reconstruct_canonical(const std::vector<int8_t>& residues, uint32_t prefix) {
   if (prefix > RNS8_MAX_SUPPORTED_PREFIX || residues.size() < prefix)
     throw std::invalid_argument("invalid residue prefix");
-  cpp_int value;
-  reconstruct_into(residues.data(), 1, prefix, reconstruction_plan().products.data(), value);
+  cpp_int value, term;
+  reconstruct_into(residues.data(), 1, prefix, reconstruction_plan().products.data(), value, term);
   return value;
 }
 
@@ -137,8 +156,8 @@ rns8_status reconstruct_unsigned(const std::vector<int8_t>& residues, uint32_t p
                                                 1, contract);
   if (status != RNS8_SUCCESS)
     return status;
-  cpp_int value;
-  status = reconstruct_strided(residues.data(), 1, contract, value);
+  cpp_int value, term;
+  status = reconstruct_strided(residues.data(), 1, contract, value, term);
   if (status == RNS8_SUCCESS)
     out = static_cast<uint64_t>(value);
   return status;
@@ -152,8 +171,8 @@ rns8_status reconstruct_signed(const std::vector<int8_t>& residues, uint32_t pre
                                                 contract);
   if (status != RNS8_SUCCESS)
     return status;
-  cpp_int value;
-  status = reconstruct_strided(residues.data(), 1, contract, value);
+  cpp_int value, term;
+  status = reconstruct_strided(residues.data(), 1, contract, value, term);
   if (status == RNS8_SUCCESS)
     out = static_cast<int64_t>(value);
   return status;
@@ -167,10 +186,10 @@ rns8_status export_wide(const std::vector<int8_t>& residues, uint32_t prefix, ui
   auto status = prepare_reconstruction_contract(kind, prefix, 0, limbs, contract);
   if (status != RNS8_SUCCESS)
     return status;
-  cpp_int value;
-  status = reconstruct_strided(residues.data(), 1, contract, value);
+  cpp_int value, term;
+  status = reconstruct_strided(residues.data(), 1, contract, value, term);
   if (status == RNS8_SUCCESS)
-    store_reconstructed_limbs(value, contract, out);
+    store_reconstructed_limbs(value, term, contract, out);
   return status;
 }
 } // namespace

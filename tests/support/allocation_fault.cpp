@@ -1,6 +1,7 @@
 #include "allocation_fault.hpp"
 
 #include <cstdint>
+#include <atomic>
 #include <cstdlib>
 #include <new>
 
@@ -14,8 +15,14 @@ thread_local bool active = false;
 thread_local std::size_t fail_index = std::numeric_limits<std::size_t>::max();
 thread_local rns8::test::allocation_fault::Profile profile;
 thread_local std::size_t live = 0;
+std::atomic<bool> observe_all{false};
+std::atomic<std::size_t> observed_calls{0}, observed_bytes{0};
 
 void* allocate(std::size_t bytes, std::size_t alignment) {
+  if (observe_all.load(std::memory_order_acquire)) {
+    observed_calls.fetch_add(1, std::memory_order_relaxed);
+    observed_bytes.fetch_add(bytes, std::memory_order_relaxed);
+  }
   if (active) {
     const std::size_t index = profile.calls++;
     if (bytes > std::numeric_limits<std::size_t>::max() - profile.bytes)
@@ -68,6 +75,18 @@ Profile end() noexcept {
 
 std::size_t live_allocations() noexcept {
   return live;
+}
+
+void begin_all_threads() {
+  observed_calls.store(0, std::memory_order_relaxed);
+  observed_bytes.store(0, std::memory_order_relaxed);
+  observe_all.store(true, std::memory_order_release);
+}
+
+Profile end_all_threads() noexcept {
+  observe_all.store(false, std::memory_order_release);
+  return {observed_calls.load(std::memory_order_relaxed),
+          observed_bytes.load(std::memory_order_relaxed), false};
 }
 
 } // namespace rns8::test::allocation_fault

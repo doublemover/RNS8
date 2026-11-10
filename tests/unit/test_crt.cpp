@@ -452,14 +452,14 @@ TEST_CASE("strided reconstruction contracts cover every prefix sign and output l
           const cpp_int ring = cpp_int(1) << (64 * limbs),
                         minimum = sign ? cpp_int(-(ring >> 1)) : cpp_int(0);
           const cpp_int maximum = sign ? cpp_int((ring >> 1) - 1) : cpp_int(ring - 1);
-          cpp_int decoded;
-          const auto status = reconstruct_strided(residues.data() + 1, 3, contract, decoded);
+          cpp_int decoded, term;
+          const auto status = reconstruct_strided(residues.data() + 1, 3, contract, decoded, term);
           CHECK(status ==
                 ((expected < minimum || expected > maximum) ? RNS8_RANGE_ERROR : RNS8_SUCCESS));
           if (status == RNS8_SUCCESS) {
             CHECK(decoded == expected);
             std::vector<uint64_t> out(size_t(limbs) + 2, 99);
-            store_reconstructed_limbs(decoded, contract, out.data() + 1);
+            store_reconstructed_limbs(decoded, term, contract, out.data() + 1);
             CHECK(out.front() == 99);
             CHECK(out.back() == 99);
             if (expected < 0)

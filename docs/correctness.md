@@ -226,6 +226,16 @@ requires range status. A large CRT range is not a proof that an arbitrary stored
 representative meets a smaller bound. An error must preserve every caller output
 cell and its padding.
 
+CPU integer exports prepare immutable contracts, staging and separate value/term
+scratch before entering OpenMP. Each worker catches reconstruction failures on
+that worker; publication starts only after every worker succeeds. Scalar Boost
+remainders, reusable Garner terms and direct low-limb extraction avoid creating
+a multiprecision result merely to read a machine-width value. The dedicated
+allocation test observes C++ requests across all workers, rejects growth with
+output cell count, and injects a real worker allocation failure on cold and warm
+public export traversals. Its counts cover C++ allocation requests, not all CRT
+or OpenMP-runtime allocation mechanisms; production timing is measured separately.
+
 Exact-wide structural status elision is a separate width proof: it applies only
 when all possible representatives fit the requested limb width. All-zero output
 proofs are also distinct. Neither justifies blanket bounded status elision.

@@ -1,16 +1,19 @@
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "../support/allocation_fault.hpp"
 #include "../support/noninteractive_errors.hpp"
 #include "core/internal.hpp"
 #include "core/prepared_export_read.hpp"
+#include "reconstruct/reconstruction.hpp"
 #include "rns8/rns8.hpp"
 #include "rns8/experimental_product.h"
 #include "rns8/pipeline_recipe.h"
@@ -380,6 +383,31 @@ void reused_scratch_boundary_check() {
   std::puts("PASS scratch_cases=6 K=131073 moduli=256,255,253 internal_allocations=0");
 }
 
+void reconstruction_scratch_boundary_check() {
+  using namespace rns8::detail;
+  ReconstructionContract contract;
+  require(prepare_reconstruction_contract(IntegerExportKind::wide_signed, 20, 0, 3, contract) ==
+              RNS8_SUCCESS,
+          "signed-wide reconstruction contract");
+  cpp_int value = contract.ring_limit, term = contract.ring_limit;
+  std::array<int8_t, 20> residues;
+  residues.fill(-1);
+  std::array<uint64_t, 3> output{};
+  fault::begin_all_threads();
+  const auto status = reconstruct_strided(residues.data(), 1, contract, value, term);
+  const auto decoded = fault::end_all_threads();
+  require(status == RNS8_SUCCESS && value == -1, "signed-wide decoding matches independent -1");
+  fault::begin_all_threads();
+  store_reconstructed_limbs(value, term, contract, output.data());
+  const auto stored = fault::end_all_threads();
+  std::printf("CRT scratch decode_allocations=%zu limb_allocations=%zu\n", decoded.calls,
+              stored.calls);
+  require(decoded.calls == 0 && stored.calls == 0,
+          "prepared reconstruction and limb extraction reuse their scratch");
+  require(output == std::array<uint64_t, 3>{UINT64_MAX, UINT64_MAX, UINT64_MAX},
+          "signed-wide limbs are exact");
+}
+
 void bounded_writer_faults(bool profile_only) {
   auto gd = gemm_desc(RNS8_BOUNDED_I64, 2, 2, 2);
   gd.bound_kind = RNS8_BOUND_GLOBAL_MAX_ABS;
@@ -420,6 +448,132 @@ void bounded_writer_faults(bool profile_only) {
               "bounded retry exact output");
     }
   std::printf("PASS bounded allocation_points=%zu bytes=%zu\n", profile.calls, profile.bytes);
+}
+
+struct PublicExportWorkerFault {
+  int64_t cell = -1;
+  std::atomic<uint32_t> observed{0}, failed{UINT32_MAX};
+  std::atomic<bool> allocation_failed{false};
+  static void invoke(void* opaque, int64_t cell, uint32_t worker) {
+    auto& state = *static_cast<PublicExportWorkerFault*>(opaque);
+    if (worker < 32)
+      state.observed.fetch_or(uint32_t(1) << worker, std::memory_order_relaxed);
+    if (cell != state.cell)
+      return;
+    // Arm only this worker and perform a real allocation here. Never leave an
+    // armed failure behind for an unrelated OpenMP-runtime allocation.
+    fault::begin(0);
+    try {
+      void* pointer = ::operator new(8);
+      fault::end();
+      ::operator delete(pointer);
+    } catch (...) {
+      const auto result = fault::end();
+      state.allocation_failed.store(result.triggered && result.calls == 1);
+      state.failed.store(worker);
+      throw;
+    }
+  }
+};
+
+void public_integer_export_faults(bool profile_only) {
+  using namespace rns8::detail;
+  const auto original_threads = cpu_parallel_requested_threads();
+  const auto original_threshold = cpu_parallel_threshold_ops();
+  const bool original_progress = cpu_parallel_progress_enabled();
+  for (uint32_t requested : {1u, 2u}) {
+    configure_cpu_parallel(requested, 0, false);
+    std::array<std::size_t, 4> small_allocation_counts{};
+    for (const auto shape :
+         std::array<std::pair<int64_t, int64_t>, 3>{{{1, 1}, {65, 67}, {512, 513}}}) {
+      for (bool wide : {false, true})
+        for (bool sign : {false, true}) {
+          current_case = wide ? (sign ? "public-export-wide-signed" : "public-export-wide-unsigned")
+                              : (sign ? "public-export-i64" : "public-export-u64");
+          const auto rows = shape.first, cols = shape.second, ld = cols + 4;
+          const auto semantics = wide ? (sign ? RNS8_EXACT_WIDE_SIGNED : RNS8_EXACT_WIDE_UNSIGNED)
+                                      : (sign ? RNS8_BOUNDED_I64 : RNS8_BOUNDED_U64);
+          auto gd = gemm_desc(semantics, rows, cols, 1);
+          auto md = matrix_desc(semantics, rows, cols);
+          if (!wide) {
+            gd.bound_kind = md.bound_kind =
+                sign ? RNS8_BOUND_GLOBAL_MAX_ABS : RNS8_BOUND_GLOBAL_MAX_UNSIGNED;
+            gd.bound = 10000;
+            gd.max_prefix = md.max_prefix = 9;
+          }
+          rns8::Context ctx(-1, RNS8_BACKEND_CPU_REFERENCE);
+          rns8::Plan plan(ctx, gd);
+          rns8::Matrix matrix(ctx, md);
+          std::vector<uint64_t> input(size_t(rows * cols), sign ? UINT64_MAX : 1);
+          rns8::check(sign ? rns8_pack_i64(ctx.get(), matrix.get(),
+                                           reinterpret_cast<const int64_t*>(input.data()), cols, 0)
+                           : rns8_pack_u64(ctx.get(), matrix.get(), input.data(), cols, 0));
+          const uint32_t limbs = wide ? 3 : 1;
+          std::vector<uint64_t> output(size_t(rows * ld) * limbs, 99);
+          PublicExportWorkerFault state;
+          const rns8_cpu_export_test_hooks hooks{&state, &PublicExportWorkerFault::invoke};
+          ctx.get()->cpu_export_test_hooks = &hooks;
+          const auto execute = [&]() {
+            if (wide)
+              return sign ? rns8_export_exact_wide_signed_limbs(ctx.get(), plan.get(), matrix.get(),
+                                                                output.data(), ld, limbs)
+                          : rns8_export_exact_wide_unsigned_limbs(
+                                ctx.get(), plan.get(), matrix.get(), output.data(), ld, limbs);
+            return sign ? rns8_export_i64(ctx.get(), plan.get(), matrix.get(),
+                                          reinterpret_cast<int64_t*>(output.data()), ld)
+                        : rns8_export_u64(ctx.get(), plan.get(), matrix.get(), output.data(), ld);
+          };
+          // The first attempt is not prewarmed. Repeat after a successful export
+          // to cover cold and warm traversal without inferring process-first CRT.
+          for (unsigned phase = 0; phase < 2; ++phase) {
+            if (!profile_only) {
+              std::fill(output.begin(), output.end(), 99);
+              state.cell = rows * cols - 1;
+              state.allocation_failed.store(false);
+              require(execute() == RNS8_INTERNAL_ERROR, "real worker bad_alloc reaches C boundary");
+              require(state.allocation_failed.load(), "the replacement allocator actually failed");
+              require(std::all_of(output.begin(), output.end(), [](uint64_t x) { return x == 99; }),
+                      "all caller bytes survive a worker failure");
+              if (rows * cols > 1 && cpu_parallel_runtime_available() &&
+                  cpu_parallel_effective_threads() > 1)
+                require(state.failed.load() == 1, "allocation failure originated on worker1");
+            }
+            state.cell = -1;
+            fault::begin_all_threads();
+            const auto status = execute();
+            const auto allocations = fault::end_all_threads();
+            require(status == RNS8_SUCCESS, "public export retries after worker failure");
+            auto& small_count = small_allocation_counts[size_t(wide) * 2 + size_t(sign)];
+            if (rows * cols == 1)
+              small_count = allocations.calls;
+            else {
+              if (allocations.calls > small_count + 4 * cpu_parallel_effective_threads())
+                std::fprintf(stderr,
+                             "export allocation growth: semantics=%u cells=%lld "
+                             "observed=%zu single_cell=%zu\n",
+                             unsigned(semantics), static_cast<long long>(rows * cols),
+                             allocations.calls, small_count);
+              require(allocations.calls <= small_count + 4 * cpu_parallel_effective_threads(),
+                      "export allocation count grows with workers, not output cells");
+            }
+            for (int64_t row = 0; row < rows; ++row)
+              for (int64_t col = 0; col < ld; ++col)
+                for (uint32_t limb = 0; limb < limbs; ++limb)
+                  require(output[size_t(row * ld + col) * limbs + limb] == (col >= cols ? 99
+                                                                            : sign      ? UINT64_MAX
+                                                                            : limb      ? 0
+                                                                                        : 1),
+                          "public export logical limbs and padding match independent values");
+            std::printf("PASS public-export semantics=%u threads=%u phase=%u cells=%lld "
+                        "cpp_allocations_all_workers=%zu cpp_requested_bytes=%zu worker_mask=%u\n",
+                        unsigned(semantics), requested, phase, static_cast<long long>(rows * cols),
+                        allocations.calls, allocations.bytes, state.observed.load());
+          }
+          ctx.get()->cpu_export_test_hooks = nullptr;
+        }
+    }
+  }
+  configure_cpu_parallel(original_threads, original_threshold, original_progress);
 }
 
 void pipeline_price_admission_faults() {
@@ -978,6 +1132,8 @@ int main(int argc, char** argv) {
   rns8::test::HostRuntimeWitness witness(argc, argv);
 #endif
   allocator_self_check();
+  reconstruction_scratch_boundary_check();
+  public_integer_export_faults(profile_only);
   reused_scratch_boundary_check();
   bounded_writer_faults(profile_only);
   if (rns8::detail::cpu_parallel_runtime_available()) {

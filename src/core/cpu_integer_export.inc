@@ -4,7 +4,7 @@ struct HostIntegerContract {
   bool zero = false;
 };
 struct HostIntegerWorker {
-  cpp_int value;
+  cpp_int value, term;
   uint64_t first_failure = UINT64_MAX;
   rns8_status status = RNS8_SUCCESS;
 };
@@ -43,11 +43,15 @@ rns8_status export_host_integer(const rns8_context& ctx, const rns8_plan& plan,
   std::vector<HostIntegerWorker> workers(threads);
   // Initialize immutable tables and reusable multiprecision storage outside
   // OpenMP. Remaining Boost failures are caught on their originating worker.
-  const auto& scratch_domain =
-      wide ? contracts[0].arithmetic.ring_limit : reconstruction_product(plan.prefix);
+  const auto& product = reconstruction_product(plan.prefix);
+  const auto& scratch_domain = wide && contracts[0].arithmetic.ring_limit > product
+                                   ? contracts[0].arithmetic.ring_limit
+                                   : product;
   for (auto& worker : workers) {
     worker.value = scratch_domain;
+    worker.term = scratch_domain;
     worker.value = 0;
+    worker.term = 0;
   }
   const auto* hooks = ctx.cpu_export_test_hooks;
   const auto export_cell = [&](int64_t cell, uint32_t thread) noexcept {
@@ -64,7 +68,7 @@ rns8_status export_host_integer(const rns8_context& ctx, const rns8_plan& plan,
       if (contract.zero)
         return;
       const auto status = reconstruct_strided(matrix.residues.data() + size_t(cell), plane_stride,
-                                              contract.arithmetic, worker.value);
+                                              contract.arithmetic, worker.value, worker.term);
       if (status != RNS8_SUCCESS) {
         if (uint64_t(cell) < worker.first_failure) {
           worker.first_failure = uint64_t(cell);
@@ -74,7 +78,7 @@ rns8_status export_host_integer(const rns8_context& ctx, const rns8_plan& plan,
       }
       if constexpr (std::is_same_v<Scalar, uint64_t>) {
         if (wide)
-          store_reconstructed_limbs(worker.value, contract.arithmetic,
+          store_reconstructed_limbs(worker.value, worker.term, contract.arithmetic,
                                     staged.data() + size_t(cell) * limbs);
         else
           staged[size_t(cell)] = static_cast<uint64_t>(worker.value);

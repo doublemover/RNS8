@@ -48,12 +48,13 @@ TEST_CASE("independent literal residues exercise every CRT prefix midpoint",
           residues[plane] = int8_t(residue);
         }
         cpp_int actual;
-        REQUIRE(reconstruct_strided(residues.data(), 1, contract, actual) == RNS8_SUCCESS);
+        cpp_int term;
+        REQUIRE(reconstruct_strided(residues.data(), 1, contract, actual, term) == RNS8_SUCCESS);
         const cpp_int expected_value =
             sign && canonical >= half ? cpp_int(canonical - product) : canonical;
         CHECK(actual == expected_value);
         std::array<uint64_t, 5> limbs{91, 0, 0, 0, 91};
-        store_reconstructed_limbs(actual, contract, limbs.data() + 1);
+        store_reconstructed_limbs(actual, term, contract, limbs.data() + 1);
         const cpp_int decoded =
             cpp_int(limbs[1]) + (cpp_int(limbs[2]) << 64) + (cpp_int(limbs[3]) << 128);
         const cpp_int expected_bits =

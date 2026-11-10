@@ -19,8 +19,10 @@ const cpp_int& reconstruction_product(uint32_t prefix);
 rns8_status prepare_reconstruction_contract(IntegerExportKind, uint32_t prefix, uint64_t bound,
                                             uint32_t limbs, ReconstructionContract&);
 // Source capacity/stride and the contract are admitted before parallel traversal.
-// Each worker owns value; no tiny per-cell residue container is constructed.
+// Each worker owns distinct value/term storage, prepared for the input product
+// and output ring. Neither scratch object may alias an immutable contract value.
 rns8_status reconstruct_strided(const int8_t* first, std::size_t plane_stride,
-                                const ReconstructionContract&, cpp_int& value);
-void store_reconstructed_limbs(cpp_int& value, const ReconstructionContract&, uint64_t* out);
+                                const ReconstructionContract&, cpp_int& value, cpp_int& term);
+void store_reconstructed_limbs(cpp_int& value, cpp_int& term, const ReconstructionContract&,
+                               uint64_t* out);
 } // namespace rns8::detail
