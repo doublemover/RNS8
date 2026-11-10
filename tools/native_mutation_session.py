@@ -18,6 +18,7 @@ from host_instrumentation_session import (
     Session,
     check_bookends,
     invocation_path,
+    owned_output_path,
     reference,
     valid_total_budget,
     write_json,
@@ -488,6 +489,11 @@ def main(argv=None):
         "--mull-plugin", type=Path, help="exact matching installed native LLVM plugin"
     )
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="explicit absolute scratch root; default: repository temp",
+    )
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--total-seconds", type=int, help="total owned child-process budget")
@@ -529,9 +535,8 @@ def main(argv=None):
             args.vcpkg_installed = args.vcpkg_installed.resolve(strict=True)
             if not args.vcpkg_installed.is_dir():
                 raise ValueError("actual vcpkg installed directory required")
-        output = args.out.resolve()
-        if output == ROOT / "temp" or not output.is_relative_to(ROOT / "temp") or output.exists():
-            raise ValueError("fresh ignored native mutation output required")
+        artifact_root = args.artifact_root or ROOT / "temp"
+        output = owned_output_path(args.out, artifact_root)
         if (
             not 1 <= args.jobs <= 64
             or not 1 <= args.timeout_seconds <= 14400
@@ -543,6 +548,7 @@ def main(argv=None):
         seeds = registry()
         plan = dict(
             schema="rns8_native_production_mutation_plan_v1",
+            artifact_root=str(artifact_root.resolve()),
             total_seconds=args.total_seconds,
             output=str(output),
             seed_ids=[seed["id"] for seed in seeds],

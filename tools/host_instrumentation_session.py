@@ -182,6 +182,23 @@ def valid_total_budget(seconds):
     )
 
 
+def owned_output_path(path: Path, root: Path) -> Path:
+    """Admit a fresh scratch child without creating directories during planning."""
+    if not root.is_absolute():
+        raise ValueError("artifact root must be an explicit absolute path")
+    root, output = root.resolve(), path.resolve()
+    if (
+        root.parent == root
+        or (root.is_relative_to(ROOT) and not root.is_relative_to(ROOT / "temp"))
+        or (root.exists() and not root.is_dir())
+        or output == root
+        or not output.is_relative_to(root)
+        or output.exists()
+    ):
+        raise ValueError("fresh scratch child under the declared artifact root required")
+    return output
+
+
 class Session:
     def __init__(
         self,
@@ -908,6 +925,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", choices=PRESETS, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="explicit absolute scratch root; default: repository temp",
+    )
     for name in ("cmake", "ctest", "nm", "symbolizer"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--toolchain", type=Path)
@@ -939,9 +961,8 @@ def main(argv=None):
             or not valid_total_budget(args.total_seconds)
         ):
             raise ValueError("host lane budgets exceed supported bounds")
-        output = args.out.resolve()
-        if output == ROOT / "temp" or not output.is_relative_to(ROOT / "temp") or output.exists():
-            raise ValueError("fresh ignored repository temp child required")
+        artifact_root = args.artifact_root or ROOT / "temp"
+        output = owned_output_path(args.out, artifact_root)
         for name in (
             "cmake",
             "ctest",
@@ -982,6 +1003,7 @@ def main(argv=None):
             raise ValueError("Windows lane requires explicit vcpkg toolchain")
         plan = dict(
             schema="rns8_host_dynamic_check_plan_v1",
+            artifact_root=str(artifact_root.resolve()),
             total_seconds=args.total_seconds,
             preset=args.preset,
             system=system,

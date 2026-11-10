@@ -889,5 +889,37 @@ class SessionControls(unittest.TestCase):
             self.assertFalse(owned.stages[0]["succeeded"])
 
 
+class OwnedArtifactRoots(unittest.TestCase):
+    def test_declared_roots_are_fresh_scoped_and_plan_only(self):
+        with tempfile.TemporaryDirectory(dir=session.ROOT / "temp") as directory:
+            root = Path(directory).resolve()
+            output = root / "new"
+            self.assertEqual(session.owned_output_path(output, root), output)
+            self.assertFalse(output.exists())
+            for candidate in (root, root.parent / (root.name + "-escape")):
+                with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                    session.owned_output_path(candidate, root)
+            output.mkdir()
+            with self.assertRaises(ValueError):
+                session.owned_output_path(output, root)
+            for invalid in (
+                session.ROOT,
+                session.ROOT / "src",
+                Path(root.anchor),
+                Path("relative"),
+            ):
+                with self.subTest(root=invalid), self.assertRaises(ValueError):
+                    session.owned_output_path(invalid / "new", invalid)
+
+    def test_external_native_cache_can_be_planned_without_creating_it(self):
+        with tempfile.TemporaryDirectory(dir=session.ROOT / "temp") as directory:
+            external = session.ROOT.parent / (Path(directory).name + "-native-cache")
+            self.assertFalse(external.exists())
+            self.assertEqual(
+                session.owned_output_path(external / "new", external), external / "new"
+            )
+            self.assertFalse(external.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

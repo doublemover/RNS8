@@ -99,6 +99,13 @@ python tools/host_instrumentation_session.py --preset cpu-tsan-release \
   --symbolizer /path/to/llvm-symbolizer
 ```
 
+The sanitizer, native coverage and native mutation drivers accept an explicit
+`--artifact-root /absolute/cache` with `--out /absolute/cache/fresh-session`.
+The default remains the repository's `temp/`. Plans record the resolved root;
+outputs must be fresh descendants, and tracked source directories are rejected.
+Planning creates no directories. In WSL, use a cache on the native Linux
+filesystem for large build and instrumentation trees.
+
 Use `cpu-asan-ubsan-debug`, `cpu-asan-ubsan-release` or
 `windows-clang-asan-debug` for the other lanes. Windows also requires an explicit
 `--toolchain` pointing to the vcpkg toolchain and its VS developer environment.

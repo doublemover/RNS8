@@ -20,6 +20,7 @@ from host_instrumentation_session import (
     check_bookends,
     configured_inventory,
     invocation_path,
+    owned_output_path,
     reference,
     source_inventory,
     version_number,
@@ -328,6 +329,11 @@ def execute(args, plan):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--artifact-root",
+        type=Path,
+        help="explicit absolute scratch root; default: repository temp",
+    )
     for name in ("cmake", "ctest", "compiler", "nm", "llvm-cov", "llvm-profdata"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--toolchain", type=Path)
@@ -339,9 +345,8 @@ def main(argv=None):
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
     try:
-        output = args.out.resolve()
-        if output == ROOT / "temp" or not output.is_relative_to(ROOT / "temp") or output.exists():
-            raise ValueError("fresh ignored repository temp child required")
+        artifact_root = args.artifact_root or ROOT / "temp"
+        output = owned_output_path(args.out, artifact_root)
         if (
             not 1 <= args.jobs <= 64
             or not 1 <= args.timeout_seconds <= 14400
@@ -382,6 +387,7 @@ def main(argv=None):
             command.append("-DCMAKE_TOOLCHAIN_FILE=" + str(args.toolchain))
         plan = dict(
             schema="rns8_native_host_coverage_plan_v1",
+            artifact_root=str(artifact_root.resolve()),
             total_seconds=args.total_seconds,
             output=str(output),
             build=str(build),
